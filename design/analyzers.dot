@@ -1,0 +1,38 @@
+digraph {
+  rankdir=LR;
+  node [ shape = "record" ];
+  node [ color = "darkgoldenrod1" ];
+
+  subgraph cluster_1 {
+    label = "Identify by types.Object"
+    sourceObj;
+    sinkObj;
+    propagatorObj;
+    sanitizerObj;
+  }
+
+  node [ color = "lightblue" ];
+
+ subgraph cluster_2 {
+    label = "Identify by ssa.Value and ssa.Instruction"
+    source;
+    sink;
+    sanitizer;
+    propagator;
+    taint;
+  }
+
+ subgraph cluster_3 {
+    levee;
+  }
+
+
+  sourceObj:e -> source:w;
+  sinkObj:e -> sink:w;
+  sanitizerObj:e -> sanitizer:w;
+  propagatorObj:e -> propagator:w;
+
+  { source:e propagator:e } -> taint:w;
+
+  { source:e sanitizer:e sink:e taint:e } -> levee:w;
+}

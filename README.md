@@ -24,28 +24,13 @@ However, as a program's type hierarchy becomes more complex or
   it is easy to overlook when a class might contain these sensitive data and
   which log statements might accidentally expose them.
 
-### Glossary
-| Term             | Definition |
-|------------------|------------|
-| source           | A variable of concern, such as PII that should not be logged
-| source container | A type which is expected to contain a source
-| source producer  | A function or method which instantiates a source or source container
-| propagator       | A function or method which accepts a source or source container as input, returning data which may be "tainted" with source data.  For instance, `fmt.Sprintf("%v", source)` may return a tainted string containing PII.
-| taint            | A variable which may contain source data due to a propagator
-| sink             | A function or method which should not be called on source or taint arguments.
-| sanitizer        | A function or method which "sanitizes" source data, allowing it to safely pass to a sink.
+### Technical design
+
+See [design/](design/README.md).
 
 ### Configuration
 
 // TODO -- via config file, via field tags
-
-### How it works
-
-// TODO Describe SSA, taint propagation, pointer analysis
-
-### Automatic source container identification
-
-// TODO -- describe
 
 ## Source Code Headers
 
