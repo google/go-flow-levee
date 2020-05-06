@@ -564,10 +564,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 						if v.Call.Signature().Variadic() && len(v.Call.Args) > 0 {
 							lastArg := v.Call.Args[len(v.Call.Args)-1]
 							if varargs, ok := lastArg.(*ssa.Slice); ok {
-								sinkVarargs := newVarargs(varargs, sources)
-								for _, s := range sinkVarargs.sources {
-									if !s.isSanitizedAt(v) {
-										report(pass, s, v)
+								if sinkVarargs := newVarargs(varargs, sources); sinkVarargs != nil {
+									for _, s := range sinkVarargs.sources {
+										if !s.isSanitizedAt(v) {
+											report(pass, s, v)
+										}
 									}
 								}
 							}

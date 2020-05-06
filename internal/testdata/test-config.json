@@ -1,0 +1,33 @@
+{
+  "Sources": [
+    {
+      "PackageRE": "^example.com/core$",
+      "TypeRE": "^Source$",
+      "FieldRE": "^Data"
+    }
+  ],
+  "Sinks": [
+    {
+      "PackageRE": "^example.com/core$",
+      "MethodRE": "Sink"
+    }
+  ],
+  "Sanitizers": [
+    {
+      "PackageRE": "^example.com/core$",
+      "MethodRE": "^Sanitize"
+    }
+  ],
+  "FieldPropagators": [
+    {
+      "Receiver": "example.com/core.Source",
+      "AccessorRE": "^GetData$",
+      "TODO": "Make this explicit configuration unnecessary."
+    }
+  ],
+  "TransformingPropagators": [
+  ],
+  "PropagatorArgs": {},
+  "Whitelist": [],
+  "AnalysisScope": []
+}
