@@ -1,0 +1,4 @@
+language: golang
+
+go:
+- "1.14"
