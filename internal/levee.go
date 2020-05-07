@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"go/types"
 	"io/ioutil"
-	"math"
 	"regexp"
 	"strings"
 	"sync"
@@ -29,6 +28,8 @@ import (
 	"golang.org/x/tools/go/ssa"
 
 	"github.com/eapache/queue"
+
+	"google.com/go-flow-levee/internal/pkg/sanitizer"
 )
 
 var configFile string
@@ -339,7 +340,7 @@ var Analyzer = &analysis.Analyzer{
 type source struct {
 	node       ssa.Node
 	marked     map[ssa.Node]bool
-	sanitizers []*sanitizer
+	sanitizers []*sanitizer.Sanitizer
 }
 
 func newSource(in ssa.Node, config *config) *source {
@@ -363,7 +364,7 @@ func (a *source) bfs(config *config) {
 		e := q.Remove().(ssa.Node)
 
 		if c, ok := e.(*ssa.Call); ok && config.isSanitizer(c) {
-			a.sanitizers = append(a.sanitizers, &sanitizer{call: c})
+			a.sanitizers = append(a.sanitizers, &sanitizer.Sanitizer{Call: c})
 			continue
 		}
 
@@ -399,49 +400,7 @@ func (a *source) hasPathTo(n ssa.Node) bool {
 
 func (a *source) isSanitizedAt(call ssa.Instruction) bool {
 	for _, s := range a.sanitizers {
-		if s.dominates(call) {
-			return true
-		}
-	}
-
-	return false
-}
-
-type sanitizer struct {
-	call *ssa.Call
-}
-
-// dominates returns true if the sanitizer dominates the supplied instruction.
-// In the context of SSA, domination implies that
-// if instructions X executes and X dominates Y, then Y is guaranteed to execute and to be
-// executed after X.
-func (s sanitizer) dominates(target ssa.Instruction) bool {
-	if s.call.Parent() != target.Parent() {
-		// Instructions are in different functions.
-		return false
-	}
-
-	if !s.call.Block().Dominates(target.Block()) {
-		return false
-	}
-
-	if s.call.Block() == target.Block() {
-		parentIdx := math.MaxInt64
-		childIdx := 0
-		for i, instr := range s.call.Block().Instrs {
-			if instr == s.call {
-				parentIdx = i
-			}
-			if instr == target {
-				childIdx = i
-				break
-			}
-		}
-		return parentIdx < childIdx
-	}
-
-	for _, d := range s.call.Block().Dominees() {
-		if target.Block() == d {
+		if s.Dominates(call) {
 			return true
 		}
 	}
