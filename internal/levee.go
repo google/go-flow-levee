@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"go/types"
 	"io/ioutil"
-	"regexp"
 	"strings"
 	"sync"
 
@@ -29,6 +28,7 @@ import (
 
 	"github.com/eapache/queue"
 
+	"google.com/go-flow-levee/internal/pkg/config/regexp"
 	"google.com/go-flow-levee/internal/pkg/sanitizer"
 )
 
@@ -211,9 +211,9 @@ func (c config) isInScope(pkg *types.Package) bool {
 // Within a given type, specific field access can be specified as the actual source data
 // via the fieldRE.
 type sourceMatcher struct {
-	PackageRE configRegexp
-	TypeRE    configRegexp
-	FieldRE   configRegexp
+	PackageRE regexp.Regexp
+	TypeRE    regexp.Regexp
+	FieldRE   regexp.Regexp
 }
 
 func (s sourceMatcher) match(n *types.Named) bool {
@@ -227,7 +227,7 @@ func (s sourceMatcher) match(n *types.Named) bool {
 
 type fieldPropagatorMatcher struct {
 	Receiver   string
-	AccessorRE configRegexp
+	AccessorRE regexp.Regexp
 }
 
 func (f fieldPropagatorMatcher) match(call *ssa.Call) bool {
@@ -249,7 +249,7 @@ func (f fieldPropagatorMatcher) match(call *ssa.Call) bool {
 
 type transformingPropagatorMatcher struct {
 	PackageName string
-	MethodRE    configRegexp
+	MethodRE    regexp.Regexp
 }
 
 func (t transformingPropagatorMatcher) match(call *ssa.Call) bool {
@@ -263,44 +263,21 @@ func (t transformingPropagatorMatcher) match(call *ssa.Call) bool {
 }
 
 type argumentPropagatorMatcher struct {
-	ArgumentTypeRE configRegexp
+	ArgumentTypeRE regexp.Regexp
 }
 
 type packageMatcher struct {
-	PackageNameRE configRegexp
+	PackageNameRE regexp.Regexp
 }
 
 func (pm packageMatcher) match(pkg *types.Package) bool {
 	return pm.PackageNameRE.MatchString(pkg.Path())
 }
 
-// configRegexp delegates to a Regexp while enabling unmarshalling.
-// Any unspecified / nil matcher will return vacuous truth in MatchString
-type configRegexp struct {
-	r *regexp.Regexp
-}
-
-func (mr *configRegexp) MatchString(s string) bool {
-	return mr.r == nil || mr.r.MatchString(s)
-}
-
-func (mr *configRegexp) UnmarshalJSON(data []byte) error {
-	var matcher string
-	if err := json.Unmarshal(data, &matcher); err != nil {
-		return err
-	}
-
-	var err error
-	if mr.r, err = regexp.Compile(matcher); err != nil {
-		return err
-	}
-	return nil
-}
-
 type nameMatcher struct {
-	PackageRE configRegexp
-	TypeRE    configRegexp
-	MethodRE  configRegexp
+	PackageRE regexp.Regexp
+	TypeRE    regexp.Regexp
+	MethodRE  regexp.Regexp
 }
 
 func (r nameMatcher) matchPackage(p *types.Package) bool {
