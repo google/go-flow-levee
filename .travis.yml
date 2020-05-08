@@ -7,5 +7,5 @@ script:
 - go test -v ./...
 - >
   FILES=$(find {cmd,internal} -name "*.go");
-  f(){ return $(gofmt -l ${FILES} | wc -l); };
-  f || gofmt -d ${FILES};
+  f(){ return $(gofmt -d ${FILES} | wc -l); };
+  f || ( echo "Please run gofmt."; gofmt -d ${FILES}; false; )
