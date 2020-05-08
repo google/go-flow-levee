@@ -60,13 +60,13 @@ func TestDomination(t *testing.T) {
 	}
 
 	/*
-	    Call Sequence:
+		    Call Sequence:
 
-			call time.Now()
-			call (time.Time).Weekday(t0)
-			call scrub("P@ssword1":string) // Sanitizer - index 2
-			call log.Print(t7...) // Dominated sink
-			call log.Print(t13...) // Non dominated sink due to an if statement.
+				call time.Now()
+				call (time.Time).Weekday(t0)
+				call scrub("P@ssword1":string) // Sanitizer - index 2
+				call log.Print(t7...) // Dominated sink
+				call log.Print(t13...) // Non dominated sink due to an if statement.
 
 	*/
 
