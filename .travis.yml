@@ -5,4 +5,4 @@ go:
 
 script:
 - go test -v ./...
-- gofmt -dw $(find {cmd,internal} -name *.go)
+- gofmt -d -w $(find {cmd,internal} -name *.go)
