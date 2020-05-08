@@ -5,4 +5,7 @@ go:
 
 script:
 - go test -v ./...
-- f(){ return( gofmt -l $(find {cmd,internal} -name "*.go") | wc -l ) }; f;
+- >
+  FILES=$(find {cmd,internal} -name "*.go");
+  f(){ return( gofmt -l ${FILES} | wc -l ) };
+  f || gofmt -d ${FILES}
