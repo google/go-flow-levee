@@ -6,16 +6,20 @@ go:
 script:
 - go test -v ./...
 - >
-  FILES=$(find {cmd,internal} -name "*.go");
-  if [[ -n $(gofmt -l ${FILES}) ]]; then
-    gofmt -d ${FILES}
-    echo 'Please run `gofmt $(find {cmd,internal} -name "*.go")`.'
-    false
-  fi
+  echo "Checking gofmt..." && (
+    FILES=$(find {cmd,internal} -name "*.go");
+    if [[ -n $(gofmt -l ${FILES}) ]]; then
+      gofmt -d ${FILES}
+      echo 'Please run `gofmt $(find {cmd,internal} -name "*.go")`.'
+      false
+    fi
+  )
 - >
-  go mod tidy
-  git diff --quiet || (
-    git diff go.mod go.sum
-    echo 'Please run `go mod tidy`.'
-    false
+  echo "Checking go mod..." && (
+    go mod tidy
+    git diff --quiet || (
+      git diff go.mod go.sum
+      echo 'Please run `go mod tidy`.'
+      false
+    )
   )
