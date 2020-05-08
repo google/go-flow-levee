@@ -7,15 +7,15 @@ script:
 - go test -v ./...
 - >
   FILES=$(find {cmd,internal} -name "*.go");
-  if [[ $(gofmt -l ${FILES}) != '' ]]; then
-    echo "Please run gofmt."
+  if [[ -n $(gofmt -l ${FILES}) ]]; then
     gofmt -d ${FILES}
+    echo 'Please run `gofmt $(find {cmd,internal} -name "*.go")`.'
     false
   fi
 - >
   go mod tidy
-  if [[ git diff --stat != '' ]]; then
-    echo "Please run go mod tidy."
+  git diff --quiet || (
     git diff go.mod go.sum
+    echo 'Please run `go mod tidy`.'
     false
-  fi
+  )
