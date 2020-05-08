@@ -2,3 +2,7 @@ language: golang
 
 go:
 - "1.14"
+
+script:
+- go test -v ./...
+- gofmt -dw $(find {cmd,internal} -name *.go)
