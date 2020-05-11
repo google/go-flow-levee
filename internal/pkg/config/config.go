@@ -1,7 +1,11 @@
 package config
 
 import (
+	"encoding/json"
+	"fmt"
 	"go/types"
+	"io/ioutil"
+	"sync"
 
 	"golang.org/x/tools/go/ssa"
 	"google.com/go-flow-levee/internal/pkg/matcher"
@@ -185,3 +189,29 @@ func isTestPkg(p *types.Package) bool {
 	}
 	return false
 }
+
+var readFileOnce sync.Once
+var readConfigCached *Config
+var readConfigCachedErr error
+
+func FromFile(path string) (*Config, error) {
+	loadedFromCache := true
+	readFileOnce.Do(func() {
+		loadedFromCache = false
+		c := new(Config)
+		bytes, err := ioutil.ReadFile(path)
+		if err != nil {
+			readConfigCachedErr = fmt.Errorf("error reading analysis config: %v", err)
+			return
+		}
+
+		if err := json.Unmarshal(bytes, c); err != nil {
+			readConfigCachedErr = err
+			return
+		}
+		readConfigCached = c
+	})
+	_ = loadedFromCache
+	return readConfigCached, readConfigCachedErr
+}
+

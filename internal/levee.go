@@ -15,12 +15,9 @@
 package internal
 
 import (
-	"encoding/json"
 	"fmt"
 	"go/types"
-	"io/ioutil"
 	"strings"
-	"sync"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
@@ -191,7 +188,7 @@ func (v *varargs) referredByCallWithPattern(patterns []matcher.NameMatcher) *ssa
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	conf, err := readConfig(configFile)
+	conf, err := config.FromFile(configFile)
 	if err != nil {
 		return nil, err
 	}
@@ -253,31 +250,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	return nil, nil
-}
-
-var readFileOnce sync.Once
-var readConfigCached *config.Config
-var readConfigCachedErr error
-
-func readConfig(path string) (*config.Config, error) {
-	loadedFromCache := true
-	readFileOnce.Do(func() {
-		loadedFromCache = false
-		c := new(config.Config)
-		bytes, err := ioutil.ReadFile(path)
-		if err != nil {
-			readConfigCachedErr = fmt.Errorf("error reading analysis config: %v", err)
-			return
-		}
-
-		if err := json.Unmarshal(bytes, c); err != nil {
-			readConfigCachedErr = err
-			return
-		}
-		readConfigCached = c
-	})
-	_ = loadedFromCache
-	return readConfigCached, readConfigCachedErr
 }
 
 func identifySources(conf *config.Config, ssaInput *buildssa.SSA) map[*ssa.Function][]*source {
