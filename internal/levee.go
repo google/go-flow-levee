@@ -25,6 +25,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
+	"google.com/go-flow-levee/internal/pkg/config"
 	"google.com/go-flow-levee/internal/pkg/matcher"
 
 	"github.com/eapache/queue"
@@ -37,175 +38,6 @@ var configFile string
 
 func init() {
 	Analyzer.Flags.StringVar(&configFile, "config", "config.json", "path to analysis configuration file")
-}
-
-// config contains matchers and analysis scope information
-type config struct {
-	Sources                 []matcher.SourceMatcher
-	Sinks                   []matcher.NameMatcher
-	Sanitizers              []matcher.NameMatcher
-	FieldPropagators        []matcher.FieldPropagatorMatcher
-	TransformingPropagators []matcher.TransformingPropagatorMatcher
-	PropagatorArgs          matcher.ArgumentPropagatorMatcher
-	Whitelist               []matcher.PackageMatcher
-	AnalysisScope           []matcher.PackageMatcher
-}
-
-// shouldSkip returns true for any function that is outside analysis scope,
-// that is whitelisted,
-// whose containing package imports "testing"
-// or whose containing package does not import any package containing a source or a sink.
-func (c config) shouldSkip(pkg *types.Package) bool {
-	if isTestPkg(pkg) || !c.isInScope(pkg) || c.isWhitelisted(pkg) {
-		return true
-	}
-
-	// TODO Does this skip packages that own sources/sinks but don't import others?
-	for _, im := range pkg.Imports() {
-		for _, s := range c.Sinks {
-			if s.MatchPackage(im) {
-				return false
-			}
-		}
-
-		for _, s := range c.Sources {
-			if s.PackageRE.MatchString(im.Path()) {
-				return false
-			}
-		}
-	}
-
-	return true
-}
-
-func (c config) isSink(call *ssa.Call) bool {
-	for _, p := range c.Sinks {
-		if p.MatchMethodName(call) {
-			return true
-		}
-	}
-
-	return false
-}
-
-func (c config) isSanitizer(call *ssa.Call) bool {
-	for _, p := range c.Sanitizers {
-		if p.MatchMethodName(call) {
-			return true
-		}
-	}
-
-	return false
-}
-
-func (c config) isSource(t types.Type) bool {
-	n, ok := t.(*types.Named)
-	if !ok {
-		return false
-	}
-
-	for _, p := range c.Sources {
-		if p.Match(n) {
-			return true
-		}
-	}
-	return false
-}
-
-func (c config) isSourceFieldAddr(fa *ssa.FieldAddr) bool {
-	// fa.Type() refers to the accessed field's type.
-	// fa.X.Type() refers to the surrounding struct's type.
-
-	deref := utils.Dereference(fa.X.Type())
-	st, ok := deref.Underlying().(*types.Struct)
-	if !ok {
-		return false
-	}
-	fieldName := st.Field(fa.Field).Name()
-
-	for _, p := range c.Sources {
-		if n, ok := deref.(*types.Named); ok &&
-			p.Match(n) && p.FieldRE.MatchString(fieldName) {
-			return true
-		}
-	}
-	return false
-}
-
-func (c config) isPropagator(call *ssa.Call) bool {
-	return c.isFieldPropagator(call) || c.isTransformingPropagator(call)
-}
-
-func (c config) isFieldPropagator(call *ssa.Call) bool {
-	recv := call.Call.Signature().Recv()
-	if recv == nil {
-		return false
-	}
-
-	for _, p := range c.FieldPropagators {
-		if p.Match(call) {
-			return true
-		}
-	}
-
-	return false
-}
-
-func (c config) isTransformingPropagator(call *ssa.Call) bool {
-	for _, p := range c.TransformingPropagators {
-		if !p.Match(call) {
-			continue
-		}
-
-		for _, a := range call.Call.Args {
-			// TODO Handle ChangeInterface case.
-			switch t := a.(type) {
-			case *ssa.MakeInterface:
-				if c.isSource(utils.Dereference(t.X.Type())) {
-					return true
-				}
-			case *ssa.Parameter:
-				if c.isSource(utils.Dereference(t.Type())) {
-					return true
-				}
-			}
-		}
-	}
-
-	return false
-}
-
-func (c config) sendsToIOWriter(call *ssa.Call) ssa.Node {
-	if call.Call.Signature().Params().Len() == 0 {
-		return nil
-	}
-
-	firstArg := call.Call.Signature().Params().At(0)
-	if c.PropagatorArgs.ArgumentTypeRE.MatchString(firstArg.Type().String()) {
-		if a, ok := call.Call.Args[0].(*ssa.MakeInterface); ok {
-			return a.X.(ssa.Node)
-		}
-	}
-
-	return nil
-}
-
-func (c config) isWhitelisted(pkg *types.Package) bool {
-	for _, w := range c.Whitelist {
-		if w.Match(pkg) {
-			return true
-		}
-	}
-	return false
-}
-
-func (c config) isInScope(pkg *types.Package) bool {
-	for _, s := range c.AnalysisScope {
-		if s.Match(pkg) {
-			return true
-		}
-	}
-	return false
 }
 
 var Analyzer = &analysis.Analyzer{
@@ -225,7 +57,7 @@ type source struct {
 	sanitizers []*sanitizer.Sanitizer
 }
 
-func newSource(in ssa.Node, config *config) *source {
+func newSource(in ssa.Node, config *config.Config) *source {
 	a := &source{
 		node:   in,
 		marked: make(map[ssa.Node]bool),
@@ -237,7 +69,7 @@ func newSource(in ssa.Node, config *config) *source {
 // bfs performs Breadth-First-Search on the def-use graph of the input source.
 // While traversing the graph we also look for potential sanitizers of this source.
 // If the source passes through a sanitizer, bfs does not continue through that Node.
-func (a *source) bfs(config *config) {
+func (a *source) bfs(config *config.Config) {
 	q := queue.New()
 	q.Add(a.node)
 	a.marked[a.node] = true
@@ -245,7 +77,7 @@ func (a *source) bfs(config *config) {
 	for q.Length() > 0 {
 		e := q.Remove().(ssa.Node)
 
-		if c, ok := e.(*ssa.Call); ok && config.isSanitizer(c) {
+		if c, ok := e.(*ssa.Call); ok && config.IsSanitizer(c) {
 			a.sanitizers = append(a.sanitizers, &sanitizer.Sanitizer{Call: c})
 			continue
 		}
@@ -261,12 +93,12 @@ func (a *source) bfs(config *config) {
 			a.marked[r.(ssa.Node)] = true
 
 			// Need to stay within the scope of the function under analysis.
-			if call, ok := r.(*ssa.Call); ok && !config.isPropagator(call) {
+			if call, ok := r.(*ssa.Call); ok && !config.IsPropagator(call) {
 				continue
 			}
 
 			// Do not follow innocuous field access (e.g. Cluster.Zone)
-			if addr, ok := r.(*ssa.FieldAddr); ok && !config.isSourceFieldAddr(addr) {
+			if addr, ok := r.(*ssa.FieldAddr); ok && !config.IsSourceFieldAddr(addr) {
 				continue
 			}
 
@@ -384,7 +216,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				switch v := instr.(type) {
 				case *ssa.Call:
 					switch {
-					case conf.isPropagator(v):
+					case conf.IsPropagator(v):
 						// Handling the case where sources are propagated to io.Writer
 						// (ex. proto.MarshalText(&buf, c)
 						// In such cases, "buf" becomes a source, and not the return value of the propagator.
@@ -393,14 +225,14 @@ func run(pass *analysis.Pass) (interface{}, error) {
 						// TODO  Do not hard-code the position of the argument, instead declaratively
 						//  specify the position of the propagated source.
 						// TODO  Consider turning propagators that take io.Writer into sinks.
-						if a := conf.sendsToIOWriter(v); a != nil {
+						if a := conf.SendsToIOWriter(v); a != nil {
 							sources = append(sources, newSource(a, conf))
 						} else {
 							//log.V(2).Infof("Adding source: %v %T", v.Value(), v.Value())
 							sources = append(sources, newSource(v, conf))
 						}
 
-					case conf.isSink(v):
+					case conf.IsSink(v):
 						// TODO Only variadic sink arguments are currently detected.
 						if v.Call.Signature().Variadic() && len(v.Call.Args) > 0 {
 							lastArg := v.Call.Args[len(v.Call.Args)-1]
@@ -424,14 +256,14 @@ func run(pass *analysis.Pass) (interface{}, error) {
 }
 
 var readFileOnce sync.Once
-var readConfigCached *config
+var readConfigCached *config.Config
 var readConfigCachedErr error
 
-func readConfig(path string) (*config, error) {
+func readConfig(path string) (*config.Config, error) {
 	loadedFromCache := true
 	readFileOnce.Do(func() {
 		loadedFromCache = false
-		c := new(config)
+		c := new(config.Config)
 		bytes, err := ioutil.ReadFile(path)
 		if err != nil {
 			readConfigCachedErr = fmt.Errorf("error reading analysis config: %v", err)
@@ -448,7 +280,7 @@ func readConfig(path string) (*config, error) {
 	return readConfigCached, readConfigCachedErr
 }
 
-func identifySources(conf *config, ssaInput *buildssa.SSA) map[*ssa.Function][]*source {
+func identifySources(conf *config.Config, ssaInput *buildssa.SSA) map[*ssa.Function][]*source {
 	sourceMap := make(map[*ssa.Function][]*source)
 
 	for _, fn := range ssaInput.SrcFuncs {
@@ -464,12 +296,12 @@ func identifySources(conf *config, ssaInput *buildssa.SSA) map[*ssa.Function][]*
 	return sourceMap
 }
 
-func sourcesFromParams(fn *ssa.Function, conf *config) []*source {
+func sourcesFromParams(fn *ssa.Function, conf *config.Config) []*source {
 	var sources []*source
 	for _, p := range fn.Params {
 		switch t := p.Type().(type) {
 		case *types.Pointer:
-			if n, ok := t.Elem().(*types.Named); ok && conf.isSource(n) {
+			if n, ok := t.Elem().(*types.Named); ok && conf.IsSource(n) {
 				sources = append(sources, newSource(p, conf))
 			}
 			// TODO Handle the case where sources arepassed by value: func(c sourceType)
@@ -479,14 +311,14 @@ func sourcesFromParams(fn *ssa.Function, conf *config) []*source {
 	return sources
 }
 
-func sourcesFromClosure(fn *ssa.Function, conf *config) []*source {
+func sourcesFromClosure(fn *ssa.Function, conf *config.Config) []*source {
 	var sources []*source
 	for _, p := range fn.FreeVars {
 		switch t := p.Type().(type) {
 		case *types.Pointer:
 			// FreeVars (variables from a closure) appear as double-pointers
 			// Hence, the need to dereference them recursively.
-			if s, ok := utils.Dereference(t).(*types.Named); ok && conf.isSource(s) {
+			if s, ok := utils.Dereference(t).(*types.Named); ok && conf.IsSource(s) {
 				sources = append(sources, newSource(p, conf))
 			}
 		}
@@ -494,7 +326,7 @@ func sourcesFromClosure(fn *ssa.Function, conf *config) []*source {
 	return sources
 }
 
-func sourcesFromBlocks(fn *ssa.Function, conf *config) []*source {
+func sourcesFromBlocks(fn *ssa.Function, conf *config.Config) []*source {
 	var sources []*source
 	for _, b := range fn.Blocks {
 		if b == fn.Recover {
@@ -506,14 +338,14 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config) []*source {
 			switch v := instr.(type) {
 			// Looking for sources of PII allocated within the body of a function.
 			case *ssa.Alloc:
-				if conf.isSource(utils.Dereference(v.Type())) {
+				if conf.IsSource(utils.Dereference(v.Type())) {
 					sources = append(sources, newSource(v, conf))
 				}
 
 				// Handling the case where PII may be in a receiver
 				// (ex. func(b *something) { log.Info(something.PII) }
 			case *ssa.FieldAddr:
-				if conf.isSource(utils.Dereference(v.Type())) {
+				if conf.IsSource(utils.Dereference(v.Type())) {
 					sources = append(sources, newSource(v, conf))
 				}
 			}
@@ -529,11 +361,3 @@ func report(pass *analysis.Pass, source *source, sink ssa.Node) {
 	pass.Reportf(sink.Pos(), b.String())
 }
 
-func isTestPkg(p *types.Package) bool {
-	for _, im := range p.Imports() {
-		if im.Name() == "testing" {
-			return true
-		}
-	}
-	return false
-}
