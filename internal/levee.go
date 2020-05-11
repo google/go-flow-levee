@@ -77,10 +77,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 						//  specify the position of the propagated source.
 						// TODO  Consider turning propagators that take io.Writer into sinks.
 						if a := conf.SendsToIOWriter(v); a != nil {
-							sources = append(sources, source.NewSource(a, conf))
+							sources = append(sources, source.New(a, conf))
 						} else {
 							//log.V(2).Infof("Adding source: %v %T", v.Value(), v.Value())
-							sources = append(sources, source.NewSource(v, conf))
+							sources = append(sources, source.New(v, conf))
 						}
 
 					case conf.IsSink(v):
@@ -128,7 +128,7 @@ func sourcesFromParams(fn *ssa.Function, conf *config.Config) []*source.Source {
 		switch t := p.Type().(type) {
 		case *types.Pointer:
 			if n, ok := t.Elem().(*types.Named); ok && conf.IsSource(n) {
-				sources = append(sources, source.NewSource(p, conf))
+				sources = append(sources, source.New(p, conf))
 			}
 			// TODO Handle the case where sources arepassed by value: func(c sourceType)
 			// TODO Handle cases where PII is wrapped in struct/slice/map
@@ -145,7 +145,7 @@ func sourcesFromClosure(fn *ssa.Function, conf *config.Config) []*source.Source 
 			// FreeVars (variables from a closure) appear as double-pointers
 			// Hence, the need to dereference them recursively.
 			if s, ok := utils.Dereference(t).(*types.Named); ok && conf.IsSource(s) {
-				sources = append(sources, source.NewSource(p, conf))
+				sources = append(sources, source.New(p, conf))
 			}
 		}
 	}
@@ -165,14 +165,14 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config.Config) []*source.Source {
 			// Looking for sources of PII allocated within the body of a function.
 			case *ssa.Alloc:
 				if conf.IsSource(utils.Dereference(v.Type())) {
-					sources = append(sources, source.NewSource(v, conf))
+					sources = append(sources, source.New(v, conf))
 				}
 
 				// Handling the case where PII may be in a receiver
 				// (ex. func(b *something) { log.Info(something.PII) }
 			case *ssa.FieldAddr:
 				if conf.IsSource(utils.Dereference(v.Type())) {
-					sources = append(sources, source.NewSource(v, conf))
+					sources = append(sources, source.New(v, conf))
 				}
 			}
 		}

@@ -18,7 +18,7 @@ type Source struct {
 	sanitizers []*sanitizer.Sanitizer
 }
 
-func NewSource(in ssa.Node, config *config.Config) *Source {
+func New(in ssa.Node, config *config.Config) *Source {
 	a := &Source{
 		Node:   in,
 		marked: make(map[ssa.Node]bool),
