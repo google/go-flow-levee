@@ -150,4 +150,3 @@ func (v *Varargs) referredByCallWithPattern(patterns []matcher.NameMatcher) *ssa
 
 	return nil
 }
-
