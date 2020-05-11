@@ -98,7 +98,7 @@ func (c Config) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
 
 	for _, p := range c.Sources {
 		if n, ok := deref.(*types.Named); ok &&
-				p.Match(n) && p.FieldRE.MatchString(fieldName) {
+			p.Match(n) && p.FieldRE.MatchString(fieldName) {
 			return true
 		}
 	}
@@ -214,4 +214,3 @@ func FromFile(path string) (*Config, error) {
 	_ = loadedFromCache
 	return readConfigCached, readConfigCachedErr
 }
-

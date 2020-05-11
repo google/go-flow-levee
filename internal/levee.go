@@ -332,4 +332,3 @@ func report(pass *analysis.Pass, source *source, sink ssa.Node) {
 	fmt.Fprintf(&b, ", source: %v", pass.Fset.Position(source.node.Pos()))
 	pass.Reportf(sink.Pos(), b.String())
 }
-
