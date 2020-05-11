@@ -55,8 +55,8 @@ type TransformingPropagatorMatcher struct {
 
 func (t TransformingPropagatorMatcher) Match(call *ssa.Call) bool {
 	if call.Call.StaticCallee() == nil ||
-			call.Call.StaticCallee().Pkg == nil ||
-			call.Call.StaticCallee().Pkg.Pkg.Path() != t.PackageName {
+		call.Call.StaticCallee().Pkg == nil ||
+		call.Call.StaticCallee().Pkg.Pkg.Path() != t.PackageName {
 		return false
 	}
 
@@ -91,7 +91,7 @@ func (r NameMatcher) MatchMethodName(c *ssa.Call) bool {
 	}
 
 	return r.MatchPackage(c.Call.StaticCallee().Pkg.Pkg) &&
-			r.MethodRE.MatchString(c.Call.StaticCallee().Name())
+		r.MethodRE.MatchString(c.Call.StaticCallee().Name())
 }
 
 func (r NameMatcher) matchNamedType(n *types.Named) bool {
@@ -101,6 +101,5 @@ func (r NameMatcher) matchNamedType(n *types.Named) bool {
 	}
 
 	return r.PackageRE.MatchString(n.Obj().Pkg().Path()) &&
-			r.TypeRE.MatchString(n.Obj().Name())
+		r.TypeRE.MatchString(n.Obj().Name())
 }
-
