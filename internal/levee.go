@@ -30,6 +30,7 @@ import (
 
 	"google.com/go-flow-levee/internal/pkg/config/regexp"
 	"google.com/go-flow-levee/internal/pkg/sanitizer"
+	"google.com/go-flow-levee/internal/pkg/utils"
 )
 
 var configFile string
@@ -115,7 +116,7 @@ func (c config) isSourceFieldAddr(fa *ssa.FieldAddr) bool {
 	// fa.Type() refers to the accessed field's type.
 	// fa.X.Type() refers to the surrounding struct's type.
 
-	deref := dereferenceRecursive(fa.X.Type())
+	deref := utils.Dereference(fa.X.Type())
 	st, ok := deref.Underlying().(*types.Struct)
 	if !ok {
 		return false
@@ -160,11 +161,11 @@ func (c config) isTransformingPropagator(call *ssa.Call) bool {
 			// TODO Handle ChangeInterface case.
 			switch t := a.(type) {
 			case *ssa.MakeInterface:
-				if c.isSource(dereferenceRecursive(t.X.Type())) {
+				if c.isSource(utils.Dereference(t.X.Type())) {
 					return true
 				}
 			case *ssa.Parameter:
-				if c.isSource(dereferenceRecursive(t.Type())) {
+				if c.isSource(utils.Dereference(t.Type())) {
 					return true
 				}
 			}
@@ -240,7 +241,7 @@ func (f fieldPropagatorMatcher) match(call *ssa.Call) bool {
 		return false
 	}
 
-	if f.Receiver != dereferenceRecursive(recv.Type()).String() {
+	if f.Receiver != utils.Dereference(recv.Type()).String() {
 		return false
 	}
 
@@ -581,7 +582,7 @@ func sourcesFromClosure(fn *ssa.Function, conf *config) []*source {
 		case *types.Pointer:
 			// FreeVars (variables from a closure) appear as double-pointers
 			// Hence, the need to dereference them recursively.
-			if s, ok := dereferenceRecursive(t).(*types.Named); ok && conf.isSource(s) {
+			if s, ok := utils.Dereference(t).(*types.Named); ok && conf.isSource(s) {
 				sources = append(sources, newSource(p, conf))
 			}
 		}
@@ -601,14 +602,14 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config) []*source {
 			switch v := instr.(type) {
 			// Looking for sources of PII allocated within the body of a function.
 			case *ssa.Alloc:
-				if conf.isSource(dereferenceRecursive(v.Type())) {
+				if conf.isSource(utils.Dereference(v.Type())) {
 					sources = append(sources, newSource(v, conf))
 				}
 
 				// Handling the case where PII may be in a receiver
 				// (ex. func(b *something) { log.Info(something.PII) }
 			case *ssa.FieldAddr:
-				if conf.isSource(dereferenceRecursive(v.Type())) {
+				if conf.isSource(utils.Dereference(v.Type())) {
 					sources = append(sources, newSource(v, conf))
 				}
 			}
@@ -622,16 +623,6 @@ func report(pass *analysis.Pass, source *source, sink ssa.Node) {
 	b.WriteString("a source has reached a sink")
 	fmt.Fprintf(&b, ", source: %v", pass.Fset.Position(source.node.Pos()))
 	pass.Reportf(sink.Pos(), b.String())
-}
-
-func dereferenceRecursive(t types.Type) types.Type {
-	for {
-		tt, ok := t.Underlying().(*types.Pointer)
-		if !ok {
-			return t
-		}
-		t = tt.Elem()
-	}
 }
 
 func isTestPkg(p *types.Package) bool {
