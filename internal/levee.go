@@ -25,10 +25,10 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
+	"google.com/go-flow-levee/internal/pkg/matcher"
 
 	"github.com/eapache/queue"
 
-	"google.com/go-flow-levee/internal/pkg/config/regexp"
 	"google.com/go-flow-levee/internal/pkg/sanitizer"
 	"google.com/go-flow-levee/internal/pkg/utils"
 )
@@ -41,14 +41,14 @@ func init() {
 
 // config contains matchers and analysis scope information
 type config struct {
-	Sources                 []sourceMatcher
-	Sinks                   []nameMatcher
-	Sanitizers              []nameMatcher
-	FieldPropagators        []fieldPropagatorMatcher
-	TransformingPropagators []transformingPropagatorMatcher
-	PropagatorArgs          argumentPropagatorMatcher
-	Whitelist               []packageMatcher
-	AnalysisScope           []packageMatcher
+	Sources                 []matcher.SourceMatcher
+	Sinks                   []matcher.NameMatcher
+	Sanitizers              []matcher.NameMatcher
+	FieldPropagators        []matcher.FieldPropagatorMatcher
+	TransformingPropagators []matcher.TransformingPropagatorMatcher
+	PropagatorArgs          matcher.ArgumentPropagatorMatcher
+	Whitelist               []matcher.PackageMatcher
+	AnalysisScope           []matcher.PackageMatcher
 }
 
 // shouldSkip returns true for any function that is outside analysis scope,
@@ -63,7 +63,7 @@ func (c config) shouldSkip(pkg *types.Package) bool {
 	// TODO Does this skip packages that own sources/sinks but don't import others?
 	for _, im := range pkg.Imports() {
 		for _, s := range c.Sinks {
-			if s.matchPackage(im) {
+			if s.MatchPackage(im) {
 				return false
 			}
 		}
@@ -80,7 +80,7 @@ func (c config) shouldSkip(pkg *types.Package) bool {
 
 func (c config) isSink(call *ssa.Call) bool {
 	for _, p := range c.Sinks {
-		if p.matchMethodName(call) {
+		if p.MatchMethodName(call) {
 			return true
 		}
 	}
@@ -90,7 +90,7 @@ func (c config) isSink(call *ssa.Call) bool {
 
 func (c config) isSanitizer(call *ssa.Call) bool {
 	for _, p := range c.Sanitizers {
-		if p.matchMethodName(call) {
+		if p.MatchMethodName(call) {
 			return true
 		}
 	}
@@ -105,7 +105,7 @@ func (c config) isSource(t types.Type) bool {
 	}
 
 	for _, p := range c.Sources {
-		if p.match(n) {
+		if p.Match(n) {
 			return true
 		}
 	}
@@ -125,7 +125,7 @@ func (c config) isSourceFieldAddr(fa *ssa.FieldAddr) bool {
 
 	for _, p := range c.Sources {
 		if n, ok := deref.(*types.Named); ok &&
-			p.match(n) && p.FieldRE.MatchString(fieldName) {
+			p.Match(n) && p.FieldRE.MatchString(fieldName) {
 			return true
 		}
 	}
@@ -143,7 +143,7 @@ func (c config) isFieldPropagator(call *ssa.Call) bool {
 	}
 
 	for _, p := range c.FieldPropagators {
-		if p.match(call) {
+		if p.Match(call) {
 			return true
 		}
 	}
@@ -153,7 +153,7 @@ func (c config) isFieldPropagator(call *ssa.Call) bool {
 
 func (c config) isTransformingPropagator(call *ssa.Call) bool {
 	for _, p := range c.TransformingPropagators {
-		if !p.match(call) {
+		if !p.Match(call) {
 			continue
 		}
 
@@ -192,7 +192,7 @@ func (c config) sendsToIOWriter(call *ssa.Call) ssa.Node {
 
 func (c config) isWhitelisted(pkg *types.Package) bool {
 	for _, w := range c.Whitelist {
-		if w.match(pkg) {
+		if w.Match(pkg) {
 			return true
 		}
 	}
@@ -201,107 +201,11 @@ func (c config) isWhitelisted(pkg *types.Package) bool {
 
 func (c config) isInScope(pkg *types.Package) bool {
 	for _, s := range c.AnalysisScope {
-		if s.match(pkg) {
+		if s.Match(pkg) {
 			return true
 		}
 	}
 	return false
-}
-
-// A sourceMatcher defines what types are or contain sources.
-// Within a given type, specific field access can be specified as the actual source data
-// via the fieldRE.
-type sourceMatcher struct {
-	PackageRE regexp.Regexp
-	TypeRE    regexp.Regexp
-	FieldRE   regexp.Regexp
-}
-
-func (s sourceMatcher) match(n *types.Named) bool {
-	if types.IsInterface(n) {
-		// In our context, both sources and sanitizers are concrete types.
-		return false
-	}
-
-	return s.PackageRE.MatchString(n.Obj().Pkg().Path()) && s.TypeRE.MatchString(n.Obj().Name())
-}
-
-type fieldPropagatorMatcher struct {
-	Receiver   string
-	AccessorRE regexp.Regexp
-}
-
-func (f fieldPropagatorMatcher) match(call *ssa.Call) bool {
-	if call.Call.StaticCallee() == nil {
-		return false
-	}
-
-	recv := call.Call.Signature().Recv()
-	if recv == nil {
-		return false
-	}
-
-	if f.Receiver != utils.Dereference(recv.Type()).String() {
-		return false
-	}
-
-	return f.AccessorRE.MatchString(call.Call.StaticCallee().Name())
-}
-
-type transformingPropagatorMatcher struct {
-	PackageName string
-	MethodRE    regexp.Regexp
-}
-
-func (t transformingPropagatorMatcher) match(call *ssa.Call) bool {
-	if call.Call.StaticCallee() == nil ||
-		call.Call.StaticCallee().Pkg == nil ||
-		call.Call.StaticCallee().Pkg.Pkg.Path() != t.PackageName {
-		return false
-	}
-
-	return t.MethodRE.MatchString(call.Call.StaticCallee().Name())
-}
-
-type argumentPropagatorMatcher struct {
-	ArgumentTypeRE regexp.Regexp
-}
-
-type packageMatcher struct {
-	PackageNameRE regexp.Regexp
-}
-
-func (pm packageMatcher) match(pkg *types.Package) bool {
-	return pm.PackageNameRE.MatchString(pkg.Path())
-}
-
-type nameMatcher struct {
-	PackageRE regexp.Regexp
-	TypeRE    regexp.Regexp
-	MethodRE  regexp.Regexp
-}
-
-func (r nameMatcher) matchPackage(p *types.Package) bool {
-	return r.PackageRE.MatchString(p.Path())
-}
-
-func (r nameMatcher) matchMethodName(c *ssa.Call) bool {
-	if c.Call.StaticCallee() == nil || c.Call.StaticCallee().Pkg == nil {
-		return false
-	}
-
-	return r.matchPackage(c.Call.StaticCallee().Pkg.Pkg) &&
-		r.MethodRE.MatchString(c.Call.StaticCallee().Name())
-}
-
-func (r nameMatcher) matchNamedType(n *types.Named) bool {
-	if types.IsInterface(n) {
-		// In our context, both sources and sanitizers are concrete types.
-		return false
-	}
-
-	return r.PackageRE.MatchString(n.Obj().Pkg().Path()) &&
-		r.TypeRE.MatchString(n.Obj().Name())
 }
 
 var Analyzer = &analysis.Analyzer{
@@ -435,7 +339,7 @@ func newVarargs(s *ssa.Slice, sources []*source) *varargs {
 	}
 }
 
-func (v *varargs) referredByCallWithPattern(patterns []nameMatcher) *ssa.Call {
+func (v *varargs) referredByCallWithPattern(patterns []matcher.NameMatcher) *ssa.Call {
 	if v.slice.Referrers() == nil || len(*v.slice.Referrers()) != 1 {
 		return nil
 	}
@@ -446,7 +350,7 @@ func (v *varargs) referredByCallWithPattern(patterns []nameMatcher) *ssa.Call {
 	}
 
 	for _, p := range patterns {
-		if p.matchMethodName(c) {
+		if p.MatchMethodName(c) {
 			return c
 		}
 	}
