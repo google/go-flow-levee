@@ -28,9 +28,9 @@ import (
 
 	"github.com/eapache/queue"
 
-	"google.com/go-flow-levee/internal/pkg/config/regexp"
-	"google.com/go-flow-levee/internal/pkg/sanitizer"
-	"google.com/go-flow-levee/internal/pkg/utils"
+	"github.com/google/go-flow-levee/internal/pkg/config/regexp"
+	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
+	"github.com/google/go-flow-levee/internal/pkg/utils"
 )
 
 var configFile string

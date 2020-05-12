@@ -15,7 +15,7 @@
 package main
 
 import (
-	"google.com/go-flow-levee/internal"
+	"github.com/google/go-flow-levee/internal"
 
 	"golang.org/x/tools/go/analysis/singlechecker"
 )

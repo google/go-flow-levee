@@ -1,4 +1,4 @@
-module google.com/go-flow-levee
+module github.com/google/go-flow-levee
 
 go 1.14
 
