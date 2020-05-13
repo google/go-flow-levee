@@ -26,10 +26,8 @@ import (
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
 
-	"github.com/eapache/queue"
-
 	"github.com/google/go-flow-levee/internal/pkg/config/regexp"
-	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
+	"github.com/google/go-flow-levee/internal/pkg/source"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 )
 
@@ -88,7 +86,7 @@ func (c config) isSink(call *ssa.Call) bool {
 	return false
 }
 
-func (c config) isSanitizer(call *ssa.Call) bool {
+func (c config) IsSanitizer(call *ssa.Call) bool {
 	for _, p := range c.Sanitizers {
 		if p.matchMethodName(call) {
 			return true
@@ -112,7 +110,7 @@ func (c config) isSource(t types.Type) bool {
 	return false
 }
 
-func (c config) isSourceFieldAddr(fa *ssa.FieldAddr) bool {
+func (c config) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
 	// fa.Type() refers to the accessed field's type.
 	// fa.X.Type() refers to the surrounding struct's type.
 	deref := utils.Dereference(fa.X.Type())
@@ -127,7 +125,7 @@ func (c config) isSourceFieldAddr(fa *ssa.FieldAddr) bool {
 	return false
 }
 
-func (c config) isPropagator(call *ssa.Call) bool {
+func (c config) IsPropagator(call *ssa.Call) bool {
 	return c.isFieldPropagator(call) || c.isTransformingPropagator(call)
 }
 
@@ -306,81 +304,6 @@ var Analyzer = &analysis.Analyzer{
 	Requires: []*analysis.Analyzer{buildssa.Analyzer},
 }
 
-// source represents a source in an SSA call tree.
-// It is based on ssa.Node, with the added functionality of computing the recursive graph of
-// its referrers.
-// source.sanitized notes sanitizer calls that sanitize this source
-type source struct {
-	node       ssa.Node
-	marked     map[ssa.Node]bool
-	sanitizers []*sanitizer.Sanitizer
-}
-
-func newSource(in ssa.Node, config *config) *source {
-	a := &source{
-		node:   in,
-		marked: make(map[ssa.Node]bool),
-	}
-	a.bfs(config)
-	return a
-}
-
-// bfs performs Breadth-First-Search on the def-use graph of the input source.
-// While traversing the graph we also look for potential sanitizers of this source.
-// If the source passes through a sanitizer, bfs does not continue through that Node.
-func (a *source) bfs(config *config) {
-	q := queue.New()
-	q.Add(a.node)
-	a.marked[a.node] = true
-
-	for q.Length() > 0 {
-		e := q.Remove().(ssa.Node)
-
-		if c, ok := e.(*ssa.Call); ok && config.isSanitizer(c) {
-			a.sanitizers = append(a.sanitizers, &sanitizer.Sanitizer{Call: c})
-			continue
-		}
-
-		if e.Referrers() == nil {
-			continue
-		}
-
-		for _, r := range *e.Referrers() {
-			if _, ok := a.marked[r.(ssa.Node)]; ok {
-				continue
-			}
-			a.marked[r.(ssa.Node)] = true
-
-			// Need to stay within the scope of the function under analysis.
-			if call, ok := r.(*ssa.Call); ok && !config.isPropagator(call) {
-				continue
-			}
-
-			// Do not follow innocuous field access (e.g. Cluster.Zone)
-			if addr, ok := r.(*ssa.FieldAddr); ok && !config.isSourceFieldAddr(addr) {
-				continue
-			}
-
-			q.Add(r)
-		}
-	}
-}
-
-// hasPathTo returns true when a Node is part of declaration-use graph.
-func (a *source) hasPathTo(n ssa.Node) bool {
-	return a.marked[n]
-}
-
-func (a *source) isSanitizedAt(call ssa.Instruction) bool {
-	for _, s := range a.sanitizers {
-		if s.Dominates(call) {
-			return true
-		}
-	}
-
-	return false
-}
-
 // varargs represents a variable length argument.
 // Concretely, it abstract over the fact that the varargs internally are represented by an ssa.Slice
 // which contains the underlying values of for vararg members.
@@ -388,17 +311,17 @@ func (a *source) isSanitizedAt(call ssa.Instruction) bool {
 // get the underlying values of the vararg members is important for this analyzer.
 type varargs struct {
 	slice   *ssa.Slice
-	sources []*source
+	sources []*source.Source
 }
 
 // newVarargs constructs varargs. SSA represents varargs as an ssa.Slice.
-func newVarargs(s *ssa.Slice, sources []*source) *varargs {
+func newVarargs(s *ssa.Slice, sources []*source.Source) *varargs {
 	a, ok := s.X.(*ssa.Alloc)
 	if !ok || a.Comment != "varargs" {
 		return nil
 	}
 	var (
-		referredSources []*source
+		referredSources []*source.Source
 	)
 
 	for _, r := range *a.Referrers() {
@@ -417,7 +340,7 @@ func newVarargs(s *ssa.Slice, sources []*source) *varargs {
 		store := (*idx.Referrers())[0].(*ssa.Store)
 
 		for _, s := range sources {
-			if s.hasPathTo(store.Val.(ssa.Node)) {
+			if s.HasPathTo(store.Val.(ssa.Node)) {
 				referredSources = append(referredSources, s)
 				break
 			}
@@ -475,7 +398,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				switch v := instr.(type) {
 				case *ssa.Call:
 					switch {
-					case conf.isPropagator(v):
+					case conf.IsPropagator(v):
 						// Handling the case where sources are propagated to io.Writer
 						// (ex. proto.MarshalText(&buf, c)
 						// In such cases, "buf" becomes a source, and not the return value of the propagator.
@@ -485,10 +408,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 						//  specify the position of the propagated source.
 						// TODO  Consider turning propagators that take io.Writer into sinks.
 						if a := conf.sendsToIOWriter(v); a != nil {
-							sources = append(sources, newSource(a, conf))
+							sources = append(sources, source.New(a, conf))
 						} else {
 							//log.V(2).Infof("Adding source: %v %T", v.Value(), v.Value())
-							sources = append(sources, newSource(v, conf))
+							sources = append(sources, source.New(v, conf))
 						}
 
 					case conf.isSink(v):
@@ -498,7 +421,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 							if varargs, ok := lastArg.(*ssa.Slice); ok {
 								if sinkVarargs := newVarargs(varargs, sources); sinkVarargs != nil {
 									for _, s := range sinkVarargs.sources {
-										if !s.isSanitizedAt(v) {
+										if !s.IsSanitizedAt(v) {
 											report(pass, s, v)
 										}
 									}
@@ -539,11 +462,11 @@ func readConfig(path string) (*config, error) {
 	return readConfigCached, readConfigCachedErr
 }
 
-func identifySources(conf *config, ssaInput *buildssa.SSA) map[*ssa.Function][]*source {
-	sourceMap := make(map[*ssa.Function][]*source)
+func identifySources(conf *config, ssaInput *buildssa.SSA) map[*ssa.Function][]*source.Source {
+	sourceMap := make(map[*ssa.Function][]*source.Source)
 
 	for _, fn := range ssaInput.SrcFuncs {
-		var sources []*source
+		var sources []*source.Source
 		sources = append(sources, sourcesFromParams(fn, conf)...)
 		sources = append(sources, sourcesFromClosure(fn, conf)...)
 		sources = append(sources, sourcesFromBlocks(fn, conf)...)
@@ -555,13 +478,13 @@ func identifySources(conf *config, ssaInput *buildssa.SSA) map[*ssa.Function][]*
 	return sourceMap
 }
 
-func sourcesFromParams(fn *ssa.Function, conf *config) []*source {
-	var sources []*source
+func sourcesFromParams(fn *ssa.Function, conf *config) []*source.Source {
+	var sources []*source.Source
 	for _, p := range fn.Params {
 		switch t := p.Type().(type) {
 		case *types.Pointer:
 			if n, ok := t.Elem().(*types.Named); ok && conf.isSource(n) {
-				sources = append(sources, newSource(p, conf))
+				sources = append(sources, source.New(p, conf))
 			}
 			// TODO Handle the case where sources arepassed by value: func(c sourceType)
 			// TODO Handle cases where PII is wrapped in struct/slice/map
@@ -570,23 +493,23 @@ func sourcesFromParams(fn *ssa.Function, conf *config) []*source {
 	return sources
 }
 
-func sourcesFromClosure(fn *ssa.Function, conf *config) []*source {
-	var sources []*source
+func sourcesFromClosure(fn *ssa.Function, conf *config) []*source.Source {
+	var sources []*source.Source
 	for _, p := range fn.FreeVars {
 		switch t := p.Type().(type) {
 		case *types.Pointer:
 			// FreeVars (variables from a closure) appear as double-pointers
 			// Hence, the need to dereference them recursively.
 			if s, ok := utils.Dereference(t).(*types.Named); ok && conf.isSource(s) {
-				sources = append(sources, newSource(p, conf))
+				sources = append(sources, source.New(p, conf))
 			}
 		}
 	}
 	return sources
 }
 
-func sourcesFromBlocks(fn *ssa.Function, conf *config) []*source {
-	var sources []*source
+func sourcesFromBlocks(fn *ssa.Function, conf *config) []*source.Source {
+	var sources []*source.Source
 	for _, b := range fn.Blocks {
 		if b == fn.Recover {
 			// TODO Handle calls to log in a recovery block.
@@ -598,14 +521,14 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config) []*source {
 			// Looking for sources of PII allocated within the body of a function.
 			case *ssa.Alloc:
 				if conf.isSource(utils.Dereference(v.Type())) {
-					sources = append(sources, newSource(v, conf))
+					sources = append(sources, source.New(v, conf))
 				}
 
 				// Handling the case where PII may be in a receiver
 				// (ex. func(b *something) { log.Info(something.PII) }
 			case *ssa.FieldAddr:
 				if conf.isSource(utils.Dereference(v.Type())) {
-					sources = append(sources, newSource(v, conf))
+					sources = append(sources, source.New(v, conf))
 				}
 			}
 		}
@@ -613,10 +536,10 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config) []*source {
 	return sources
 }
 
-func report(pass *analysis.Pass, source *source, sink ssa.Node) {
+func report(pass *analysis.Pass, source *source.Source, sink ssa.Node) {
 	var b strings.Builder
 	b.WriteString("a source has reached a sink")
-	fmt.Fprintf(&b, ", source: %v", pass.Fset.Position(source.node.Pos()))
+	fmt.Fprintf(&b, ", source: %v", pass.Fset.Position(source.Node().Pos()))
 	pass.Reportf(sink.Pos(), b.String())
 }
 
