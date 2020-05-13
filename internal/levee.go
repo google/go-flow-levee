@@ -115,13 +115,8 @@ func (c config) isSource(t types.Type) bool {
 func (c config) isSourceFieldAddr(fa *ssa.FieldAddr) bool {
 	// fa.Type() refers to the accessed field's type.
 	// fa.X.Type() refers to the surrounding struct's type.
-
 	deref := utils.Dereference(fa.X.Type())
-	st, ok := deref.Underlying().(*types.Struct)
-	if !ok {
-		return false
-	}
-	fieldName := st.Field(fa.Field).Name()
+	fieldName := utils.FieldName(fa)
 
 	for _, p := range c.Sources {
 		if n, ok := deref.(*types.Named); ok &&
