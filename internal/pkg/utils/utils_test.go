@@ -26,22 +26,30 @@ import (
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 )
 
+type testAnalyzerResult struct {
+	makeInterface []*ssa.MakeInterface
+	fieldAddr     []*ssa.FieldAddr
+}
+
 var testAnalyzer = &analysis.Analyzer{
 	Name:       "domination",
 	Run:        run,
 	Doc:        "test harness for de-referencing",
 	Requires:   []*analysis.Analyzer{buildssa.Analyzer},
-	ResultType: reflect.TypeOf([]*ssa.MakeInterface{}),
+	ResultType: reflect.TypeOf(testAnalyzerResult{}),
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	in := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
-	var result []*ssa.MakeInterface
+	var result testAnalyzerResult
 	for _, fn := range in.SrcFuncs {
 		for _, b := range fn.Blocks {
 			for _, i := range b.Instrs {
-				if mi, ok := i.(*ssa.MakeInterface); ok {
-					result = append(result, mi)
+				switch v := i.(type) {
+				case *ssa.MakeInterface:
+					result.makeInterface = append(result.makeInterface, v)
+				case *ssa.FieldAddr:
+					result.fieldAddr = append(result.fieldAddr, v)
 				}
 			}
 		}
@@ -77,14 +85,51 @@ func TestDereference(t *testing.T) {
 				t.Fatalf("Got len(result) == %d, want 1", len(r))
 			}
 
-			mis, ok := r[0].Result.([]*ssa.MakeInterface)
+			mis, ok := r[0].Result.(testAnalyzerResult)
 			if !ok {
-				t.Fatalf("Got result of type %T, wanted []*ssa.MakeInterface", mis)
+				t.Fatalf("Got result of type %T, wanted testAnalyzerResult", mis)
 			}
 
-			got := Dereference(mis[0].X.Type())
+			got := Dereference(mis.makeInterface[0].X.Type())
 			if !strings.HasSuffix(got.String(), tt.want) {
 				t.Fatalf("Got %s, want it to have a suffix of: %s", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFieldName(t *testing.T) {
+	dir := analysistest.TestData()
+
+	testCases := []struct {
+		pattern string
+		want    string
+	}{
+		{
+			pattern: "regular",
+			want:    "name",
+		},
+		{
+			pattern: "embedded",
+			want:    "foo",
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.pattern, func(t *testing.T) {
+			r := analysistest.Run(t, dir, testAnalyzer, fmt.Sprintf("fieldname/%s", tt.pattern))
+			if len(r) != 1 {
+				t.Fatalf("Got len(result) == %d, want 1", len(r))
+			}
+
+			a, ok := r[0].Result.(testAnalyzerResult)
+			if !ok {
+				t.Fatalf("Got result of type %T, wanted testAnalyzerResult", a)
+			}
+
+			got := FieldName(a.fieldAddr[0])
+			if got != tt.want {
+				t.Fatalf("Got %s, want %s", got, tt.want)
 			}
 		})
 	}
