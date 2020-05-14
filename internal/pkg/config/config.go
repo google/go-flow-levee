@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"go/types"
 	"io/ioutil"
@@ -11,6 +12,15 @@ import (
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/ssa"
 )
+
+
+// FlagSet should be used by analyzers to reuse -config flag.
+var FlagSet flag.FlagSet
+var configFile string
+
+func init() {
+	FlagSet.StringVar(&configFile, "config", "config.json", "path to analysis configuration file")
+}
 
 // config contains matchers and analysis scope information
 type Config struct {
@@ -276,12 +286,12 @@ var readFileOnce sync.Once
 var readConfigCached *Config
 var readConfigCachedErr error
 
-func ReadConfig(path string) (*Config, error) {
+func ReadConfig() (*Config, error) {
 	loadedFromCache := true
 	readFileOnce.Do(func() {
 		loadedFromCache = false
 		c := new(Config)
-		bytes, err := ioutil.ReadFile(path)
+		bytes, err := ioutil.ReadFile(configFile)
 		if err != nil {
 			readConfigCachedErr = fmt.Errorf("error reading analysis config: %v", err)
 			return

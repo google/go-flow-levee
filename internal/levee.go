@@ -28,15 +28,10 @@ import (
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 )
 
-var configFile string
-
-func init() {
-	Analyzer.Flags.StringVar(&configFile, "config", "config.json", "path to analysis configuration file")
-}
-
 var Analyzer = &analysis.Analyzer{
 	Name:     "levee",
 	Run:      run,
+	Flags:    config.FlagSet,
 	Doc:      "reports attempts to source data to sinks",
 	Requires: []*analysis.Analyzer{buildssa.Analyzer},
 }
@@ -110,7 +105,7 @@ func (v *varargs) referredByCallWithPattern(patterns []config.NameMatcher) *ssa.
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	conf, err := config.ReadConfig(configFile)
+	conf, err := config.ReadConfig()
 	if err != nil {
 		return nil, err
 	}
