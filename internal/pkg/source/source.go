@@ -17,10 +17,14 @@ package source
 
 import (
 	"fmt"
+	"go/types"
 	"strings"
 
 	"github.com/eapache/queue"
+	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
+	"github.com/google/go-flow-levee/internal/pkg/utils"
+	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
 )
 
@@ -136,3 +140,78 @@ func (a *Source) String() string {
 
 	return b.String()
 }
+
+func Identify(conf *config.Config, ssaInput *buildssa.SSA) map[*ssa.Function][]*Source {
+	sourceMap := make(map[*ssa.Function][]*Source)
+
+	for _, fn := range ssaInput.SrcFuncs {
+		var sources []*Source
+		sources = append(sources, sourcesFromParams(fn, conf)...)
+		sources = append(sources, sourcesFromClosure(fn, conf)...)
+		sources = append(sources, sourcesFromBlocks(fn, conf)...)
+
+		if len(sources) > 0 {
+			sourceMap[fn] = sources
+		}
+	}
+	return sourceMap
+}
+
+func sourcesFromParams(fn *ssa.Function, conf *config.Config) []*Source {
+	var sources []*Source
+	for _, p := range fn.Params {
+		switch t := p.Type().(type) {
+		case *types.Pointer:
+			if n, ok := t.Elem().(*types.Named); ok && conf.IsSource(n) {
+				sources = append(sources, New(p, conf))
+			}
+			// TODO Handle the case where sources arepassed by value: func(c sourceType)
+			// TODO Handle cases where PII is wrapped in struct/slice/map
+		}
+	}
+	return sources
+}
+
+func sourcesFromClosure(fn *ssa.Function, conf *config.Config) []*Source {
+	var sources []*Source
+	for _, p := range fn.FreeVars {
+		switch t := p.Type().(type) {
+		case *types.Pointer:
+			// FreeVars (variables from a closure) appear as double-pointers
+			// Hence, the need to dereference them recursively.
+			if s, ok := utils.Dereference(t).(*types.Named); ok && conf.IsSource(s) {
+				sources = append(sources, New(p, conf))
+			}
+		}
+	}
+	return sources
+}
+
+func sourcesFromBlocks(fn *ssa.Function, conf *config.Config) []*Source {
+	var sources []*Source
+	for _, b := range fn.Blocks {
+		if b == fn.Recover {
+			// TODO Handle calls to log in a recovery block.
+			continue
+		}
+
+		for _, instr := range b.Instrs {
+			switch v := instr.(type) {
+			// Looking for sources of PII allocated within the body of a function.
+			case *ssa.Alloc:
+				if conf.IsSource(utils.Dereference(v.Type())) {
+					sources = append(sources, New(v, conf))
+				}
+
+				// Handling the case where PII may be in a receiver
+				// (ex. func(b *something) { log.Info(something.PII) }
+			case *ssa.FieldAddr:
+				if conf.IsSource(utils.Dereference(v.Type())) {
+					sources = append(sources, New(v, conf))
+				}
+			}
+		}
+	}
+	return sources
+}
+
