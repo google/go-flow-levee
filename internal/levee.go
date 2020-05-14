@@ -20,7 +20,6 @@ import (
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
 
 	"github.com/google/go-flow-levee/internal/pkg/source"
@@ -31,7 +30,7 @@ var Analyzer = &analysis.Analyzer{
 	Run:      run,
 	Flags:    config.FlagSet,
 	Doc:      "reports attempts to source data to sinks",
-	Requires: []*analysis.Analyzer{buildssa.Analyzer},
+	Requires: []*analysis.Analyzer{source.Analyzer},
 }
 
 // varargs represents a variable length argument.
@@ -109,9 +108,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 	// TODO: respect configuration scope
 
-	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
-
-	sourcesMap := source.Identify(conf, ssaInput)
+	sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
 
 	// Only examine functions that have sources
 	for fn, sources := range sourcesMap {

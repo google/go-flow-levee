@@ -141,7 +141,7 @@ func (a *Source) String() string {
 	return b.String()
 }
 
-func Identify(conf *config.Config, ssaInput *buildssa.SSA) map[*ssa.Function][]*Source {
+func identify(conf *config.Config, ssaInput *buildssa.SSA) map[*ssa.Function][]*Source {
 	sourceMap := make(map[*ssa.Function][]*Source)
 
 	for _, fn := range ssaInput.SrcFuncs {
@@ -214,4 +214,3 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config.Config) []*Source {
 	}
 	return sources
 }
-
