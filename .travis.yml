@@ -9,7 +9,7 @@ script:
   echo "Checking gofmt..." && (
     FILES=$(find {cmd,internal} -name "*.go");
     if [[ -n $(gofmt -l ${FILES}) ]]; then
-      gofmt -d ${FILES}
+      goimports -d ${FILES}
       echo 'Please run `gofmt -w $(find {cmd,internal} -name "*.go")`.'
       false
     fi
