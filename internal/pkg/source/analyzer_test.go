@@ -25,7 +25,7 @@ func TestSourceAnalysis(t *testing.T) {
 	reporting = true
 
 	testdata := analysistest.TestData()
-	if err := config.FlagSet.Set("config", testdata + "/src/analyzertest/test-config.json"); err != nil {
+	if err := config.FlagSet.Set("config", testdata+"/src/analyzertest/test-config.json"); err != nil {
 		t.Error(err)
 	}
 

@@ -13,7 +13,6 @@ import (
 	"golang.org/x/tools/go/ssa"
 )
 
-
 // FlagSet should be used by analyzers to reuse -config flag.
 var FlagSet flag.FlagSet
 var configFile string
