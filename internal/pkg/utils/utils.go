@@ -17,6 +17,7 @@ package utils
 
 import (
 	"go/types"
+
 	"golang.org/x/tools/go/ssa"
 )
 

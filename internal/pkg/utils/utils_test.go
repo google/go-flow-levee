@@ -16,10 +16,11 @@ package utils
 
 import (
 	"fmt"
-	"golang.org/x/tools/go/ssa"
 	"reflect"
 	"strings"
 	"testing"
+
+	"golang.org/x/tools/go/ssa"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
