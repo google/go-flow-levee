@@ -3,6 +3,9 @@ language: golang
 go:
 - "1.14"
 
+before_script:
+- go install golang.org/x/tools/cmd/goimports
+
 script:
 - go test -v ./...
 - >
