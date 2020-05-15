@@ -57,13 +57,13 @@ type analyzerResult struct {
 
 var testAnalyzer = &analysis.Analyzer{
 	Name:       "source",
-	Run:        run,
+	Run:        runTest,
 	Doc:        "test harness for the logic related to sources",
 	Requires:   []*analysis.Analyzer{buildssa.Analyzer},
 	ResultType: reflect.TypeOf(analyzerResult{}),
 }
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func runTest(pass *analysis.Pass) (interface{}, error) {
 	in := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	var result analyzerResult
 	for _, fn := range in.SrcFuncs {
