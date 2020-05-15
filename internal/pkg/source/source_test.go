@@ -15,10 +15,11 @@
 package source
 
 import (
-	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"reflect"
 	"regexp"
 	"testing"
+
+	"github.com/google/go-flow-levee/internal/pkg/utils"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
