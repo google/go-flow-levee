@@ -25,3 +25,11 @@ script:
       false
     )
   )
+- >
+  echo "Checking for license headers..." && (
+    FILES=$(grep -rL 'https://www.apache.org/licenses/LICENSE-2.0' internal cmd)
+    if [[ -n ${FILES} ]]; then
+      echo "The following files are missing the Apache header:\n${FILES}"
+      false
+    fi
+  )
