@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/eapache/queue"
+	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
@@ -28,7 +29,6 @@ import (
 )
 
 type classifier interface {
-	IsSource(p types.Type) bool
 	IsSanitizer(*ssa.Call) bool
 	IsPropagator(*ssa.Call) bool
 	IsSourceFieldAddr(*ssa.FieldAddr) bool
@@ -141,7 +141,7 @@ func (a *Source) String() string {
 	return b.String()
 }
 
-func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Source {
+func identify(conf *config.Config, ssaInput *buildssa.SSA) map[*ssa.Function][]*Source {
 	sourceMap := make(map[*ssa.Function][]*Source)
 
 	for _, fn := range ssaInput.SrcFuncs {
@@ -157,7 +157,7 @@ func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Sour
 	return sourceMap
 }
 
-func sourcesFromParams(fn *ssa.Function, conf classifier) []*Source {
+func sourcesFromParams(fn *ssa.Function, conf *config.Config) []*Source {
 	var sources []*Source
 	for _, p := range fn.Params {
 		switch t := p.Type().(type) {
@@ -172,7 +172,7 @@ func sourcesFromParams(fn *ssa.Function, conf classifier) []*Source {
 	return sources
 }
 
-func sourcesFromClosure(fn *ssa.Function, conf classifier) []*Source {
+func sourcesFromClosure(fn *ssa.Function, conf *config.Config) []*Source {
 	var sources []*Source
 	for _, p := range fn.FreeVars {
 		switch t := p.Type().(type) {
@@ -187,7 +187,7 @@ func sourcesFromClosure(fn *ssa.Function, conf classifier) []*Source {
 	return sources
 }
 
-func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
+func sourcesFromBlocks(fn *ssa.Function, conf *config.Config) []*Source {
 	var sources []*Source
 	for _, b := range fn.Blocks {
 		if b == fn.Recover {

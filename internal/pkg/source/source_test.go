@@ -15,7 +15,6 @@
 package source
 
 import (
-	"go/types"
 	"reflect"
 	"regexp"
 	"testing"
@@ -32,10 +31,6 @@ type testConfig struct {
 	propagatorsPattern string
 	fieldsPattern      string
 	sanitizerPattern   string
-}
-
-func (c *testConfig) IsSource(t types.Type) bool {
-	return true
 }
 
 func (c *testConfig) IsSanitizer(call *ssa.Call) bool {
