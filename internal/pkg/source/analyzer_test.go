@@ -17,17 +17,18 @@ package source
 import (
 	"testing"
 
-	"github.com/google/go-flow-levee/internal/pkg/config"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
 func TestSourceAnalysis(t *testing.T) {
-	reporting = true
-
 	testdata := analysistest.TestData()
-	if err := config.FlagSet.Set("config", testdata+"/src/analyzertest/test-config.json"); err != nil {
+	if err := Analyzer.Flags.Set("config", testdata+"/src/analyzertest/test-config.json"); err != nil {
 		t.Error(err)
+		return
 	}
 
-	analysistest.Run(t, testdata, Analyzer, "analyzertest/sourcetest")
+	analysistest.Run(t, testdata, Analyzer,
+		"analyzertest/sourcetest",
+		"analyzertest/crosspkg",
+	)
 }

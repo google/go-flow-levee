@@ -21,18 +21,12 @@ import (
 	"strings"
 
 	"github.com/eapache/queue"
+	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
 )
-
-type classifier interface {
-	IsSource(types.Type) bool
-	IsSanitizer(*ssa.Call) bool
-	IsPropagator(*ssa.Call) bool
-	IsSourceFieldAddr(*ssa.FieldAddr) bool
-}
 
 // Source represents a Source in an SSA call tree.
 // It is based on ssa.Node, with the added functionality of computing the recursive graph of
@@ -42,7 +36,7 @@ type Source struct {
 	node       ssa.Node
 	marked     map[ssa.Node]bool
 	sanitizers []*sanitizer.Sanitizer
-	config     classifier
+	config     config.Classifier
 }
 
 // Node returns the underlying ssa.Node of the Source.
@@ -50,8 +44,13 @@ func (a *Source) Node() ssa.Node {
 	return a.node
 }
 
+// newSource does not run bfs
+func newSource(in ssa.Node) *Source {
+	return &Source{node: in}
+}
+
 // New constructs a Source
-func New(in ssa.Node, config classifier) *Source {
+func New(in ssa.Node, config config.Classifier) *Source {
 	a := &Source{
 		node:   in,
 		marked: make(map[ssa.Node]bool),
@@ -141,14 +140,14 @@ func (a *Source) String() string {
 	return b.String()
 }
 
-func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Source {
+func identify(stc config.SourceTypeClassifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Source {
 	sourceMap := make(map[*ssa.Function][]*Source)
 
 	for _, fn := range ssaInput.SrcFuncs {
 		var sources []*Source
-		sources = append(sources, sourcesFromParams(fn, conf)...)
-		sources = append(sources, sourcesFromClosure(fn, conf)...)
-		sources = append(sources, sourcesFromBlocks(fn, conf)...)
+		sources = append(sources, sourcesFromParams(fn, stc)...)
+		sources = append(sources, sourcesFromClosure(fn, stc)...)
+		sources = append(sources, sourcesFromBlocks(fn, stc)...)
 
 		if len(sources) > 0 {
 			sourceMap[fn] = sources
@@ -157,13 +156,15 @@ func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Sour
 	return sourceMap
 }
 
-func sourcesFromParams(fn *ssa.Function, conf classifier) []*Source {
+func sourcesFromParams(fn *ssa.Function, stc config.SourceTypeClassifier) []*Source {
 	var sources []*Source
 	for _, p := range fn.Params {
 		switch t := p.Type().(type) {
 		case *types.Pointer:
-			if n, ok := t.Elem().(*types.Named); ok && conf.IsSource(n) {
-				sources = append(sources, New(p, conf))
+			if n, ok := t.Elem().(*types.Named); ok {
+				if stc.IsSource(n) {
+					sources = append(sources, newSource(p))
+				}
 			}
 			// TODO Handle the case where sources arepassed by value: func(c sourceType)
 			// TODO Handle cases where PII is wrapped in struct/slice/map
@@ -172,22 +173,24 @@ func sourcesFromParams(fn *ssa.Function, conf classifier) []*Source {
 	return sources
 }
 
-func sourcesFromClosure(fn *ssa.Function, conf classifier) []*Source {
+func sourcesFromClosure(fn *ssa.Function, stc config.SourceTypeClassifier) []*Source {
 	var sources []*Source
 	for _, p := range fn.FreeVars {
 		switch t := p.Type().(type) {
 		case *types.Pointer:
 			// FreeVars (variables from a closure) appear as double-pointers
 			// Hence, the need to dereference them recursively.
-			if s, ok := utils.Dereference(t).(*types.Named); ok && conf.IsSource(s) {
-				sources = append(sources, New(p, conf))
+			if s, ok := utils.Dereference(t).(*types.Named); ok {
+				if stc.IsSource(s) {
+					sources = append(sources, newSource(p))
+				}
 			}
 		}
 	}
 	return sources
 }
 
-func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
+func sourcesFromBlocks(fn *ssa.Function, stc config.SourceTypeClassifier) []*Source {
 	var sources []*Source
 	for _, b := range fn.Blocks {
 		if b == fn.Recover {
@@ -199,15 +202,26 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 			switch v := instr.(type) {
 			// Looking for sources of PII allocated within the body of a function.
 			case *ssa.Alloc:
-				if conf.IsSource(utils.Dereference(v.Type())) {
-					sources = append(sources, New(v, conf))
+				deref := utils.Dereference(v.Type())
+				named, ok := deref.(*types.Named)
+				if !ok {
+					continue
 				}
 
+				if stc.IsSource(named) {
+					sources = append(sources, newSource(v))
+				}
 				// Handling the case where PII may be in a receiver
 				// (ex. func(b *something) { log.Info(something.PII) }
 			case *ssa.FieldAddr:
-				if conf.IsSource(utils.Dereference(v.Type())) {
-					sources = append(sources, New(v, conf))
+				deref := utils.Dereference(v.Type())
+				named, ok := deref.(*types.Named)
+				if !ok {
+					continue
+				}
+
+				if stc.IsSource(named) {
+					sources = append(sources, newSource(v))
 				}
 			}
 		}

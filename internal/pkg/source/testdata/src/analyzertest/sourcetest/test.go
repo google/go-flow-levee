@@ -21,7 +21,7 @@ type Source struct {
 }
 
 // This function allows us to consume multiple arguments in a single line so this file can compile
-func noop(args ...interface{}) {}
+func Noop(args ...interface{}) {}
 
 func TestSourceDeclarations() {
 	var varZeroVal Source                         // want "source identified"
@@ -33,7 +33,7 @@ func TestSourceDeclarations() {
 	ptrToDeclZero := &Source{}                            // want "source identified"
 	ptrToDeclPopulataed := &Source{Data: "secret", ID: 1} // want "source identified"
 
-	noop(varZeroVal, declZeroVal, populatedVal, ptr, newPtr, ptrToDeclZero, ptrToDeclPopulataed)
+	Noop(varZeroVal, declZeroVal, populatedVal, ptr, newPtr, ptrToDeclZero, ptrToDeclPopulataed)
 }
 
 // A report should be emitted for each parameter.

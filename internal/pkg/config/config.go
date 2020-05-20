@@ -342,3 +342,15 @@ func isTestPkg(p *types.Package) bool {
 	}
 	return false
 }
+
+type SourceTypeClassifier interface {
+	IsSource(named *types.Named) bool
+	IsSourceField(*types.Var) bool
+}
+
+type Classifier interface {
+	IsSource(types.Type) bool
+	IsSanitizer(*ssa.Call) bool
+	IsPropagator(*ssa.Call) bool
+	IsSourceFieldAddr(*ssa.FieldAddr) bool
+}

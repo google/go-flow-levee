@@ -18,6 +18,7 @@ import (
 	"reflect"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
+	"github.com/google/go-flow-levee/internal/pkg/sourcetype"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
@@ -30,28 +31,32 @@ var Analyzer = &analysis.Analyzer{
 	Doc:        "This analyzer identifies ssa.Values as dataflow sources.",
 	Flags:      config.FlagSet,
 	Run:        run,
-	Requires:   []*analysis.Analyzer{buildssa.Analyzer},
+	Requires:   []*analysis.Analyzer{buildssa.Analyzer, sourcetype.Analyzer},
 	ResultType: reflect.TypeOf(new(ResultType)).Elem(),
 }
 
-// When reporting is true, report findings to pass.Report.
-// TODO This should be a flag passable to the common config.
-var reporting bool
-
 func run(pass *analysis.Pass) (interface{}, error) {
 	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
+	stc := pass.ResultOf[sourcetype.Analyzer].(config.SourceTypeClassifier)
 	conf, err := config.ReadConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	sourceMap := identify(conf, ssaInput)
+	sourceMap := identify(stc, ssaInput)
 
-	if reporting {
-		for _, srcs := range sourceMap {
-			for _, s := range srcs {
-				pass.Reportf(s.node.Pos(), "source identified")
-			}
+	// TODO source.bfs() logic should be performed downstream, as it is not part of source identification
+	for _, srcs := range sourceMap {
+		for _, s := range srcs {
+			s.config = conf
+			s.marked = make(map[ssa.Node]bool)
+			s.bfs()
+		}
+	}
+
+	for _, srcs := range sourceMap {
+		for _, s := range srcs {
+			pass.Reportf(s.node.Pos(), "source identified")
 		}
 	}
 
