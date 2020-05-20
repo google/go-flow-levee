@@ -15,8 +15,10 @@
 package sourcetype
 
 import (
+	"fmt"
 	"go/types"
 	"reflect"
+	"sort"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"golang.org/x/tools/go/analysis"
@@ -78,6 +80,8 @@ var Analyzer = &analysis.Analyzer{
 	FactTypes:  []analysis.Fact{new(typeDeclFact), new(fieldDeclFact)},
 }
 
+var Report bool
+
 func run(pass *analysis.Pass) (interface{}, error) {
 	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	conf, err := config.ReadConfig()
@@ -105,5 +109,27 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	classifier := &sourceClassifier{pass.AllObjectFacts()}
+	if Report {
+		makeReport(classifier, pass)
+	}
+
 	return classifier, nil
+}
+
+func makeReport(classifier *sourceClassifier, pass *analysis.Pass) {
+	// Aggregate diagnostics first in order to sort report by position.
+	var diags []analysis.Diagnostic
+	for _, objFact := range classifier.passObjFacts {
+		// A pass should only report within its package.
+		if objFact.Object.Pkg() == pass.Pkg {
+			diags = append(diags, analysis.Diagnostic{
+				Pos:     objFact.Object.Pos(),
+				Message: fmt.Sprintf("%v: %v", objFact.Fact, objFact.Object.Name()),
+			})
+		}
+	}
+	sort.Slice(diags, func(i, j int) bool { return diags[i].Pos < diags[j].Pos })
+	for _, d := range diags {
+		pass.Reportf(d.Pos, d.Message)
+	}
 }

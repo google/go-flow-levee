@@ -16,10 +16,11 @@ package main
 
 import (
 	"github.com/google/go-flow-levee/internal/pkg/sourcetype"
-
 	"golang.org/x/tools/go/analysis/singlechecker"
 )
 
 func main() {
+	sourcetype.Report = true
+
 	singlechecker.Main(sourcetype.Analyzer)
 }
