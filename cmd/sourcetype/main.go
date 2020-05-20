@@ -15,15 +15,11 @@
 package main
 
 import (
-	"log"
-
 	"github.com/google/go-flow-levee/internal/pkg/sourcetype"
+
 	"golang.org/x/tools/go/analysis/singlechecker"
 )
 
 func main() {
-	if err := sourcetype.Analyzer.Flags.Set("report", "sourcetype"); err != nil {
-		log.Fatal(err)
-	}
 	singlechecker.Main(sourcetype.Analyzer)
 }
