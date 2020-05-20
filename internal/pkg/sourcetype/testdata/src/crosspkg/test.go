@@ -12,26 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package sourcetype
+package crosspkg
 
-type Source struct { // want Source:"source type"
-	Data string // want Data:"source field"
-	ID   int
-}
+import "sourcetype"
 
-type AliasStruct = Source // want AliasStruct:"source type"
+type AliasStruct = sourcetype.Source // want AliasStruct:"source type"
 
 // TODO Consider automatic detection of the following types.
-type NamedType Source
-type SliceContainer []Source
-type ArrayContainer [5]Source
-type MapKeyContainer map[Source]interface{}
-type MapValueContainer map[string]Source
+type NamedType sourcetype.Source
+type SliceContainer []sourcetype.Source
+type ArrayContainer [5]sourcetype.Source
+type MapKeyContainer map[sourcetype.Source]interface{}
+type MapValueContainer map[string]sourcetype.Source
 
 type EmbeddedWrapper struct {
-	Source
+	sourcetype.Source
 }
 
 type FieldWrapper struct {
-	s Source
+	s sourcetype.Source
 }

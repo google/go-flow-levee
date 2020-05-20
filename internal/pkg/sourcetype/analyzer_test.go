@@ -28,5 +28,5 @@ func TestSourceAnalysis(t *testing.T) {
 		return
 	}
 
-	analysistest.Run(t, testdata, Analyzer, "sourcetype")
+	analysistest.Run(t, testdata, Analyzer, "sourcetype", "crosspkg")
 }
