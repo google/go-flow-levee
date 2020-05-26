@@ -14,7 +14,7 @@
 
 // Package sourcetpye handles identification of source types and fields at the type declaration.
 // This can be consumed downstream, e.g., by the sources package to identify source data at instantiation.
-// This package conserns itself with ssa.Member and types.Object, as opposed to ssa.Value and ssa.Instruction more typically used in other analysis packages.
+// This package concerns itself with ssa.Member and types.Object, as opposed to ssa.Value and ssa.Instruction more typically used in other analysis packages.
 package sourcetype
 
 import (
