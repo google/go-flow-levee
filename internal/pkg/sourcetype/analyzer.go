@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package sourcetpye handles identification of source types and fields at the type declaration.
+// This can be consumed downstream, e.g., by the sources package to identify source data at instantiation.
+// This package conserns itself with ssa.Member and types.Object, as opposed to ssa.Value and ssa.Instruction more typically used in other analysis packages.
 package sourcetype
 
 import (
@@ -91,20 +94,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 	// Members contains all named entities
 	for _, mem := range ssaInput.Pkg.Members {
-		if ssaType, ok := mem.(*ssa.Type); ok {
-			if conf.IsSource(ssaType.Type()) {
-				pass.ExportObjectFact(ssaType.Object(), &typeDeclFact{})
-				if under, ok := ssaType.Type().Underlying().(*types.Struct); ok {
-					for i := 0; i < under.NumFields(); i++ {
-						fld := under.Field(i)
-						if conf.IsSourceField(ssaType.Type(), fld) {
-							if fld.Pkg() == pass.Pkg {
-								pass.ExportObjectFact(fld, &fieldDeclFact{})
-							}
-						}
-					}
-				}
-			}
+		if ssaType, ok := mem.(*ssa.Type); ok && conf.IsSource(ssaType.Type()) {
+			exportSourceFacts(pass, ssaType, conf)
 		}
 	}
 
@@ -114,6 +105,17 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	return classifier, nil
+}
+
+func exportSourceFacts(pass *analysis.Pass, ssaType *ssa.Type, conf *config.Config) {
+	pass.ExportObjectFact(ssaType.Object(), &typeDeclFact{})
+	if under, ok := ssaType.Type().Underlying().(*types.Struct); ok {
+		for i := 0; i < under.NumFields(); i++ {
+			if fld := under.Field(i); conf.IsSourceField(ssaType.Type(), fld) && fld.Pkg() == pass.Pkg {
+				pass.ExportObjectFact(fld, &fieldDeclFact{})
+			}
+		}
+	}
 }
 
 func makeReport(classifier *sourceClassifier, pass *analysis.Pass) {
