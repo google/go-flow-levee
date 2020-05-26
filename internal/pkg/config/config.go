@@ -108,6 +108,20 @@ func (c Config) IsSource(t types.Type) bool {
 	return false
 }
 
+func (c Config) IsSourceField(typ types.Type, fld *types.Var) bool {
+	n, ok := typ.(*types.Named)
+	if !ok {
+		return false
+	}
+
+	for _, p := range c.Sources {
+		if p.match(n) && p.FieldRE.MatchString(fld.Name()) {
+			return true
+		}
+	}
+	return false
+}
+
 func (c Config) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
 	// fa.Type() refers to the accessed field's type.
 	// fa.X.Type() refers to the surrounding struct's type.
