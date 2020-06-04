@@ -48,17 +48,11 @@ func New(s *ssa.Call) *Varargs {
 		return nil
 	}
 
-	var (
-		stores []*ssa.Store
-	)
+	var stores []*ssa.Store
 
 	for _, r := range *a.Referrers() {
 		idx, ok := r.(*ssa.IndexAddr)
-		if !ok {
-			continue
-		}
-
-		if idx.Referrers() != nil && len(*idx.Referrers()) != 1 {
+		if !ok || idx.Referrers() == nil {
 			continue
 		}
 

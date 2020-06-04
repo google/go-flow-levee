@@ -86,26 +86,35 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 func TestVarargs(t *testing.T) {
 	var testCases = []struct {
-		pattern           string
-		expectVararg      bool
-		callUnderTestIdx  int
-		allocUnderTestIdx int
-		wantStores        int
+		pattern               string
+		expectVararg          bool
+		callUnderTestIdx      int
+		allocUnderTestIdx     int
+		wantConnectionToAlloc bool
+		wantStores            int
 	}{
 		{
-			pattern:          "base",
-			callUnderTestIdx: 0,
-			wantStores:       1,
+			pattern:               "base",
+			callUnderTestIdx:      0,
+			wantConnectionToAlloc: true,
+			wantStores:            1,
 		},
 		{
-			pattern:          "empty",
-			callUnderTestIdx: 0,
-			wantStores:       1,
+			pattern:               "empty",
+			callUnderTestIdx:      0,
+			wantConnectionToAlloc: true,
+			wantStores:            1,
 		},
 		{
-			pattern:          "multiple",
+			pattern:               "multiple",
+			callUnderTestIdx:      0,
+			wantConnectionToAlloc: true,
+			wantStores:            2,
+		},
+		{
+			pattern:          "no-connection-to-source",
 			callUnderTestIdx: 0,
-			wantStores:       2,
+			wantStores:       1,
 		},
 	}
 
@@ -133,7 +142,7 @@ func TestVarargs(t *testing.T) {
 
 			for i := 0; i < tt.wantStores; i++ {
 				if got.stores[i] != a.store[i] {
-					t.Fatalf("Expected %v == %v", got.stores[i], a.store[i])
+					t.Fatalf("Expected %v == %v for store #%d. Referres: %v", got.stores[i], a.store[i], i, got.stores[i].Referrers())
 				}
 			}
 
@@ -141,7 +150,8 @@ func TestVarargs(t *testing.T) {
 			if s == nil {
 				t.Fatal("Expected a source got got nil at a.allocations[0]")
 			}
-			if !got.ReferredBy(s) {
+
+			if !got.ReferredBy(s) && tt.wantConnectionToAlloc {
 				t.Fatalf("Expected source %v to refer to vararg %v", s, got)
 			}
 		})
