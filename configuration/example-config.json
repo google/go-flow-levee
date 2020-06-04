@@ -1,0 +1,40 @@
+{
+  "Sources": [
+    {
+      "PackageRE": "",
+      "TypeRE": "^Secret$|Token",
+      "FieldRE": ""
+    },
+    {
+      "PackageRE": "k8s.io/client-go/tools/clientcmd/api(?:/v1)?",
+      "TypeRE": "^(?:Named)?AuthInfo$",
+      "FieldRE": ""
+    },
+    {
+      "PackageRE": "^k8s.io/client-go/rest$",
+      "TypeRE": "^TLSClientConfig$",
+      "FieldRE": "Password|BearerToken$|"
+    },
+    {
+      "PackageRE": "^k8s.io/client-go/rest$",
+      "TypeRE": "^Config$",
+      "FieldRE": "Password|BearerToken$|"
+    }
+  ],
+  "Sinks": [
+    {
+      "PackageRE": "k?log$",
+      "MethodRE": "Info|Warning|Error|Fatal|Exit"
+    }
+  ],
+  "Sanitizers": [],
+  "TransformingPropagators": [
+    {
+      "PackageName": ".*proto$",
+      "MethodRE": "^Clone$|^Marshal"
+    }
+  ],
+  "PropagatorArgs": {
+    "ArgumentTypeRE": "^io\\.(?:Writer|ReadWriter|WriteCloser|ReadWriteCloser)$"
+  }
+}

@@ -37,7 +37,7 @@ However, as a program's type hierarchy becomes more complex or
 
 ### Configuration
 
-// TODO -- via config file, via field tags
+See [configuration/](configuration/README.md) for configuration details.
 
 ### How it works
 
