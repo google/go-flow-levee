@@ -23,6 +23,7 @@ import (
 	"golang.org/x/tools/go/ssa"
 
 	"github.com/google/go-flow-levee/internal/pkg/source"
+	"github.com/google/go-flow-levee/internal/pkg/varargs"
 )
 
 var Analyzer = &analysis.Analyzer{
@@ -31,74 +32,6 @@ var Analyzer = &analysis.Analyzer{
 	Flags:    config.FlagSet,
 	Doc:      "reports attempts to source data to sinks",
 	Requires: []*analysis.Analyzer{source.Analyzer},
-}
-
-// varargs represents a variable length argument.
-// Concretely, it abstract over the fact that the varargs internally are represented by an ssa.Slice
-// which contains the underlying values of for vararg members.
-// Since many sink functions (ex. log.Info, fmt.Errorf) take a vararg argument, being able to
-// get the underlying values of the vararg members is important for this analyzer.
-type varargs struct {
-	slice   *ssa.Slice
-	sources []*source.Source
-}
-
-// newVarargs constructs varargs. SSA represents varargs as an ssa.Slice.
-func newVarargs(s *ssa.Slice, sources []*source.Source) *varargs {
-	a, ok := s.X.(*ssa.Alloc)
-	if !ok || a.Comment != "varargs" {
-		return nil
-	}
-	var (
-		referredSources []*source.Source
-	)
-
-	for _, r := range *a.Referrers() {
-		idx, ok := r.(*ssa.IndexAddr)
-		if !ok {
-			continue
-		}
-
-		if idx.Referrers() != nil && len(*idx.Referrers()) != 1 {
-			continue
-		}
-
-		// IndexAddr and Store instructions are inherently linked together.
-		// IndexAddr returns an address of an element within a Slice, which is followed by
-		// a Store instructions to place a value into the address provided by IndexAddr.
-		store := (*idx.Referrers())[0].(*ssa.Store)
-
-		for _, s := range sources {
-			if s.HasPathTo(store.Val.(ssa.Node)) {
-				referredSources = append(referredSources, s)
-				break
-			}
-		}
-	}
-
-	return &varargs{
-		slice:   s,
-		sources: referredSources,
-	}
-}
-
-func (v *varargs) referredByCallWithPattern(patterns []config.NameMatcher) *ssa.Call {
-	if v.slice.Referrers() == nil || len(*v.slice.Referrers()) != 1 {
-		return nil
-	}
-
-	c, ok := (*v.slice.Referrers())[0].(*ssa.Call)
-	if !ok || c.Call.StaticCallee() == nil {
-		return nil
-	}
-
-	for _, p := range patterns {
-		if p.MatchMethodName(c) {
-			return c
-		}
-	}
-
-	return nil
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -143,15 +76,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 					case conf.IsSink(v):
 						// TODO Only variadic sink arguments are currently detected.
-						if v.Call.Signature().Variadic() && len(v.Call.Args) > 0 {
-							lastArg := v.Call.Args[len(v.Call.Args)-1]
-							if varargs, ok := lastArg.(*ssa.Slice); ok {
-								if sinkVarargs := newVarargs(varargs, sources); sinkVarargs != nil {
-									for _, s := range sinkVarargs.sources {
-										if !s.IsSanitizedAt(v) {
-											report(pass, s, v)
-										}
-									}
+						if sinkVarargs := varargs.New(v); sinkVarargs != nil {
+							for _, s := range sources {
+								if sinkVarargs.ReferredBy(s) && !s.IsSanitizedAt(v) {
+									report(pass, s, v)
+									break
 								}
 							}
 						}
