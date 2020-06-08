@@ -83,7 +83,6 @@ func (a *Source) bfs() {
 
 			if c, ok := r.(*ssa.Call); ok && a.config.IsSanitizer(c) {
 				a.sanitizers = append(a.sanitizers, &sanitizer.Sanitizer{Call: c})
-				continue
 			}
 
 			// Need to stay within the scope of the function under analysis.
