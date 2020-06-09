@@ -30,7 +30,7 @@ See [design/](design/README.md).
 
 ### Configuration
 
-// TODO -- via config file, via field tags
+See [configuration/](configuration/README.md) for configuration details.
 
 ## Source Code Headers
 
