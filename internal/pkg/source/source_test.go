@@ -103,6 +103,7 @@ func TestSource(t *testing.T) {
 		pattern                      string
 		config                       *testConfig
 		wantCallConnectionIdx        []int
+		wantSanitizedCallIdx         []int
 		wantFieldAccessConnectionIdx []int
 		wantStoreConnectionIdx       []int
 	}{
@@ -122,6 +123,12 @@ func TestSource(t *testing.T) {
 			pattern:                      "sanitization",
 			config:                       config,
 			wantFieldAccessConnectionIdx: []int{0},
+			wantSanitizedCallIdx:         []int{1},
+		},
+		{
+			pattern:               "domination",
+			config:                config,
+			wantCallConnectionIdx: []int{2},
 		},
 	}
 
@@ -145,8 +152,14 @@ func TestSource(t *testing.T) {
 			t.Logf("Testing source:\n%v", src)
 
 			for i := 0; i < len(tt.wantCallConnectionIdx); i++ {
-				if !src.HasPathTo(a.calls[i]) {
+				if !src.HasPathTo(a.calls[tt.wantCallConnectionIdx[i]]) {
 					t.Errorf("Expected\n%v to have a path to %v", src, a.calls[i])
+				}
+			}
+
+			for i := 0; i < len(tt.wantSanitizedCallIdx); i++ {
+				if !src.IsSanitizedAt(a.calls[tt.wantSanitizedCallIdx[i]]) {
+					t.Errorf("Expected\n%v to be sanitized befere a call to %v", src, a.calls[i])
 				}
 			}
 
