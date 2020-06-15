@@ -81,19 +81,25 @@ func (a *Source) bfs() {
 				continue
 			}
 
-			if c, ok := r.(*ssa.Call); ok && a.config.IsSanitizer(c) {
-				a.sanitizers = append(a.sanitizers, &sanitizer.Sanitizer{Call: c})
-				continue
-			}
+			// TODO(immutableT) We are putting too much logic into this function - it should just
+			// be constructing a graph. Add specialized methods that know how to trim or interpret
+			// connections.
 
-			// Need to stay within the scope of the function under analysis.
-			if call, ok := r.(*ssa.Call); ok && !a.config.IsPropagator(call) {
-				continue
-			}
+			switch v := r.(type) {
+			case *ssa.Call:
+				// This is to avoid attaching calls where the source is the receiver, ex:
+				// core.Sinkf("Source id: %v", wrapper.Source.GetID())
+				if v.Call.Signature().Recv() != nil {
+					continue
+				}
 
-			// Do not follow innocuous field access.
-			if addr, ok := r.(*ssa.FieldAddr); ok && !a.config.IsSourceFieldAddr(addr) {
-				continue
+				if a.config.IsSanitizer(v) {
+					a.sanitizers = append(a.sanitizers, &sanitizer.Sanitizer{Call: v})
+				}
+			case *ssa.FieldAddr:
+				if !a.config.IsSourceFieldAddr(v) {
+					continue
+				}
 			}
 
 			a.marked[r.(ssa.Node)] = true
