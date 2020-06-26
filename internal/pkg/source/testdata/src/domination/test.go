@@ -25,7 +25,7 @@ type foo struct {
 }
 
 func f1() {
-	f := &foo{name: "n", password: "p"}
+	f := &foo{name: "n", password: "p"} // want `sanitizer\(t0\) sink\(t0\) `
 	if time.Now().Year() == 2020 {
 		sanitizer(f)
 	}
