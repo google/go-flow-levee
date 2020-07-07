@@ -20,7 +20,6 @@ import (
 	"go/types"
 	"strings"
 
-	"github.com/eapache/queue"
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
@@ -41,6 +40,7 @@ type classifier interface {
 type Source struct {
 	node       ssa.Node
 	marked     map[ssa.Node]bool
+	preOrder   []ssa.Node
 	sanitizers []*sanitizer.Sanitizer
 	config     classifier
 }
@@ -57,55 +57,61 @@ func New(in ssa.Node, config classifier) *Source {
 		marked: make(map[ssa.Node]bool),
 		config: config,
 	}
-	a.bfs()
+	a.dfs(in)
 	return a
 }
 
-// bfs performs Breadth-First-Search on the def-use graph of the input Source.
+// dfs performs Depth-First-Search on the def-use graph of the input Source.
 // While traversing the graph we also look for potential sanitizers of this Source.
 // If the Source passes through a sanitizer, bfs does not continue through that Node.
-func (a *Source) bfs() {
-	q := queue.New()
-	q.Add(a.node)
-	a.marked[a.node] = true
+func (a *Source) dfs(n ssa.Node) {
+	a.preOrder = append(a.preOrder, n)
+	a.marked[n.(ssa.Node)] = true
 
-	for q.Length() > 0 {
-		e := q.Remove().(ssa.Node)
+	if n.Referrers() == nil {
+		return
+	}
 
-		if e.Referrers() == nil {
+	for _, r := range *n.Referrers() {
+		if a.marked[r.(ssa.Node)] {
 			continue
 		}
 
-		for _, r := range *e.Referrers() {
-			if _, ok := a.marked[r.(ssa.Node)]; ok {
+		switch v := r.(type) {
+		case *ssa.Call:
+			// This is to avoid attaching calls where the source is the receiver, ex:
+			// core.Sinkf("Source id: %v", wrapper.Source.GetID())
+			if v.Call.Signature().Recv() != nil {
 				continue
 			}
 
-			// TODO(immutableT) We are putting too much logic into this function - it should just
-			// be constructing a graph. Add specialized methods that know how to trim or interpret
-			// connections.
-
-			switch v := r.(type) {
-			case *ssa.Call:
-				// This is to avoid attaching calls where the source is the receiver, ex:
-				// core.Sinkf("Source id: %v", wrapper.Source.GetID())
-				if v.Call.Signature().Recv() != nil {
-					continue
-				}
-
-				if a.config.IsSanitizer(v) {
-					a.sanitizers = append(a.sanitizers, &sanitizer.Sanitizer{Call: v})
-				}
-			case *ssa.FieldAddr:
-				if !a.config.IsSourceFieldAddr(v) {
-					continue
-				}
+			if a.config.IsSanitizer(v) {
+				a.sanitizers = append(a.sanitizers, &sanitizer.Sanitizer{Call: v})
 			}
+		case *ssa.FieldAddr:
+			if !a.config.IsSourceFieldAddr(v) {
+				continue
+			}
+		}
 
-			a.marked[r.(ssa.Node)] = true
-			q.Add(r)
+		a.dfs(r.(ssa.Node))
+	}
+}
+
+// compress removes the elements from the graph that are not required by the
+// taint-propagation analysis. Concretely, only propagators, sanitizers and
+// sinks should constitute the output. Since, we already know what the source
+// is, it is also removed.
+func (a *Source) compress() []ssa.Node {
+	var compressed []ssa.Node
+	for _, n := range a.preOrder {
+		switch n.(type) {
+		case *ssa.Call:
+			compressed = append(compressed, n)
 		}
 	}
+
+	return compressed
 }
 
 // HasPathTo returns true when a Node is part of declaration-use graph.
@@ -127,21 +133,8 @@ func (a *Source) IsSanitizedAt(call ssa.Instruction) bool {
 // String implements Stringer interface.
 func (a *Source) String() string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%v\n", a.node.String())
-
-	fmt.Fprint(&b, "Connections:\n")
-	for k := range a.marked {
-		fmt.Fprintf(&b, "\t%v : %T\n", k.String(), k)
-	}
-
-	fmt.Fprint(&b, "Referrers:\n")
-	for _, k := range *a.node.Referrers() {
-		fmt.Fprintf(&b, "\t%v : %T\n", k.String(), k)
-	}
-
-	fmt.Fprint(&b, "Sanitizers:\n")
-	for _, k := range a.sanitizers {
-		fmt.Fprintf(&b, "\t%v : %T\n", k.Call, k)
+	for _, n := range a.compress() {
+		b.WriteString(fmt.Sprintf("%v ", n))
 	}
 
 	return b.String()

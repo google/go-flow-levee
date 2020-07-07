@@ -21,11 +21,11 @@ type foo struct {
 }
 
 func f1() {
-	f := &foo{name: "bar"}
+	f := &foo{name: "bar"} // want "propagator"
 	transformedFoo := propagator(f)
 	fmt.Println(transformedFoo)
 }
 
 func propagator(in *foo) string {
-	return fmt.Sprintf("Transformed foo: %v", in)
+	return in.name + "transformed"
 }
