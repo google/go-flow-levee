@@ -128,9 +128,13 @@ func (c Config) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
 	deref := utils.Dereference(fa.X.Type())
 	fieldName := utils.FieldName(fa)
 
+	n, ok := deref.(*types.Named)
+	if !ok {
+		return false
+	}
+
 	for _, p := range c.Sources {
-		if n, ok := deref.(*types.Named); ok &&
-			p.match(n) && p.FieldRE.MatchString(fieldName) {
+		if p.match(n) && p.FieldRE.MatchString(fieldName) {
 			return true
 		}
 	}
