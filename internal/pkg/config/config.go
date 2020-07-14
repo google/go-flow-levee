@@ -253,11 +253,8 @@ func (f fieldPropagatorMatcher) match(call *ssa.Call) bool {
 		return false
 	}
 
-	if f.Receiver != utils.Dereference(recv.Type()).String() {
-		return false
-	}
-
-	return f.AccessorRE.MatchString(call.Call.StaticCallee().Name())
+	return f.Receiver == utils.Dereference(recv.Type()).String() &&
+		f.AccessorRE.MatchString(call.Call.StaticCallee().Name())
 }
 
 type transformingPropagatorMatcher struct {
