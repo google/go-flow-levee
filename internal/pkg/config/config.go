@@ -160,8 +160,8 @@ func (c Config) isFieldPropagator(call *ssa.Call) bool {
 	return false
 }
 
-// a call is a transforming propagator if its name matches a pattern in the config
-// and at least one of its arguments is a Source
+// A call is a transforming propagator if its name matches a pattern in the config
+// and at least one of its arguments is a Source.
 func (c Config) isTransformingPropagator(call *ssa.Call) bool {
 	for _, p := range c.TransformingPropagators {
 		if !p.match(call) {
