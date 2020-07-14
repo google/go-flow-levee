@@ -55,33 +55,34 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 			for _, instr := range b.Instrs {
 				//log.V(2).Infof("Inst: %v %T", instr, instr)
-				switch v := instr.(type) {
-				case *ssa.Call:
-					switch {
-					case conf.IsPropagator(v):
-						// Handling the case where sources are propagated to io.Writer
-						// (ex. proto.MarshalText(&buf, c)
-						// In such cases, "buf" becomes a source, and not the return value of the propagator.
-						// TODO Do not hard-code logging sinks usecase
-						// TODO  Handle case of os.Stdout and os.Stderr.
-						// TODO  Do not hard-code the position of the argument, instead declaratively
-						//  specify the position of the propagated source.
-						// TODO  Consider turning propagators that take io.Writer into sinks.
-						if a := sendsToIOWriter(conf, v); a != nil {
-							sources = append(sources, source.New(a, conf))
-						} else {
-							//log.V(2).Infof("Adding source: %v %T", v.Value(), v.Value())
-							sources = append(sources, source.New(v, conf))
-						}
+				v, ok := instr.(*ssa.Call)
+				if !ok {
+					continue
+				}
+				switch {
+				case conf.IsPropagator(v):
+					// Handling the case where sources are propagated to io.Writer
+					// (ex. proto.MarshalText(&buf, c)
+					// In such cases, "buf" becomes a source, and not the return value of the propagator.
+					// TODO Do not hard-code logging sinks usecase
+					// TODO  Handle case of os.Stdout and os.Stderr.
+					// TODO  Do not hard-code the position of the argument, instead declaratively
+					//  specify the position of the propagated source.
+					// TODO  Consider turning propagators that take io.Writer into sinks.
+					if a := sendsToIOWriter(conf, v); a != nil {
+						sources = append(sources, source.New(a, conf))
+					} else {
+						//log.V(2).Infof("Adding source: %v %T", v.Value(), v.Value())
+						sources = append(sources, source.New(v, conf))
+					}
 
-					case conf.IsSink(v):
-						// TODO Only variadic sink arguments are currently detected.
-						if sinkVarargs := varargs.New(v); sinkVarargs != nil {
-							for _, s := range sources {
-								if sinkVarargs.ReferredBy(s) && !s.IsSanitizedAt(v) {
-									report(pass, s, v)
-									break
-								}
+				case conf.IsSink(v):
+					// TODO Only variadic sink arguments are currently detected.
+					if sinkVarargs := varargs.New(v); sinkVarargs != nil {
+						for _, s := range sources {
+							if sinkVarargs.ReferredBy(s) && !s.IsSanitizedAt(v) {
+								report(pass, s, v)
+								break
 							}
 						}
 					}
