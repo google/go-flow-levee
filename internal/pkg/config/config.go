@@ -187,21 +187,6 @@ func (c Config) isTransformingPropagator(call *ssa.Call) bool {
 	return false
 }
 
-func (c Config) sendsToIOWriter(call *ssa.Call) ssa.Node {
-	if call.Call.Signature().Params().Len() == 0 {
-		return nil
-	}
-
-	firstArg := call.Call.Signature().Params().At(0)
-	if c.PropagatorArgs.ArgumentTypeRE.MatchString(firstArg.Type().String()) {
-		if a, ok := call.Call.Args[0].(*ssa.MakeInterface); ok {
-			return a.X.(ssa.Node)
-		}
-	}
-
-	return nil
-}
-
 func (c Config) isWhitelisted(pkg *types.Package) bool {
 	for _, w := range c.Whitelist {
 		if w.match(pkg) {
