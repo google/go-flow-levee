@@ -126,6 +126,7 @@ func (c Config) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
 	// fa.Type() refers to the accessed field's type.
 	// fa.X.Type() refers to the surrounding struct's type.
 	deref := utils.Dereference(fa.X.Type())
+	// TODO(mlevesquedion): refactor this into a "Field" method and eliminate duplication w/ above
 	fieldName := utils.FieldName(fa)
 
 	n, ok := deref.(*types.Named)
