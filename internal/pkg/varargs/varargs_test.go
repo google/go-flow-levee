@@ -138,7 +138,7 @@ func TestVarargs(t *testing.T) {
 
 			for i := 0; i < tt.wantStores; i++ {
 				if got.stores[i] != a.store[i] {
-					t.Fatalf("Expected %v == %v for store #%d. Referres: %v", got.stores[i], a.store[i], i, got.stores[i].Referrers())
+					t.Fatalf("Expected %v == %v for store #%d. Referrers: %v", got.stores[i], a.store[i], i, got.stores[i].Referrers())
 				}
 			}
 
