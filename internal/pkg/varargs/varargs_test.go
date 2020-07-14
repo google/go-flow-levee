@@ -95,26 +95,22 @@ func TestVarargs(t *testing.T) {
 	}{
 		{
 			pattern:               "base",
-			callUnderTestIdx:      0,
 			wantConnectionToAlloc: true,
 			wantStores:            1,
 		},
 		{
 			pattern:               "empty",
-			callUnderTestIdx:      0,
 			wantConnectionToAlloc: true,
 			wantStores:            1,
 		},
 		{
 			pattern:               "multiple",
-			callUnderTestIdx:      0,
 			wantConnectionToAlloc: true,
 			wantStores:            2,
 		},
 		{
-			pattern:          "no-connection-to-source",
-			callUnderTestIdx: 0,
-			wantStores:       1,
+			pattern:    "no-connection-to-source",
+			wantStores: 1,
 		},
 	}
 
