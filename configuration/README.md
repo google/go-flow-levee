@@ -13,6 +13,8 @@ For design details concerning value and instruction classification, see [/design
 
 Configuration is provided to `go-flow-levee` via JSON.
 
+Objects of interest are identified primarily via regexp. An empty regexp will match any string.
+
 Sources are identified via regexp according to package, type, and field names.
 ```json
 {
