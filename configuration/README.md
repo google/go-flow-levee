@@ -47,7 +47,7 @@ Sinks and sanitizers are identified via regexp according to package and method n
 
 We separate propagators into the following types:
 
-A *transforming propagator* produces a value tainted value which may contain source data.
+A *transforming propagator* produces a tainted value which may contain source data.
 For instance, a struct's `String()` method or a serializable's `Marshal()` method are transforming propagators.
 The value returned by either can contain source data without being identifiable as the specified source's type.
 Transforming propagators are identified via regexp according to package and function name.
