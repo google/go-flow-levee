@@ -69,7 +69,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					// TODO  Do not hard-code the position of the argument, instead declaratively
 					//  specify the position of the propagated source.
 					// TODO  Consider turning propagators that take io.Writer into sinks.
-					if a := sendsToIOWriter(conf, v); a != nil {
+					if a := getArgumentPropagatorNode(conf, v); a != nil {
 						sources = append(sources, source.New(a, conf))
 					} else {
 						//log.V(2).Infof("Adding source: %v %T", v.Value(), v.Value())
@@ -101,7 +101,7 @@ func report(pass *analysis.Pass, source *source.Source, sink ssa.Node) {
 	pass.Reportf(sink.Pos(), b.String())
 }
 
-func sendsToIOWriter(c *config.Config, call *ssa.Call) ssa.Node {
+func getArgumentPropagatorNode(c *config.Config, call *ssa.Call) ssa.Node {
 	if call.Call.Signature().Params().Len() == 0 {
 		return nil
 	}
