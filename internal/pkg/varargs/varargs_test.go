@@ -144,7 +144,7 @@ func TestVarargs(t *testing.T) {
 
 			s := source.New(a.allocations[tt.allocUnderTestIdx], &testConfig{})
 			if s == nil {
-				t.Fatal("Expected a source got got nil at a.allocations[0]")
+				t.Fatal("Expected a source got nil at a.allocations[0]")
 			}
 
 			if !got.ReferredBy(s) && tt.wantConnectionToAlloc {
