@@ -45,8 +45,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 	// Only examine functions that have sources
 	for fn, sources := range sourcesMap {
-		//log.V(2).Infof("Processing function %v", fn)
-
 		for _, b := range fn.Blocks {
 			if b == fn.Recover {
 				// TODO Handle calls to sinks in a recovery block.
