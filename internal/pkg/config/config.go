@@ -128,9 +128,13 @@ func (c Config) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
 	deref := utils.Dereference(fa.X.Type())
 	fieldName := utils.FieldName(fa)
 
+	n, ok := deref.(*types.Named)
+	if !ok {
+		return false
+	}
+
 	for _, p := range c.Sources {
-		if n, ok := deref.(*types.Named); ok &&
-			p.match(n) && p.FieldRE.MatchString(fieldName) {
+		if p.match(n) && p.FieldRE.MatchString(fieldName) {
 			return true
 		}
 	}
@@ -156,6 +160,8 @@ func (c Config) isFieldPropagator(call *ssa.Call) bool {
 	return false
 }
 
+// A call is a transforming propagator if its name matches a pattern in the config
+// and at least one of its arguments is a Source.
 func (c Config) isTransformingPropagator(call *ssa.Call) bool {
 	for _, p := range c.TransformingPropagators {
 		if !p.match(call) {
@@ -178,21 +184,6 @@ func (c Config) isTransformingPropagator(call *ssa.Call) bool {
 	}
 
 	return false
-}
-
-func (c Config) sendsToIOWriter(call *ssa.Call) ssa.Node {
-	if call.Call.Signature().Params().Len() == 0 {
-		return nil
-	}
-
-	firstArg := call.Call.Signature().Params().At(0)
-	if c.PropagatorArgs.ArgumentTypeRE.MatchString(firstArg.Type().String()) {
-		if a, ok := call.Call.Args[0].(*ssa.MakeInterface); ok {
-			return a.X.(ssa.Node)
-		}
-	}
-
-	return nil
 }
 
 func (c Config) isWhitelisted(pkg *types.Package) bool {
@@ -246,11 +237,8 @@ func (f fieldPropagatorMatcher) match(call *ssa.Call) bool {
 		return false
 	}
 
-	if f.Receiver != utils.Dereference(recv.Type()).String() {
-		return false
-	}
-
-	return f.AccessorRE.MatchString(call.Call.StaticCallee().Name())
+	return f.Receiver == utils.Dereference(recv.Type()).String() &&
+		f.AccessorRE.MatchString(call.Call.StaticCallee().Name())
 }
 
 type transformingPropagatorMatcher struct {
