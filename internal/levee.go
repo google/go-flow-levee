@@ -52,7 +52,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			}
 
 			for _, instr := range b.Instrs {
-				//log.V(2).Infof("Inst: %v %T", instr, instr)
 				v, ok := instr.(*ssa.Call)
 				if !ok {
 					continue
@@ -70,7 +69,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					if a := getArgumentPropagator(conf, v); a != nil {
 						sources = append(sources, source.New(a, conf))
 					} else {
-						//log.V(2).Infof("Adding source: %v %T", v.Value(), v.Value())
 						sources = append(sources, source.New(v, conf))
 					}
 
