@@ -95,26 +95,22 @@ func TestVarargs(t *testing.T) {
 	}{
 		{
 			pattern:               "base",
-			callUnderTestIdx:      0,
 			wantConnectionToAlloc: true,
 			wantStores:            1,
 		},
 		{
 			pattern:               "empty",
-			callUnderTestIdx:      0,
 			wantConnectionToAlloc: true,
 			wantStores:            1,
 		},
 		{
 			pattern:               "multiple",
-			callUnderTestIdx:      0,
 			wantConnectionToAlloc: true,
 			wantStores:            2,
 		},
 		{
-			pattern:          "no-connection-to-source",
-			callUnderTestIdx: 0,
-			wantStores:       1,
+			pattern:    "no-connection-to-source",
+			wantStores: 1,
 		},
 	}
 
@@ -142,13 +138,13 @@ func TestVarargs(t *testing.T) {
 
 			for i := 0; i < tt.wantStores; i++ {
 				if got.stores[i] != a.store[i] {
-					t.Fatalf("Expected %v == %v for store #%d. Referres: %v", got.stores[i], a.store[i], i, got.stores[i].Referrers())
+					t.Fatalf("Expected %v == %v for store #%d. Referrers: %v", got.stores[i], a.store[i], i, got.stores[i].Referrers())
 				}
 			}
 
 			s := source.New(a.allocations[tt.allocUnderTestIdx], &testConfig{})
 			if s == nil {
-				t.Fatal("Expected a source got got nil at a.allocations[0]")
+				t.Fatal("Expected a source got nil at a.allocations[0]")
 			}
 
 			if !got.ReferredBy(s) && tt.wantConnectionToAlloc {

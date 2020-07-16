@@ -43,18 +43,18 @@ func (s Sanitizer) Dominates(target ssa.Instruction) bool {
 	}
 
 	if s.Call.Block() == target.Block() {
-		parentIdx := math.MaxInt64
-		childIdx := 0
+		sanitizationIdx := math.MaxInt64
+		targetIdx := 0
 		for i, instr := range s.Call.Block().Instrs {
 			if instr == s.Call {
-				parentIdx = i
+				sanitizationIdx = i
 			}
 			if instr == target {
-				childIdx = i
+				targetIdx = i
 				break
 			}
 		}
-		return parentIdx < childIdx
+		return sanitizationIdx < targetIdx
 	}
 
 	for _, d := range s.Call.Block().Dominees() {

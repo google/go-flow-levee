@@ -63,7 +63,7 @@ func New(in ssa.Node, config classifier) *Source {
 
 // dfs performs Depth-First-Search on the def-use graph of the input Source.
 // While traversing the graph we also look for potential sanitizers of this Source.
-// If the Source passes through a sanitizer, bfs does not continue through that Node.
+// If the Source passes through a sanitizer, dfs does not continue through that Node.
 func (a *Source) dfs(n ssa.Node) {
 	a.preOrder = append(a.preOrder, n)
 	a.marked[n.(ssa.Node)] = true

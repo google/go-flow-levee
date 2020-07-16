@@ -75,10 +75,10 @@ func TestDomination(t *testing.T) {
 	nonDominatedSink := calls[4]
 
 	if !sanitizer.Dominates(dominatedSink) {
-		t.Fatalf("Sanitizer %v is dominating the leak %v due to no if statements", sanitizer.Call, dominatedSink)
+		t.Fatalf("Sanitizer %v should dominate the leak %v due to an if statement", sanitizer.Call, dominatedSink)
 	}
 
 	if sanitizer.Dominates(nonDominatedSink) {
-		t.Fatalf("Sanitizer %v is not dominating the leak %v due to an if statement", sanitizer.Call, nonDominatedSink)
+		t.Fatalf("Sanitizer %v should not dominate the leak %v due to no if statement", sanitizer.Call, nonDominatedSink)
 	}
 }
