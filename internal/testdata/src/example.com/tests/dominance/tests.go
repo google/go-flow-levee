@@ -33,8 +33,7 @@ func TestSanitizedSourceDoesNotTriggerFindingWhenTypeAsserted(c *core.Source) {
 
 func TestSanitizedSourceDoesNotTriggerFindingWithTypedSanitizer(c core.Source) {
 	sanitized := core.SanitizeSource(c)
-	// TODO This should not trigger
-	core.Sinkf("Sanitized %v", sanitized) // want "a source has reached a sink,"
+	core.Sinkf("Sanitized %v", sanitized)
 }
 
 func TestNotGuaranteedSanitization(c *core.Source) {
