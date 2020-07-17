@@ -43,14 +43,14 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if !ok {
 			return
 		}
-		if isTaggedPII(field) {
+		if isSource(field) {
 			pass.Reportf(field.Pos(), "tagged field")
 		}
 	})
 	return nil, nil
 }
 
-func isTaggedPII(field *ast.Field) bool {
+func isSource(field *ast.Field) bool {
 	tag := field.Tag
 	if tag == nil {
 		return false
