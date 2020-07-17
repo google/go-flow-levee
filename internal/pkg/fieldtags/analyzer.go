@@ -18,21 +18,36 @@ package fieldtags
 
 import (
 	"go/ast"
+	"reflect"
+	"strings"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
 )
 
+type keyValue struct {
+	key   string
+	value string
+}
+
+type sourcePatterns []keyValue
+
+var patterns sourcePatterns = []keyValue{
+	{"levee", "source"},
+}
+
 var Analyzer = &analysis.Analyzer{
-	Name:     "fieldtags",
-	Doc:      "This analyzer identifies fields tagged with SPII datapol annotations.",
-	Run:      run,
-	Requires: []*analysis.Analyzer{inspect.Analyzer},
+	Name:       "fieldtags",
+	Doc:        "This analyzer identifies Source fields based on their tags.",
+	Run:        run,
+	Requires:   []*analysis.Analyzer{inspect.Analyzer},
+	ResultType: reflect.TypeOf(new([]*ast.Field)).Elem(),
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+	results := []*ast.Field{}
 
 	nodeFilter := []ast.Node{
 		(*ast.Field)(nil),
@@ -43,22 +58,53 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if !ok {
 			return
 		}
-		if isSource(field) {
+		if patterns.isSource(field) {
+			results = append(results, field)
 			pass.Reportf(field.Pos(), "tagged field")
 		}
 	})
-	return nil, nil
+	return results, nil
 }
 
-func isSource(field *ast.Field) bool {
-	tag := field.Tag
-	if tag == nil {
+func (ps *sourcePatterns) isSource(field *ast.Field) bool {
+	if field.Tag == nil {
 		return false
 	}
 
-	value := tag.Value
-	if value == "`datapol:ST_ACCOUNT_CRENDENTIAL`" {
-		return true
+	// assume the tag is properly formatted
+	tag := field.Tag.Value
+
+	i := 1 // skip backtick
+	j := 1
+	for j < len(tag) {
+		for j < len(tag) && tag[j] != ':' {
+			j++
+		}
+		key := tag[i:j]
+		if key == "" {
+			return false
+		}
+
+		i = j + 2 // skip colon and opening quote
+		j = i
+		for j < len(tag) && tag[j] != '"' {
+			j++
+		}
+		value := tag[i:j]
+		if value == "" {
+			return false
+		}
+
+		for _, p := range *ps {
+			// value may be a list of comma separated values
+			if p.key == key && strings.Contains(value, p.value) {
+				return true
+			}
+		}
+
+		i = j + 2 // skip closing quote and space
+		j = i
 	}
+
 	return false
 }
