@@ -23,6 +23,7 @@ import (
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
+	"golang.org/x/tools/go/analysis/passes/structtag"
 	"golang.org/x/tools/go/ast/inspector"
 )
 
@@ -41,7 +42,7 @@ var Analyzer = &analysis.Analyzer{
 	Name:       "fieldtags",
 	Doc:        "This analyzer identifies Source fields based on their tags.",
 	Run:        run,
-	Requires:   []*analysis.Analyzer{inspect.Analyzer},
+	Requires:   []*analysis.Analyzer{inspect.Analyzer, structtag.Analyzer},
 	ResultType: reflect.TypeOf(new([]*ast.Field)).Elem(),
 }
 
@@ -71,7 +72,6 @@ func (ps *sourcePatterns) isSource(field *ast.Field) bool {
 		return false
 	}
 
-	// assume the tag is properly formatted
 	tag := field.Tag.Value
 
 	i := 1 // skip backtick
