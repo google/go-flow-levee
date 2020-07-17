@@ -74,6 +74,7 @@ func (ps *sourcePatterns) isSource(field *ast.Field) bool {
 
 	tag := field.Tag.Value
 
+	// TODO: consider refactoring this logic into a regex matcher
 	i := 1 // skip backtick
 	j := 1
 	for j < len(tag) {
