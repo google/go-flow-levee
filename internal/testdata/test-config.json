@@ -20,8 +20,9 @@
   ],
   "FieldPropagators": [
     {
-      "Receiver": "example.com/core.Source",
-      "AccessorRE": "^GetData$",
+      "PackageRE": "^example.com/core$",
+      "ReceiverRE": "Source",
+      "MethodRE": "^GetData$",
       "TODO": "Make this explicit configuration unnecessary."
     }
   ],
