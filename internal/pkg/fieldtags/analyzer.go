@@ -47,14 +47,14 @@ var Analyzer = &analysis.Analyzer{
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+	inspector_ := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 	results := []*ast.Field{}
 
 	nodeFilter := []ast.Node{
 		(*ast.Field)(nil),
 	}
 
-	inspect.Preorder(nodeFilter, func(n ast.Node) {
+	inspector_.Preorder(nodeFilter, func(n ast.Node) {
 		field, ok := n.(*ast.Field)
 		if !ok {
 			return
