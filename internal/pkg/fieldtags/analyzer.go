@@ -70,7 +70,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return results, nil
 }
 
-func (ps *sourcePatterns) isSource(field *ast.Field) bool {
+func (sp *sourcePatterns) isSource(field *ast.Field) bool {
 	if field.Tag == nil {
 		return false
 	}
@@ -99,7 +99,7 @@ func (ps *sourcePatterns) isSource(field *ast.Field) bool {
 			return false
 		}
 
-		for _, p := range *ps {
+		for _, p := range *sp {
 			// value may be a list of comma separated values
 			if p.key == key && strings.Contains(value, p.value) {
 				return true
