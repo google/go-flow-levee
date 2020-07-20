@@ -39,10 +39,13 @@ var patterns sourcePatterns = []keyValue{
 }
 
 var Analyzer = &analysis.Analyzer{
-	Name:       "fieldtags",
-	Doc:        "This analyzer identifies Source fields based on their tags.",
-	Run:        run,
-	Requires:   []*analysis.Analyzer{inspect.Analyzer, structtag.Analyzer},
+	Name: "fieldtags",
+	Doc:  "This analyzer identifies Source fields based on their tags.",
+	Run:  run,
+	Requires: []*analysis.Analyzer{
+		inspect.Analyzer,
+		structtag.Analyzer, // required to ensure that tags are properly formatted
+	},
 	ResultType: reflect.TypeOf(new([]*ast.Field)).Elem(),
 }
 
