@@ -1,0 +1,26 @@
+{
+  "Sources": [
+    {
+      "PackageRE": "",
+      "TypeRE": "^Source$",
+      "FieldRE": "^Data"
+    }
+  ],
+  "Sinks": [
+    {
+      "PackageRE": "",
+      "MethodRE": "Sink"
+    }
+  ],
+  "Sanitizers": [
+    {
+      "PackageRE": "",
+      "MethodRE": "Sanitize"
+    }
+  ],
+  "FieldPropagators": [],
+  "TransformingPropagators": [],
+  "PropagatorArgs": {},
+  "Whitelist": [],
+  "AnalysisScope": []
+}
