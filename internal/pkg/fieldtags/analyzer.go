@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package fieldtags defines an analyzer that identifies struct fields tagged with datapol annotations
-// indicating that they contain SPII.
+// Package fieldtags defines an analyzer that identifies struct fields identified
+// as sources via a field tag.
 package fieldtags
 
 import (

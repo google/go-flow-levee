@@ -15,9 +15,9 @@
 package fieldtags
 
 type Person struct {
-	password           string `levee:"source"`               // want "tagged field"
-	secret             string `json:"secret" levee:"source"` // want "tagged field"
-	someSecretNumber   int    "levee:`source`"               // want "tagged field"
-	name               string `some_key:"non_secret"`
+	password           string      `levee:"source"`               // want "tagged field"
+	secret             string      `json:"secret" levee:"source"` // want "tagged field"
+	another            interface{} "levee:\"source\""             // want "tagged field"
+	name               string      `some_key:"non_secret"`
 	someNotTaggedField int
 }
