@@ -15,6 +15,7 @@
 package call
 
 import (
+	"fmt"
 	"go/ast"
 	"go/importer"
 	"go/parser"
@@ -43,26 +44,18 @@ type fakeReferrer struct {
 
 func (f fakeReferrer) HasPathTo(node ssa.Node) bool { return f.hasPathTo }
 
-func TestRegularCallWithNoArgsIsNotReferredBy(t *testing.T) {
-	ssaCall := getCall(source, "CallNoArgs")
-	call := Regular(ssaCall)
-	got := call.ReferredBy(fakeReferrer{true})
-	want := false
-	if got != want {
-		t.Errorf("call.ReferredBy(%v) == %v, want %v", call, got, want)
-	}
-}
-
 func TestRegularCallReferredBy(t *testing.T) {
 	cases := []struct {
-		r    Referrer
-		want bool
+		r              Referrer
+		parentFuncName string
+		want           bool
 	}{
-		{fakeReferrer{true}, true},
-		{fakeReferrer{false}, false},
+		{fakeReferrer{true}, "CallNoArgs", false},
+		{fakeReferrer{true}, "CallOneArg", true},
+		{fakeReferrer{false}, "CallOneArg", false},
 	}
 	for _, c := range cases {
-		ssaCall := getCall(source, "CallOneArg")
+		ssaCall := getCall(source, c.parentFuncName)
 		call := Regular(ssaCall)
 		got := call.ReferredBy(c.r)
 		if got != c.want {
@@ -89,7 +82,7 @@ func getCall(source, parentFuncName string) *ssa.Call {
 
 	fun := ssaPkg.Func(parentFuncName)
 	if fun == nil {
-		panic("did not find function named Call")
+		panic(fmt.Sprintf("did not find function named %s", parentFuncName))
 	}
 
 	for _, i := range fun.Blocks[0].Instrs {
@@ -99,5 +92,5 @@ func getCall(source, parentFuncName string) *ssa.Call {
 		}
 	}
 
-	panic("did not find call instruction")
+	panic(fmt.Sprintf("did not find call instruction in function named %s", parentFuncName))
 }
