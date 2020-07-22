@@ -20,21 +20,25 @@ import (
 	"golang.org/x/tools/go/ssa"
 )
 
-// Call is a wrapper for *ssa.Call instructions, allowing Variadic and
+// A Call is a wrapper for *ssa.Call instructions, allowing Variadic and
 // non-Variadic calls to be handled polymorphically
 type Call interface {
 	// ReferredBy determines if the call is referred to by the referrer
 	ReferredBy(r Referrer) bool
 }
 
+// A Referrer is something that can be queried to determine whether it refers to
+// a given ssa Node.
 type Referrer interface {
-	HasPathTo(node ssa.Node) bool
+	RefersTo(node ssa.Node) bool
 }
 
+// A RegularCall is a wrapper around a non-variadic ssa Call.
 type RegularCall struct {
 	call *ssa.Call
 }
 
+// Regular creates a RegularCall from an ssa Call.
 func Regular(c *ssa.Call) *RegularCall {
 	return &RegularCall{c}
 }
@@ -42,7 +46,7 @@ func Regular(c *ssa.Call) *RegularCall {
 // ReferredBy determines if the supplied referrer refers one of the Call's arguments.
 func (c *RegularCall) ReferredBy(r Referrer) bool {
 	for _, a := range c.call.Call.Args {
-		if r.HasPathTo(a.(ssa.Node)) {
+		if r.RefersTo(a.(ssa.Node)) {
 			return true
 		}
 	}

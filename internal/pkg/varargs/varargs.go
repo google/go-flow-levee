@@ -71,7 +71,7 @@ func New(s *ssa.Call) *Varargs {
 // ReferredBy determines if the supplied node refers the Vararg in question via a store instruction.
 func (v *Varargs) ReferredBy(r call.Referrer) bool {
 	for _, s := range v.stores {
-		if r.HasPathTo(s.Val.(ssa.Node)) {
+		if r.RefersTo(s.Val.(ssa.Node)) {
 			return true
 		}
 	}
