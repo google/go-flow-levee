@@ -21,30 +21,22 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"io/ioutil"
+	"path/filepath"
 	"testing"
 
 	"golang.org/x/tools/go/ssa"
 	"golang.org/x/tools/go/ssa/ssautil"
 )
 
-const source = `package test
-func NoArgs() {}
-func OneArg(one int) {}
-func CallNoArgs() {
-	NoArgs()
-}
-func CallOneArg() {
-	OneArg(0)
-}
-`
-
 type fakeReferrer struct {
 	hasPathTo bool
 }
 
-func (f fakeReferrer) HasPathTo(node ssa.Node) bool { return f.hasPathTo }
+func (f fakeReferrer) RefersTo(node ssa.Node) bool { return f.hasPathTo }
 
 func TestRegularCallReferredBy(t *testing.T) {
+	source := readFromTestData("test.go")
 	cases := []struct {
 		r              Referrer
 		parentFuncName string
@@ -62,6 +54,15 @@ func TestRegularCallReferredBy(t *testing.T) {
 			t.Errorf("call.ReferredBy(%v) == %v, want %v", call, got, c.want)
 		}
 	}
+}
+
+func readFromTestData(filename string) string {
+	filePath := filepath.Join("testdata", filename)
+	bytes, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		panic(err)
+	}
+	return string(bytes)
 }
 
 // taken from golang.org/x/tools/go/ssa/example_test.go
