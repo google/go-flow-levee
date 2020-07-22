@@ -38,9 +38,9 @@ func init() {
 // config contains matchers and analysis scope information
 type Config struct {
 	Sources                 []sourceMatcher
-	Sinks                   []methodMatcher
-	Sanitizers              []methodMatcher
-	FieldPropagators        []methodMatcher
+	Sinks                   []callMatcher
+	Sanitizers              []callMatcher
+	FieldPropagators        []callMatcher
 	TransformingPropagators []transformingPropagatorMatcher
 	PropagatorArgs          argumentPropagatorMatcher
 	Whitelist               []packageMatcher
@@ -268,20 +268,20 @@ func (pm packageMatcher) match(pkg *types.Package) bool {
 	return pm.PackageNameRE.MatchString(pkg.Path())
 }
 
-type methodMatcher struct {
+type callMatcher struct {
 	PackageRE  regexp.Regexp
 	ReceiverRE regexp.Regexp
 	MethodRE   regexp.Regexp
 }
 
-func (r methodMatcher) matchPackage(p *types.Package) bool {
+func (r callMatcher) matchPackage(p *types.Package) bool {
 	return r.PackageRE.MatchString(p.Path())
 }
 
 // Match matches methods based on package, method, and receiver regexp.
 // To explicitly match a method with no receiver (i.e., a top-level function),
 // provide the ReceiverRE regexp `^$`.
-func (r methodMatcher) Match(c *ssa.Call) bool {
+func (r callMatcher) Match(c *ssa.Call) bool {
 	callee := c.Call.StaticCallee()
 	if callee == nil || callee.Pkg == nil {
 		return false
@@ -293,9 +293,7 @@ func (r methodMatcher) Match(c *ssa.Call) bool {
 
 	recv := c.Call.Signature().Recv()
 	var recvName string
-	if recv == nil {
-		recvName = ""
-	} else {
+	if recv != nil {
 		recvName = recv.Type().String()
 	}
 
