@@ -24,6 +24,7 @@
   "Sinks": [
     {
       "PackageRE": "k?log$",
+      "ReceiverRE": "",
       "MethodRE": "Info|Warning|Error|Fatal|Exit"
     }
   ],
@@ -31,6 +32,7 @@
   "TransformingPropagators": [
     {
       "PackageName": ".*proto$",
+      "ReceiverRE": "",
       "MethodRE": "^Clone$|^Marshal"
     }
   ],
