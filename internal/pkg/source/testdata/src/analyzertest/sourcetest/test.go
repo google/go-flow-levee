@@ -28,12 +28,19 @@ func TestSourceDeclarations() {
 	declZeroVal := Source{}                       // want "source identified"
 	populatedVal := Source{Data: "secret", ID: 0} // want "source identified"
 
-	var ptr *Source                                       // TODO want "source identified"
+	// We do not want a "source identified" here, since this is nil
+	// and gets optimized out when the SSA is built.
+	var constPtr *Source
+
+	var ptr *Source
+	// We do want a "source identified" here.
+	// ptr does not get optimized out because it gets assigned.
+	ptr = &Source{}                                       // want "source identified"
 	newPtr := new(Source)                                 // want "source identified"
 	ptrToDeclZero := &Source{}                            // want "source identified"
 	ptrToDeclPopulataed := &Source{Data: "secret", ID: 1} // want "source identified"
 
-	noop(varZeroVal, declZeroVal, populatedVal, ptr, newPtr, ptrToDeclZero, ptrToDeclPopulataed)
+	noop(varZeroVal, declZeroVal, populatedVal, constPtr, ptr, newPtr, ptrToDeclZero, ptrToDeclPopulataed)
 }
 
 // A report should be emitted for each parameter.

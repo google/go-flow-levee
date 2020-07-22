@@ -202,7 +202,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 			switch v := instr.(type) {
 			// Looking for sources of PII allocated within the body of a function.
 			case *ssa.Alloc:
-				if conf.IsSource(utils.Dereference(v.Type())) {
+				if conf.IsSource(utils.Dereference(v.Type())) && !isProducedBySanitizer(v, conf) {
 					sources = append(sources, New(v, conf))
 				}
 
@@ -216,4 +216,21 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 		}
 	}
 	return sources
+}
+
+func isProducedBySanitizer(v *ssa.Alloc, conf classifier) bool {
+	for _, instr := range *v.Referrers() {
+		store, ok := instr.(*ssa.Store)
+		if !ok {
+			continue
+		}
+		call, ok := store.Val.(*ssa.Call)
+		if !ok {
+			continue
+		}
+		if conf.IsSanitizer(call) {
+			return true
+		}
+	}
+	return false
 }
