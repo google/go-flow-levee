@@ -23,7 +23,6 @@ import (
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
-	"golang.org/x/tools/go/analysis/passes/structtag"
 	"golang.org/x/tools/go/ast/inspector"
 )
 
@@ -40,11 +39,10 @@ var patterns sourcePatterns = []keyValue{
 
 var Analyzer = &analysis.Analyzer{
 	Name: "fieldtags",
-	Doc:  "This analyzer identifies Source fields based on their tags.",
+	Doc:  "This analyzer identifies Source fields based on their tags. Tags are expected to satisfy the `go vet -structtag` format.",
 	Run:  run,
 	Requires: []*analysis.Analyzer{
 		inspect.Analyzer,
-		structtag.Analyzer, // required to ensure that tags are properly formatted
 	},
 	ResultType: reflect.TypeOf(new([]*ast.Field)).Elem(),
 }
