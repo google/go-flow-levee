@@ -76,7 +76,7 @@ func (sp *sourcePatterns) isSource(field *ast.Field) bool {
 	tag := field.Tag.Value
 
 	// TODO: consider refactoring this logic into a regex matcher
-	i := 1 // skip backtick
+	i := 1 // skip initial quote
 	j := 1
 	for j < len(tag) {
 		for j < len(tag) && tag[j] != ':' {
@@ -87,9 +87,18 @@ func (sp *sourcePatterns) isSource(field *ast.Field) bool {
 			return false
 		}
 
-		i = j + 2 // skip colon and opening quote
+		i = j + 1 // skip colon
+		if tag[i] == '\\' {
+			i++
+		}
+		i++ // skip quote
+
 		j = i
 		for j < len(tag) && tag[j] != '"' {
+			// skip escape character
+			if tag[j] == '\\' {
+				j++
+			}
 			j++
 		}
 		value := tag[i:j]
