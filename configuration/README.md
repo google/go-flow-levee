@@ -28,19 +28,21 @@ Sources are identified via regexp according to package, type, and field names.
 }
 ```
 
-Sinks and sanitizers are identified via regexp according to package and method name.
+Sinks, sanitizers, and some propagators (below) are identified via regexp according to package, method, and (optional) receiver name.
 
 ```json
 {
   "Sinks": [
     {
       "PackageRE": "<package path regexp>",
+      "ReceiverRE": "<type name regexp>",
       "MethodRE": "<method name regexp>"
     }
   ],
   "Sanitizers": [
     {
       "PackageRE": "<package path regexp>",
+      "ReceiverRE": "<type name regexp>",
       "MethodRE": "<method name regexp>"
     }
   ]
@@ -69,13 +71,15 @@ Argument propagators are identified via regexp matching the fully-qualified type
   "TransformingPropagators": [
     {
       "PackageRE": "<package path regexp>",
+      "ReceiverRE": "<type name regexp>",
       "MethodRE": "<method name regexp>"
     }
   ],
   "FieldPropagators": [
     {
-      "Receiver": "<fully qualified type path regexp>",
-      "AccessorRE": "<method name regexp>"
+      "PackageRE": "<package path regexp>",
+      "ReceiverRE": "<type name regexp>",
+      "MethodRE": "<method name regexp>"
     }
   ],
   "PropagatorArgs": {
@@ -83,6 +87,9 @@ Argument propagators are identified via regexp matching the fully-qualified type
   }
 }
 ```
+
+For matchers that accept a `ReceiverRE` regexp matcher, an unspecified string will match any (or no) receiver.
+To match only methods without any receiver (i.e., a top-level function), use the matcher `^$` to match an empty-string receiver name.
 
 ### Example configuration
 

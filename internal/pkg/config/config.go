@@ -38,9 +38,9 @@ func init() {
 // config contains matchers and analysis scope information
 type Config struct {
 	Sources                 []sourceMatcher
-	Sinks                   []NameMatcher
-	Sanitizers              []NameMatcher
-	FieldPropagators        []fieldPropagatorMatcher
+	Sinks                   []callMatcher
+	Sanitizers              []callMatcher
+	FieldPropagators        []callMatcher
 	TransformingPropagators []transformingPropagatorMatcher
 	PropagatorArgs          argumentPropagatorMatcher
 	Whitelist               []packageMatcher
@@ -76,7 +76,7 @@ func (c Config) shouldSkip(pkg *types.Package) bool {
 
 func (c Config) IsSink(call *ssa.Call) bool {
 	for _, p := range c.Sinks {
-		if p.MatchMethodName(call) {
+		if p.Match(call) {
 			return true
 		}
 	}
@@ -86,7 +86,7 @@ func (c Config) IsSink(call *ssa.Call) bool {
 
 func (c Config) IsSanitizer(call *ssa.Call) bool {
 	for _, p := range c.Sanitizers {
-		if p.MatchMethodName(call) {
+		if p.Match(call) {
 			return true
 		}
 	}
@@ -152,7 +152,7 @@ func (c Config) isFieldPropagator(call *ssa.Call) bool {
 	}
 
 	for _, p := range c.FieldPropagators {
-		if p.match(call) {
+		if p.Match(call) {
 			return true
 		}
 	}
@@ -268,33 +268,36 @@ func (pm packageMatcher) match(pkg *types.Package) bool {
 	return pm.PackageNameRE.MatchString(pkg.Path())
 }
 
-type NameMatcher struct {
-	PackageRE regexp.Regexp
-	TypeRE    regexp.Regexp
-	MethodRE  regexp.Regexp
+type callMatcher struct {
+	PackageRE  regexp.Regexp
+	ReceiverRE regexp.Regexp
+	MethodRE   regexp.Regexp
 }
 
-func (r NameMatcher) matchPackage(p *types.Package) bool {
+func (r callMatcher) matchPackage(p *types.Package) bool {
 	return r.PackageRE.MatchString(p.Path())
 }
 
-func (r NameMatcher) MatchMethodName(c *ssa.Call) bool {
-	if c.Call.StaticCallee() == nil || c.Call.StaticCallee().Pkg == nil {
+// Match matches methods based on package, method, and receiver regexp.
+// To explicitly match a method with no receiver (i.e., a top-level function),
+// provide the ReceiverRE regexp `^$`.
+func (r callMatcher) Match(c *ssa.Call) bool {
+	callee := c.Call.StaticCallee()
+	if callee == nil || callee.Pkg == nil {
 		return false
 	}
 
-	return r.matchPackage(c.Call.StaticCallee().Pkg.Pkg) &&
-		r.MethodRE.MatchString(c.Call.StaticCallee().Name())
-}
-
-func (r NameMatcher) matchNamedType(n *types.Named) bool {
-	if types.IsInterface(n) {
-		// In our context, both sources and sanitizers are concrete types.
+	if !r.matchPackage(callee.Pkg.Pkg) || !r.MethodRE.MatchString(callee.Name()) {
 		return false
 	}
 
-	return r.PackageRE.MatchString(n.Obj().Pkg().Path()) &&
-		r.TypeRE.MatchString(n.Obj().Name())
+	recv := c.Call.Signature().Recv()
+	var recvName string
+	if recv != nil {
+		recvName = recv.Type().String()
+	}
+
+	return r.ReceiverRE.MatchString(recvName)
 }
 
 var readFileOnce sync.Once
