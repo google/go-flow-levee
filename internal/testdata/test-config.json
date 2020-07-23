@@ -29,6 +29,6 @@
   "TransformingPropagators": [
   ],
   "PropagatorArgs": {},
-  "Whitelist": [],
+  "Allowlist": [],
   "AnalysisScope": []
 }
