@@ -43,16 +43,16 @@ type Config struct {
 	FieldPropagators        []callMatcher
 	TransformingPropagators []transformingPropagatorMatcher
 	PropagatorArgs          argumentPropagatorMatcher
-	Whitelist               []packageMatcher
+	Allowlist               []packageMatcher
 	AnalysisScope           []packageMatcher
 }
 
 // shouldSkip returns true for any function that is outside analysis scope,
-// that is whitelisted,
+// that is allowlisted,
 // whose containing package imports "testing"
 // or whose containing package does not import any package containing a source or a sink.
 func (c Config) shouldSkip(pkg *types.Package) bool {
-	if isTestPkg(pkg) || !c.isInScope(pkg) || c.isWhitelisted(pkg) {
+	if isTestPkg(pkg) || !c.isInScope(pkg) || c.isAllowlisted(pkg) {
 		return true
 	}
 
@@ -186,8 +186,8 @@ func (c Config) isTransformingPropagator(call *ssa.Call) bool {
 	return false
 }
 
-func (c Config) isWhitelisted(pkg *types.Package) bool {
-	for _, w := range c.Whitelist {
+func (c Config) isAllowlisted(pkg *types.Package) bool {
+	for _, w := range c.Allowlist {
 		if w.match(pkg) {
 			return true
 		}
