@@ -46,58 +46,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
 
 	// TODO: integrate this with the rest of the code
-
-	for fn, _ := range sourcesMap {
-		if fn.Name() == "TestSlices" {
-			graph := newGraph()
-			for _, b := range fn.Blocks {
-				for _, inst := range b.Instrs {
-					dst, hasDst := inst.(ssa.Value)
-					if !hasDst {
-						t, ok := inst.(*ssa.Store)
-						if !ok {
-							continue
-						}
-						graph.addEdgeFromTo(t.Val.Name(), t.Addr.Name())
-						continue
-					}
-					dstName := dst.Name()
-					switch t := inst.(type) {
-					case *ssa.Alloc:
-						if conf.IsSource(utils.Dereference(t.Type())) {
-							graph.addSource(source.New(t, conf))
-						}
-					case *ssa.IndexAddr:
-						src, _ := t.X.(ssa.Value)
-						srcName := src.Name()
-						// this looks backwards, but we want to taint the whole array/slice
-						graph.addEdgeFromTo(dstName, srcName)
-					case *ssa.UnOp:
-						src, _ := t.X.(ssa.Value)
-						srcName := src.Name()
-						graph.addEdgeFromTo(dstName, srcName)
-					case *ssa.Slice:
-						src, _ := t.X.(ssa.Value)
-						srcName := src.Name()
-						graph.addEdgeFromTo(dstName, srcName)
-					case *ssa.MakeInterface:
-						src, _ := t.X.(ssa.Value)
-						srcName := src.Name()
-						graph.addEdgeFromTo(dstName, srcName)
-					case *ssa.Call:
-						parameters := t.Call.Args
-						var parameterNames []string
-						for _, p := range parameters {
-							parameterNames = append(parameterNames, p.Name())
-						}
-						graph.addSink(*t, parameterNames...)
-					}
-				}
-			}
-			graph.report(pass)
-			continue
-		}
-	}
+	handleSlices(sourcesMap, conf, pass)
 
 	// Only examine functions that have sources
 	for fn, sources := range sourcesMap {
@@ -166,6 +115,63 @@ func getArgumentPropagator(c *config.Config, call *ssa.Call) ssa.Node {
 	}
 
 	return nil
+}
+
+func handleSlices(sourcesMap source.ResultType, conf *config.Config, pass *analysis.Pass) {
+	for fn, _ := range sourcesMap {
+		if fn.Name() == "TestSlices" {
+			graph := newGraph()
+			for _, b := range fn.Blocks {
+				for _, inst := range b.Instrs {
+					dst, hasDst := inst.(ssa.Value)
+					if !hasDst {
+						t, ok := inst.(*ssa.Store)
+						if !ok {
+							continue
+						}
+						graph.addEdgeFromTo(t.Val.Name(), t.Addr.Name())
+						continue
+					}
+					dstName := dst.Name()
+					switch t := inst.(type) {
+					case *ssa.Alloc:
+						if conf.IsSource(utils.Dereference(t.Type())) {
+							graph.addSource(source.New(t, conf))
+						}
+					case *ssa.IndexAddr:
+						src, _ := t.X.(ssa.Value)
+						srcName := src.Name()
+						// this looks backwards, but we are storing a *reference
+						// to a slice index in a variable, so we need the variable to point to the
+						// indexed value (e.g. a slice), not the other way around
+						// example: t2 = &t1[0:int]
+						graph.addEdgeFromTo(dstName, srcName)
+					case *ssa.UnOp:
+						src, _ := t.X.(ssa.Value)
+						srcName := src.Name()
+						graph.addEdgeFromTo(dstName, srcName)
+					case *ssa.Slice:
+						src, _ := t.X.(ssa.Value)
+						srcName := src.Name()
+						graph.addEdgeFromTo(dstName, srcName)
+					case *ssa.MakeInterface:
+						src, _ := t.X.(ssa.Value)
+						srcName := src.Name()
+						graph.addEdgeFromTo(dstName, srcName)
+					case *ssa.Call:
+						parameters := t.Call.Args
+						var parameterNames []string
+						for _, p := range parameters {
+							parameterNames = append(parameterNames, p.Name())
+						}
+						graph.addSink(*t, parameterNames...)
+					}
+				}
+			}
+			graph.report(pass)
+			continue
+		}
+	}
 }
 
 type Graph struct {
