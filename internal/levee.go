@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/go-flow-levee/internal/pkg/utils"
+
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ssa"
@@ -42,6 +44,60 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	// TODO: respect configuration scope
 
 	sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
+
+	// TODO: integrate this with the rest of the code
+
+	for fn, _ := range sourcesMap {
+		if fn.Name() == "TestSlices" {
+			graph := newGraph()
+			for _, b := range fn.Blocks {
+				for _, inst := range b.Instrs {
+					dst, hasDst := inst.(ssa.Value)
+					if !hasDst {
+						t, ok := inst.(*ssa.Store)
+						if !ok {
+							continue
+						}
+						graph.addEdgeFromTo(t.Val.Name(), t.Addr.Name())
+						continue
+					}
+					dstName := dst.Name()
+					switch t := inst.(type) {
+					case *ssa.Alloc:
+						if conf.IsSource(utils.Dereference(t.Type())) {
+							graph.addSource(source.New(t, conf))
+						}
+					case *ssa.IndexAddr:
+						src, _ := t.X.(ssa.Value)
+						srcName := src.Name()
+						// this looks backwards, but we want to taint the whole array/slice
+						graph.addEdgeFromTo(dstName, srcName)
+					case *ssa.UnOp:
+						src, _ := t.X.(ssa.Value)
+						srcName := src.Name()
+						graph.addEdgeFromTo(dstName, srcName)
+					case *ssa.Slice:
+						src, _ := t.X.(ssa.Value)
+						srcName := src.Name()
+						graph.addEdgeFromTo(dstName, srcName)
+					case *ssa.MakeInterface:
+						src, _ := t.X.(ssa.Value)
+						srcName := src.Name()
+						graph.addEdgeFromTo(dstName, srcName)
+					case *ssa.Call:
+						parameters := t.Call.Args
+						var parameterNames []string
+						for _, p := range parameters {
+							parameterNames = append(parameterNames, p.Name())
+						}
+						graph.addSink(*t, parameterNames...)
+					}
+				}
+			}
+			graph.report(pass)
+			continue
+		}
+	}
 
 	// Only examine functions that have sources
 	for fn, sources := range sourcesMap {
@@ -110,4 +166,65 @@ func getArgumentPropagator(c *config.Config, call *ssa.Call) ssa.Node {
 	}
 
 	return nil
+}
+
+type Graph struct {
+	edges   map[string]map[string]bool
+	sources []*source.Source
+	sinks   []ssa.Call
+}
+
+func newGraph() Graph {
+	return Graph{
+		edges: map[string]map[string]bool{},
+	}
+}
+
+func (g *Graph) addEdgeFromTo(src, dst string) {
+	if _, ok := g.edges[src]; !ok {
+		g.edges[src] = map[string]bool{}
+	}
+	g.edges[src][dst] = true
+}
+
+func (g *Graph) addSource(s *source.Source) {
+	g.sources = append(g.sources, s)
+}
+
+func (g *Graph) addSink(sink ssa.Call, args ...string) {
+	g.sinks = append(g.sinks, sink)
+	for _, a := range args {
+		g.addEdgeFromTo(a, sink.Call.StaticCallee().Name())
+	}
+}
+
+func (g *Graph) report(pass *analysis.Pass) {
+	seen := map[string]bool{}
+	for _, source := range g.sources {
+		var stack []string
+		name := g.getName(source.Node())
+		stack = append(stack, name)
+		seen[name] = true
+		for len(stack) > 0 {
+			current := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			for _, sink := range g.sinks {
+				if sink.Call.StaticCallee().Name() == "Sink" {
+					report(pass, source, &sink)
+				}
+			}
+			for n, _ := range g.edges[current] {
+				if !seen[n] {
+					seen[n] = true
+					stack = append(stack, n)
+				}
+			}
+		}
+	}
+
+}
+
+func (g *Graph) getName(s ssa.Node) string {
+	val, _ := s.(ssa.Value)
+	return val.Name()
 }
