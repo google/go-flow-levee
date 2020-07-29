@@ -1,4 +1,4 @@
-// Copyright 2019 Google LLC
+// Copyright 2020 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,28 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package internal
+package debug
 
 import (
-	"testing"
-
-	"golang.org/x/tools/go/analysis/analysistest"
+	"io/ioutil"
+	"path/filepath"
 )
 
-var patterns = []string{
-	"example.com/tests/arguments",
-	"example.com/tests/dominance",
-	"example.com/tests/fields",
-	"example.com/tests/sinks",
-	"example.com/tests/collections",
-	"example.com/tests/declarations",
-	"example.com/tests/receivers",
+func writeOut(filename string, content []byte) {
+	ioutil.WriteFile(filepath.Join("out", filename), content, 0666)
 }
 
-func TestLevee(t *testing.T) {
-	dir := analysistest.TestData()
-	if err := Analyzer.Flags.Set("config", dir+"/test-config.json"); err != nil {
-		t.Error(err)
-	}
-	analysistest.Run(t, dir, Analyzer, patterns...)
+// WriteSSA writes out the ssa from an ssaPrinter to a file.
+func WriteSSA(fnName, source string) {
+	writeOut(fnName+".ssa", []byte(source))
+}
+
+// WriteGraph writes out the DOT source representing a graph to a file.
+func WriteGraph(fnName, source string) {
+	writeOut(fnName+".dot", []byte(source))
 }

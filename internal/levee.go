@@ -16,14 +16,19 @@ package internal
 
 import (
 	"fmt"
+	"go/types"
+	"strconv"
 	"strings"
 
+	"github.com/google/go-flow-levee/internal/pkg/utils"
+
 	"github.com/google/go-flow-levee/internal/pkg/config"
+	"github.com/google/go-flow-levee/internal/pkg/debug"
+	"github.com/google/go-flow-levee/internal/pkg/graphprinter"
+	"github.com/google/go-flow-levee/internal/pkg/source"
+	"github.com/google/go-flow-levee/internal/pkg/ssaprinter"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ssa"
-
-	"github.com/google/go-flow-levee/internal/pkg/source"
-	"github.com/google/go-flow-levee/internal/pkg/varargs"
 )
 
 var Analyzer = &analysis.Analyzer{
@@ -39,75 +44,228 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	// TODO: respect configuration scope
 
+	// TODO: respect configuration scope
 	sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
 
-	// Only examine functions that have sources
-	for fn, sources := range sourcesMap {
-		for _, b := range fn.Blocks {
-			if b == fn.Recover {
-				// TODO Handle calls to sinks in a recovery block.
-				continue // skipping Recover since it does not have instructions, rather a single block.
-			}
-
-			for _, instr := range b.Instrs {
-				v, ok := instr.(*ssa.Call)
-				if !ok {
-					continue
-				}
-				switch {
-				case conf.IsPropagator(v):
-					// Handling the case where sources are propagated to io.Writer
-					// (ex. proto.MarshalText(&buf, c)
-					// In such cases, "buf" becomes a source, and not the return value of the propagator.
-					// TODO Do not hard-code logging sinks usecase
-					// TODO  Handle case of os.Stdout and os.Stderr.
-					// TODO  Do not hard-code the position of the argument, instead declaratively
-					//  specify the position of the propagated source.
-					// TODO  Consider turning propagators that take io.Writer into sinks.
-					if a := getArgumentPropagator(conf, v); a != nil {
-						sources = append(sources, source.New(a, conf))
-					} else {
-						sources = append(sources, source.New(v, conf))
-					}
-
-				case conf.IsSink(v):
-					// TODO Only variadic sink arguments are currently detected.
-					if sinkVarargs := varargs.New(v); sinkVarargs != nil {
-						for _, s := range sources {
-							if sinkVarargs.ReferredBy(s) && !s.IsSanitizedAt(v) {
-								report(pass, s, v)
-								break
-							}
-						}
-					}
-				}
-			}
-		}
+	debugging := true
+	for fn := range sourcesMap {
+		analyzeFn(fn, conf, pass, debugging)
 	}
 
 	return nil, nil
 }
 
-func report(pass *analysis.Pass, source *source.Source, sink ssa.Node) {
-	var b strings.Builder
-	b.WriteString("a source has reached a sink")
-	fmt.Fprintf(&b, ", source: %v", pass.Fset.Position(source.Node().Pos()))
-	pass.Reportf(sink.Pos(), b.String())
-}
+func analyzeFn(fn *ssa.Function, conf *config.Config, pass *analysis.Pass, debugging bool) {
+	graph := newGraph()
+	ssaPrinter := ssaprinter.New(fn)
 
-func getArgumentPropagator(c *config.Config, call *ssa.Call) ssa.Node {
-	if call.Call.Signature().Params().Len() == 0 {
-		return nil
-	}
-
-	firstArg := call.Call.Signature().Params().At(0)
-	if c.PropagatorArgs.ArgumentTypeRE.MatchString(firstArg.Type().String()) {
-		if a, ok := call.Call.Args[0].(*ssa.MakeInterface); ok {
-			return a.X.(ssa.Node)
+	for _, p := range fn.Params {
+		if conf.IsSource(utils.Dereference(p.Type())) {
+			graph.addSource(p.Name(), p)
 		}
 	}
 
-	return nil
+	// this is needed to capture variables referred to by closures
+	for _, p := range fn.FreeVars {
+		switch t := p.Type().(type) {
+		case *types.Pointer:
+			if s, ok := utils.Dereference(t).(*types.Named); ok && conf.IsSource(s) {
+				graph.addSource(p.Name(), p)
+			}
+		}
+	}
+
+	for bi, b := range fn.Blocks {
+		for ii, inst := range b.Instrs {
+			value, isValue := inst.(ssa.Value)
+			ssaPrinter.WriteInstr(ii, inst, value, isValue)
+
+			switch t := inst.(type) {
+			case *ssa.Alloc:
+				if conf.IsSource(utils.Dereference(t.Type())) && !source.IsProducedBySanitizer(t, conf) {
+					graph.addSource(value.Name(), t)
+				}
+
+			case *ssa.Call:
+				parameters := t.Call.Args
+				var parameterNames []string
+				for _, p := range parameters {
+					parameterNames = append(parameterNames, p.Name())
+				}
+				switch {
+				case conf.IsSink(t):
+					graph.addSink(t, parameterNames)
+				case conf.IsPropagator(t):
+					graph.addSource(value.Name(), t)
+				default:
+					graph.addCallEdges(*t, parameterNames)
+				}
+
+			case *ssa.FieldAddr:
+				if conf.IsSourceFieldAddr(t) {
+					graph.addSource(value.Name(), t)
+				}
+
+			case *ssa.IndexAddr:
+				x, _ := t.X.(ssa.Value)
+				// example instruction: t1 = &t0[0:int]
+				// the edge needs to be inverted since we are storing
+				// a reference; in effect, t1 is now an alias for t0
+				graph.addEdge(value.Name(), x.Name())
+
+			case *ssa.MakeInterface:
+				x := t.X.(ssa.Value)
+				graph.addEdge(x.Name(), value.Name())
+
+			case *ssa.Phi:
+				for _, e := range t.Edges {
+					graph.addEdge(e.Name(), value.Name())
+				}
+
+			case *ssa.Slice:
+				x, _ := t.X.(ssa.Value)
+				graph.addEdge(x.Name(), value.Name())
+
+			case *ssa.Store:
+				graph.addEdge(t.Val.Name(), t.Addr.Name())
+
+			case *ssa.UnOp:
+				x, _ := t.X.(ssa.Value)
+				graph.addEdge(x.Name(), value.Name())
+			}
+		}
+		ssaPrinter.WriteBlock(bi, b)
+	}
+
+	if debugging {
+		debug.WriteSSA(fn.Name(), ssaPrinter.String())
+		debug.WriteGraph(fn.Name(), graph.string(conf))
+	}
+
+	reachabilities := graph.detectSinksReachableFromSources(conf)
+	for _, r := range reachabilities {
+		r.report(pass)
+	}
+}
+
+type namedNode struct {
+	name string
+	node ssa.Node
+}
+
+type sink struct {
+	name string
+	call *ssa.Call
+}
+
+func newSink(call *ssa.Call, i int) sink {
+	return sink{
+		name: call.Call.StaticCallee().Name() + strconv.Itoa(i),
+		call: call,
+	}
+}
+
+type graph struct {
+	edges   map[string]map[string]bool
+	sources []namedNode
+	sinks   []sink
+}
+
+func newGraph() graph {
+	return graph{
+		edges: map[string]map[string]bool{},
+	}
+}
+
+func (g *graph) addEdge(from, to string) {
+	if _, ok := g.edges[from]; !ok {
+		g.edges[from] = map[string]bool{}
+	}
+	g.edges[from][to] = true
+}
+
+func (g *graph) sinkCount() int {
+	return len(g.sinks)
+}
+
+func (g *graph) addSource(name string, node ssa.Node) {
+	g.sources = append(g.sources, namedNode{name: name, node: node})
+}
+
+func (g *graph) addCallEdges(call ssa.Call, args []string) {
+	for _, a := range args {
+		g.addEdge(a, call.Call.StaticCallee().Name())
+	}
+}
+
+func (g *graph) addSink(call *ssa.Call, args []string) {
+	sink := newSink(call, len(g.sinks))
+	g.sinks = append(g.sinks, sink)
+	for _, a := range args {
+		g.addEdge(a, sink.name)
+	}
+}
+
+func (g *graph) detectSinksReachableFromSources(conf *config.Config) []reachability {
+	seen := map[string]bool{}
+	var reachabilities []reachability
+
+	for _, source := range g.sources {
+		var stack []string
+		name := source.name
+		stack = append(stack, name)
+		seen[name] = true
+		for len(stack) > 0 {
+			current := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+
+			if conf.IsSanitizerName(current) {
+				continue
+			}
+
+			for _, sink := range g.sinks {
+				if current == sink.name {
+					reachabilities = append(reachabilities, reachability{source: source.node, sink: sink.call})
+					break
+				}
+			}
+
+			for n := range g.edges[current] {
+				if !seen[n] {
+					seen[n] = true
+					stack = append(stack, n)
+				}
+			}
+		}
+	}
+
+	return reachabilities
+}
+
+func (g *graph) string(conf *config.Config) string {
+	return graphprinter.Print(g.edges,
+		func(name string) bool {
+			for _, s := range g.sources {
+				if strings.Contains(s.name, name) {
+					return true
+				}
+			}
+			return false
+		},
+		conf.IsSanitizerName,
+		conf.IsSinkName,
+	)
+}
+
+type reachability struct {
+	source ssa.Node
+	sink   *ssa.Call
+}
+
+func (r *reachability) report(pass *analysis.Pass) {
+	var b strings.Builder
+	b.WriteString("a source has reached a sink")
+	fmt.Fprintf(&b, ", source: %v", pass.Fset.Position(r.source.Pos()))
+	pass.Reportf(r.sink.Pos(), b.String())
 }

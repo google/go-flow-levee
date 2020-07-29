@@ -94,6 +94,24 @@ func (c Config) IsSanitizer(call *ssa.Call) bool {
 	return false
 }
 
+func (c Config) IsSanitizerName(name string) bool {
+	for _, p := range c.Sanitizers {
+		if p.MethodRE.MatchString(name) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c Config) IsSinkName(name string) bool {
+	for _, p := range c.Sinks {
+		if p.MethodRE.MatchString(name) {
+			return true
+		}
+	}
+	return false
+}
+
 func (c Config) IsSource(t types.Type) bool {
 	n, ok := t.(*types.Named)
 	if !ok {
@@ -126,18 +144,21 @@ func (c Config) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
 	// fa.Type() refers to the accessed field's type.
 	// fa.X.Type() refers to the surrounding struct's type.
 	deref := utils.Dereference(fa.X.Type())
-	fieldName := utils.FieldName(fa)
-
-	n, ok := deref.(*types.Named)
+	named, ok := deref.(*types.Named)
 	if !ok {
 		return false
 	}
-
+	s, ok := named.Underlying().(*types.Struct)
+	if !ok {
+		return false
+	}
+	field := s.Field(fa.Field)
 	for _, p := range c.Sources {
-		if p.match(n) && p.FieldRE.MatchString(fieldName) {
+		if (p.match(named) && p.matchFieldName(field)) || p.matchFieldType(field) {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -220,6 +241,17 @@ func (s sourceMatcher) match(n *types.Named) bool {
 	}
 
 	return s.PackageRE.MatchString(n.Obj().Pkg().Path()) && s.TypeRE.MatchString(n.Obj().Name())
+}
+
+func (s sourceMatcher) matchFieldName(f *types.Var) bool {
+	return s.FieldRE.MatchString(f.Name())
+}
+
+func (s sourceMatcher) matchFieldType(f *types.Var) bool {
+	t := f.Type()
+	n := t.String()
+	_ = n
+	return s.TypeRE.MatchString(f.Type().String())
 }
 
 type fieldPropagatorMatcher struct {

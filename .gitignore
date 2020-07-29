@@ -1,2 +1,5 @@
 # Default ignored files
 /.idea
+
+# Output
+internal/out

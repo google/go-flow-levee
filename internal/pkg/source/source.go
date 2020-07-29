@@ -140,6 +140,10 @@ func (a *Source) String() string {
 	return b.String()
 }
 
+func (a *Source) Name() string {
+	return a.node.String()
+}
+
 func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Source {
 	sourceMap := make(map[*ssa.Function][]*Source)
 
@@ -198,7 +202,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 			switch v := instr.(type) {
 			// Looking for sources of PII allocated within the body of a function.
 			case *ssa.Alloc:
-				if conf.IsSource(utils.Dereference(v.Type())) && !isProducedBySanitizer(v, conf) {
+				if conf.IsSource(utils.Dereference(v.Type())) && !IsProducedBySanitizer(v, conf) {
 					sources = append(sources, New(v, conf))
 				}
 
@@ -214,7 +218,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 	return sources
 }
 
-func isProducedBySanitizer(v *ssa.Alloc, conf classifier) bool {
+func IsProducedBySanitizer(v *ssa.Alloc, conf classifier) bool {
 	for _, instr := range *v.Referrers() {
 		store, ok := instr.(*ssa.Store)
 		if !ok {
