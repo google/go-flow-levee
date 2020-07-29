@@ -248,9 +248,6 @@ func (s sourceMatcher) matchFieldName(f *types.Var) bool {
 }
 
 func (s sourceMatcher) matchFieldType(f *types.Var) bool {
-	t := f.Type()
-	n := t.String()
-	_ = n
 	return s.TypeRE.MatchString(f.Type().String())
 }
 
