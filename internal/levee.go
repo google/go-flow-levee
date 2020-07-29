@@ -98,6 +98,8 @@ func analyzeFn(fn *ssa.Function, conf *config.Config, pass *analysis.Pass, debug
 					graph.addSink(t, parameterNames)
 				case conf.IsPropagator(t):
 					graph.addSource(value.Name(), t)
+				case conf.IsSanitizer(t):
+					graph.addSanitizer(t)
 				default:
 					graph.addCallEdges(*t, parameterNames)
 				}
@@ -167,9 +169,10 @@ func newSink(call *ssa.Call, i int) sink {
 }
 
 type graph struct {
-	edges   map[string]map[string]bool
-	sources []namedNode
-	sinks   []sink
+	edges      map[string]map[string]bool
+	sources    []namedNode
+	sinks      []sink
+	sanitizers []string
 }
 
 func newGraph() graph {
@@ -207,6 +210,10 @@ func (g *graph) addSink(call *ssa.Call, args []string) {
 	}
 }
 
+func (g *graph) addSanitizer(call *ssa.Call) {
+	g.sanitizers = append(g.sanitizers, call.Call.StaticCallee().Name())
+}
+
 func (g *graph) detectSinksReachableFromSources(conf *config.Config) []reachability {
 	seen := map[string]bool{}
 	var reachabilities []reachability
@@ -220,8 +227,11 @@ func (g *graph) detectSinksReachableFromSources(conf *config.Config) []reachabil
 			current := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
 
-			if conf.IsSanitizerName(current) {
-				continue
+			for _, sanitizer := range g.sanitizers {
+				if current == sanitizer {
+					continue
+				}
+
 			}
 
 			for _, sink := range g.sinks {
