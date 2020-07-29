@@ -48,7 +48,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	// TODO: respect configuration scope
 	sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
 
-	debugging := true
+	debugging := false
 	for fn := range sourcesMap {
 		analyzeFn(fn, conf, pass, debugging)
 	}
