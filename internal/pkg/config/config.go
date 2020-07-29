@@ -141,8 +141,11 @@ func (c Config) IsSourceField(typ types.Type, fld *types.Var) bool {
 }
 
 func (c Config) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
-	// fa.Type() refers to the accessed field's type.
-	// fa.X.Type() refers to the surrounding struct's type.
+	fieldType := utils.Dereference(fa.Type())
+	if c.IsSource(fieldType) {
+		return true
+	}
+
 	deref := utils.Dereference(fa.X.Type())
 	named, ok := deref.(*types.Named)
 	if !ok {
@@ -154,7 +157,7 @@ func (c Config) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
 	}
 	field := s.Field(fa.Field)
 	for _, p := range c.Sources {
-		if (p.match(named) && p.matchFieldName(field)) || p.matchFieldType(field) {
+		if p.match(named) && p.matchFieldName(field) {
 			return true
 		}
 	}
