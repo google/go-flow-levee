@@ -2,7 +2,7 @@
   "Sources": [
     {
       "PackageRE": "^example.com/core$",
-      "TypeRE": "Source$",
+      "TypeRE": "^Source$",
       "FieldRE": "^Data"
     }
   ],
