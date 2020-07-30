@@ -23,10 +23,7 @@ import (
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
-	"github.com/google/go-flow-levee/internal/pkg/debug"
-	"github.com/google/go-flow-levee/internal/pkg/graphprinter"
 	"github.com/google/go-flow-levee/internal/pkg/source"
-	"github.com/google/go-flow-levee/internal/pkg/ssaprinter"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ssa"
 )
@@ -48,17 +45,15 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	// TODO: respect configuration scope
 	sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
 
-	debugging := false
 	for fn := range sourcesMap {
-		analyzeFn(fn, conf, pass, debugging)
+		analyzeFn(fn, conf, pass)
 	}
 
 	return nil, nil
 }
 
-func analyzeFn(fn *ssa.Function, conf *config.Config, pass *analysis.Pass, debugging bool) {
+func analyzeFn(fn *ssa.Function, conf *config.Config, pass *analysis.Pass) {
 	graph := newGraph()
-	ssaPrinter := ssaprinter.New(fn)
 
 	for _, p := range fn.Params {
 		if conf.IsSource(utils.Dereference(p.Type())) {
@@ -76,10 +71,9 @@ func analyzeFn(fn *ssa.Function, conf *config.Config, pass *analysis.Pass, debug
 		}
 	}
 
-	for bi, b := range fn.Blocks {
-		for ii, inst := range b.Instrs {
-			value, isValue := inst.(ssa.Value)
-			ssaPrinter.WriteInstr(ii, inst, value, isValue)
+	for _, b := range fn.Blocks {
+		for _, inst := range b.Instrs {
+			value, _ := inst.(ssa.Value)
 
 			switch t := inst.(type) {
 			case *ssa.Alloc:
@@ -137,15 +131,9 @@ func analyzeFn(fn *ssa.Function, conf *config.Config, pass *analysis.Pass, debug
 				graph.addEdge(x.Name(), value.Name())
 			}
 		}
-		ssaPrinter.WriteBlock(bi, b)
 	}
 
-	if debugging {
-		debug.WriteSSA(fn.Name(), ssaPrinter.String())
-		debug.WriteGraph(fn.Name(), graph.string(conf))
-	}
-
-	reachabilities := graph.detectSinksReachableFromSources(conf)
+	reachabilities := graph.detectSinksReachableFromSources()
 	for _, r := range reachabilities {
 		r.report(pass)
 	}
@@ -188,10 +176,6 @@ func (g *graph) addEdge(from, to string) {
 	g.edges[from][to] = true
 }
 
-func (g *graph) sinkCount() int {
-	return len(g.sinks)
-}
-
 func (g *graph) addSource(name string, node ssa.Node) {
 	g.sources = append(g.sources, namedNode{name: name, node: node})
 }
@@ -214,7 +198,7 @@ func (g *graph) addSanitizer(call *ssa.Call) {
 	g.sanitizers = append(g.sanitizers, call.Call.StaticCallee().Name())
 }
 
-func (g *graph) detectSinksReachableFromSources(conf *config.Config) []reachability {
+func (g *graph) detectSinksReachableFromSources() []reachability {
 	seen := map[string]bool{}
 	var reachabilities []reachability
 
@@ -251,21 +235,6 @@ func (g *graph) detectSinksReachableFromSources(conf *config.Config) []reachabil
 	}
 
 	return reachabilities
-}
-
-func (g *graph) string(conf *config.Config) string {
-	return graphprinter.Print(g.edges,
-		func(name string) bool {
-			for _, s := range g.sources {
-				if strings.Contains(s.name, name) {
-					return true
-				}
-			}
-			return false
-		},
-		conf.IsSanitizerName,
-		conf.IsSinkName,
-	)
 }
 
 type reachability struct {
