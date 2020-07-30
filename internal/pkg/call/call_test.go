@@ -36,41 +36,48 @@ type fakeReferrer struct {
 func (f fakeReferrer) RefersTo(node ssa.Node) bool { return f.hasPathTo }
 
 func TestRegularCallReferredBy(t *testing.T) {
-	source := readFromTestData("test.go")
+	source := readFromTestData(t, "test.go")
 	cases := []struct {
 		r              Referrer
 		parentFuncName string
 		want           bool
+		desc           string
 	}{
-		{fakeReferrer{true}, "CallNoArgs", false},
-		{fakeReferrer{true}, "CallOneArg", true},
-		{fakeReferrer{false}, "CallOneArg", false},
+		{fakeReferrer{true}, "CallNoArgs", false, "call without args"},
+		{fakeReferrer{true}, "CallOneArg", true, "call with one arg that is referred to by a referrer"},
+		{fakeReferrer{false}, "CallOneArg", false, "call with one arg that isn't referred to"},
 	}
-	for _, c := range cases {
-		ssaCall := getCall(source, c.parentFuncName)
-		call := Regular(ssaCall)
-		got := call.ReferredBy(c.r)
-		if got != c.want {
-			t.Errorf("call.ReferredBy(%v) == %v, want %v", call, got, c.want)
-		}
+	for _, tt := range cases {
+		t.Run(tt.desc, func(t *testing.T) {
+			ssaCall := getCall(t, source, tt.parentFuncName)
+			call := Regular(ssaCall)
+			got := call.ReferredBy(tt.r)
+			if got != tt.want {
+				t.Errorf("call.ReferredBy(%v) == %v, want %v", call, got, tt.want)
+			}
+		})
 	}
 }
 
-func readFromTestData(filename string) string {
+func readFromTestData(t *testing.T, filename string) string {
+	t.Helper()
+
 	filePath := filepath.Join("testdata", filename)
 	bytes, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	return string(bytes)
 }
 
 // taken from golang.org/x/tools/go/ssa/example_test.go
-func getCall(source, parentFuncName string) *ssa.Call {
+func getCall(t *testing.T, source, parentFuncName string) *ssa.Call {
+	t.Helper()
+
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "test.go", source, parser.ParseComments)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	files := []*ast.File{f}
 
@@ -78,12 +85,12 @@ func getCall(source, parentFuncName string) *ssa.Call {
 	ssaPkg, _, err := ssautil.BuildPackage(
 		&types.Config{Importer: importer.Default()}, fset, pkg, files, ssa.SanityCheckFunctions)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 
 	fun := ssaPkg.Func(parentFuncName)
 	if fun == nil {
-		panic(fmt.Sprintf("did not find function named %s", parentFuncName))
+		t.Fatal(fmt.Sprintf("did not find function named %s", parentFuncName))
 	}
 
 	for _, i := range fun.Blocks[0].Instrs {
@@ -93,5 +100,6 @@ func getCall(source, parentFuncName string) *ssa.Call {
 		}
 	}
 
-	panic(fmt.Sprintf("did not find call instruction in function named %s", parentFuncName))
+	t.Fatal(fmt.Sprintf("did not find call instruction in function named %s", parentFuncName))
+	return nil // unreachable
 }

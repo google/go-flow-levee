@@ -35,7 +35,7 @@ type Referrer interface {
 
 // A RegularCall is a wrapper around a non-variadic ssa Call.
 type RegularCall struct {
-	call *ssa.Call
+	*ssa.Call
 }
 
 // Regular creates a RegularCall from an ssa Call.
@@ -45,7 +45,7 @@ func Regular(c *ssa.Call) *RegularCall {
 
 // ReferredBy determines if the supplied referrer refers one of the Call's arguments.
 func (c *RegularCall) ReferredBy(r Referrer) bool {
-	for _, a := range c.call.Call.Args {
+	for _, a := range c.Call.Call.Args {
 		if r.RefersTo(a.(ssa.Node)) {
 			return true
 		}
