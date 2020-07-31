@@ -22,12 +22,12 @@ import (
 
 var patterns = []string{
 	"example.com/tests/arguments",
-	"example.com/tests/dominance",
-	"example.com/tests/fields",
-	"example.com/tests/sinks",
 	"example.com/tests/collections",
 	"example.com/tests/declarations",
+	"example.com/tests/dominance",
+	"example.com/tests/fields",
 	"example.com/tests/receivers",
+	"example.com/tests/sinks",
 }
 
 func TestLevee(t *testing.T) {
