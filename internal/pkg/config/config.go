@@ -221,14 +221,6 @@ func (s sourceMatcher) match(n *types.Named) bool {
 	return s.PackageRE.MatchString(n.Obj().Pkg().Path()) && s.TypeRE.MatchString(n.Obj().Name())
 }
 
-func (s sourceMatcher) matchFieldName(f *types.Var) bool {
-	return s.FieldRE.MatchString(f.Name())
-}
-
-func (s sourceMatcher) matchFieldType(f *types.Var) bool {
-	return s.TypeRE.MatchString(f.Type().String())
-}
-
 type fieldPropagatorMatcher struct {
 	Receiver   string
 	AccessorRE regexp.Regexp
