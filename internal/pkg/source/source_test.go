@@ -32,6 +32,7 @@ type testConfig struct {
 	propagatorsPattern string
 	fieldsPattern      string
 	sanitizerPattern   string
+	sinkPattern        string
 }
 
 func (c *testConfig) IsSource(t types.Type) bool {
@@ -60,6 +61,11 @@ func (c *testConfig) IsSourceFieldAddr(field *ssa.FieldAddr) bool {
 	return match
 }
 
+func (c *testConfig) IsSinkFunction(f *ssa.Function) bool {
+	match, _ := regexp.MatchString(c.sinkPattern, f.Name())
+	return match
+}
+
 var testAnalyzer = &analysis.Analyzer{
 	Name:     "source",
 	Run:      runTest,
@@ -74,6 +80,7 @@ func runTest(pass *analysis.Pass) (interface{}, error) {
 		propagatorsPattern: "propagator",
 		sanitizerPattern:   "sanitizer",
 		fieldsPattern:      "name",
+		sinkPattern:        "sink",
 	}
 
 	sm := identify(config, in)
