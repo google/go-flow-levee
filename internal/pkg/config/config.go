@@ -94,24 +94,6 @@ func (c Config) IsSanitizer(call *ssa.Call) bool {
 	return false
 }
 
-func (c Config) IsSanitizerName(name string) bool {
-	for _, p := range c.Sanitizers {
-		if p.MethodRE.MatchString(name) {
-			return true
-		}
-	}
-	return false
-}
-
-func (c Config) IsSinkName(name string) bool {
-	for _, p := range c.Sinks {
-		if p.MethodRE.MatchString(name) {
-			return true
-		}
-	}
-	return false
-}
-
 func (c Config) IsSource(t types.Type) bool {
 	n, ok := t.(*types.Named)
 	if !ok {
