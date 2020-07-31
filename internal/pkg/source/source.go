@@ -140,10 +140,6 @@ func (a *Source) String() string {
 	return b.String()
 }
 
-func (a *Source) Name() string {
-	return a.node.String()
-}
-
 func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Source {
 	sourceMap := make(map[*ssa.Function][]*Source)
 
