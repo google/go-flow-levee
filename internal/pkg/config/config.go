@@ -127,7 +127,6 @@ func (c Config) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
 	if c.IsSource(fieldType) {
 		return true
 	}
-
 	deref := utils.Dereference(fa.X.Type())
 	named, ok := deref.(*types.Named)
 	if !ok {
@@ -138,13 +137,7 @@ func (c Config) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
 		return false
 	}
 	field := s.Field(fa.Field)
-	for _, p := range c.Sources {
-		if p.match(named) && p.matchFieldName(field) {
-			return true
-		}
-	}
-
-	return false
+	return c.IsSourceField(deref, field)
 }
 
 func (c Config) IsPropagator(call *ssa.Call) bool {
