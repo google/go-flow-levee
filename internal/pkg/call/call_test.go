@@ -38,14 +38,14 @@ func (f fakeReferrer) RefersTo(node ssa.Node) bool { return f.hasPathTo }
 func TestRegularCallReferredBy(t *testing.T) {
 	source := readFromTestData(t, "test.go")
 	cases := []struct {
+		desc           string
 		r              Referrer
 		parentFuncName string
 		want           bool
-		desc           string
 	}{
-		{fakeReferrer{true}, "CallNoArgs", false, "call without args"},
-		{fakeReferrer{true}, "CallOneArg", true, "call with one arg that is referred to by a referrer"},
-		{fakeReferrer{false}, "CallOneArg", false, "call with one arg that isn't referred to"},
+		{"call without args", fakeReferrer{true}, "CallNoArgs", false},
+		{"call with one arg that is referred to by a referrer", fakeReferrer{true}, "CallOneArg", true},
+		{"call with one arg that isn't referred to", fakeReferrer{false}, "CallOneArg", false},
 	}
 	for _, tt := range cases {
 		t.Run(tt.desc, func(t *testing.T) {
