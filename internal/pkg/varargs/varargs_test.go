@@ -49,6 +49,10 @@ func (c *testConfig) IsSourceFieldAddr(field *ssa.FieldAddr) bool {
 	return false
 }
 
+func (c *testConfig) IsSinkFunction(f *ssa.Function) bool {
+	return false
+}
+
 type analyzerResult struct {
 	allocations []*ssa.Alloc
 	calls       []*ssa.Call
