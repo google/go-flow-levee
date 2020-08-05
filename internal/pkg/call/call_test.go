@@ -24,40 +24,6 @@ import (
 	"golang.org/x/tools/go/ssa"
 )
 
-var testAnalyzer = &analysis.Analyzer{
-	Name:       "call",
-	Run:        run,
-	Doc:        "test harness for call",
-	Requires:   []*analysis.Analyzer{buildssa.Analyzer},
-	ResultType: reflect.TypeOf(analyzerResult{}),
-}
-
-type analyzerResult struct {
-	calls []*ssa.Call
-}
-
-func run(pass *analysis.Pass) (interface{}, error) {
-	in := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
-	var result analyzerResult
-	for _, fn := range in.SrcFuncs {
-		for _, b := range fn.Blocks {
-			for _, i := range b.Instrs {
-				switch v := i.(type) {
-				case *ssa.Call:
-					result.calls = append(result.calls, v)
-				}
-			}
-		}
-	}
-	return result, nil
-}
-
-type fakeReferrer struct {
-	hasPathTo bool
-}
-
-func (f fakeReferrer) RefersTo(node ssa.Node) bool { return f.hasPathTo }
-
 func TestRegularCallReferredBy(t *testing.T) {
 	cases := []struct {
 		desc    string
@@ -110,4 +76,38 @@ func getCall(t *testing.T, r []*analysistest.Result) *ssa.Call {
 		t.Fatalf("Got %d calls, want one", len(a.calls))
 	}
 	return a.calls[0]
+}
+
+type fakeReferrer struct {
+	hasPathTo bool
+}
+
+func (f fakeReferrer) RefersTo(node ssa.Node) bool { return f.hasPathTo }
+
+var testAnalyzer = &analysis.Analyzer{
+	Name:       "call",
+	Run:        run,
+	Doc:        "test harness for call",
+	Requires:   []*analysis.Analyzer{buildssa.Analyzer},
+	ResultType: reflect.TypeOf(analyzerResult{}),
+}
+
+type analyzerResult struct {
+	calls []*ssa.Call
+}
+
+func run(pass *analysis.Pass) (interface{}, error) {
+	in := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
+	var result analyzerResult
+	for _, fn := range in.SrcFuncs {
+		for _, b := range fn.Blocks {
+			for _, i := range b.Instrs {
+				switch v := i.(type) {
+				case *ssa.Call:
+					result.calls = append(result.calls, v)
+				}
+			}
+		}
+	}
+	return result, nil
 }
