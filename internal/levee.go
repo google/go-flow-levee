@@ -61,7 +61,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 				switch {
-				case isPropagator(v, fieldPropagators):
+				case isFieldPropagator(v, fieldPropagators):
 					sources = append(sources, source.New(v, conf))
 
 				case conf.IsPropagator(v):
@@ -124,13 +124,15 @@ func getArgumentPropagator(c *config.Config, call *ssa.Call) ssa.Node {
 	return nil
 }
 
-func isPropagator(c *ssa.Call, fieldPropagators map[types.Object]bool) bool {
+func isFieldPropagator(c *ssa.Call, fieldPropagators map[types.Object]bool) bool {
 	for o, _ := range fieldPropagators {
-		f := o.(*types.Func)
-		if c.Call.Method == f {
+		cf, ok := c.Call.Value.(*ssa.Function)
+		if !ok {
+			continue
+		}
+		if cf.Object() == o {
 			return true
 		}
-
 	}
 	return false
 }
