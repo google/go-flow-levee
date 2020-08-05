@@ -16,11 +16,12 @@ package internal
 
 import (
 	"fmt"
+	"go/types"
 	"strings"
 
 	"github.com/google/go-flow-levee/internal/pkg/call"
-
 	"github.com/google/go-flow-levee/internal/pkg/config"
+	"github.com/google/go-flow-levee/internal/pkg/fieldpropagator"
 	"github.com/google/go-flow-levee/internal/pkg/varargs"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ssa"
@@ -33,7 +34,7 @@ var Analyzer = &analysis.Analyzer{
 	Run:      run,
 	Flags:    config.FlagSet,
 	Doc:      "reports attempts to source data to sinks",
-	Requires: []*analysis.Analyzer{source.Analyzer},
+	Requires: []*analysis.Analyzer{source.Analyzer, fieldpropagator.Analyzer},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -44,6 +45,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	// TODO: respect configuration scope
 
 	sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
+	fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
 
 	// Only examine functions that have sources
 	for fn, sources := range sourcesMap {
@@ -59,6 +61,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 				switch {
+				case isPropagator(v, fieldPropagators):
+					sources = append(sources, source.New(v, conf))
+
 				case conf.IsPropagator(v):
 					// Handling the case where sources are propagated to io.Writer
 					// (ex. proto.MarshalText(&buf, c)
@@ -117,4 +122,15 @@ func getArgumentPropagator(c *config.Config, call *ssa.Call) ssa.Node {
 	}
 
 	return nil
+}
+
+func isPropagator(c *ssa.Call, fieldPropagators map[types.Object]bool) bool {
+	for o, _ := range fieldPropagators {
+		f := o.(*types.Func)
+		if c.Call.Method == f {
+			return true
+		}
+
+	}
+	return false
 }
