@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package fieldpropagator implements identification of field propagators.
+// A field propagator is a function that returns a source field.
 package fieldpropagator
 
 import (
