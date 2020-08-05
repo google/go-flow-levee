@@ -20,8 +20,9 @@ import (
 
 func TestSlices(s core.Source) {
 	slice := []core.Source{s}
-	core.Sink(slice)                   // want "a source has reached a sink"
-	core.Sink([]core.Source{s})        // want "a source has reached a sink"
-	core.Sink([]interface{}{s})        // want "a source has reached a sink"
-	core.Sink([]interface{}{0, "", s}) // want "a source has reached a sink"
+	core.Sink(slice)                      // want "a source has reached a sink"
+	core.Sink([]core.Source{s})           // want "a source has reached a sink"
+	core.Sink([]interface{}{s})           // want "a source has reached a sink"
+	core.Sink([]interface{}{0, "", s})    // want "a source has reached a sink"
+	core.Sink([]interface{}{0, "", s}...) // TODO want "a source has reached a sink"
 }
