@@ -40,7 +40,6 @@ type Config struct {
 	Sources                 []sourceMatcher
 	Sinks                   []callMatcher
 	Sanitizers              []callMatcher
-	FieldPropagators        []callMatcher
 	TransformingPropagators []transformingPropagatorMatcher
 	PropagatorArgs          argumentPropagatorMatcher
 	Allowlist               []packageMatcher
@@ -142,22 +141,7 @@ func (c Config) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
 }
 
 func (c Config) IsPropagator(call *ssa.Call) bool {
-	return c.isFieldPropagator(call) || c.isTransformingPropagator(call)
-}
-
-func (c Config) isFieldPropagator(call *ssa.Call) bool {
-	recv := call.Call.Signature().Recv()
-	if recv == nil {
-		return false
-	}
-
-	for _, p := range c.FieldPropagators {
-		if p.Match(call) {
-			return true
-		}
-	}
-
-	return false
+	return c.isTransformingPropagator(call)
 }
 
 // A call is a transforming propagator if its name matches a pattern in the config
@@ -220,25 +204,6 @@ func (s sourceMatcher) match(n *types.Named) bool {
 	}
 
 	return s.PackageRE.MatchString(n.Obj().Pkg().Path()) && s.TypeRE.MatchString(n.Obj().Name())
-}
-
-type fieldPropagatorMatcher struct {
-	Receiver   string
-	AccessorRE regexp.Regexp
-}
-
-func (f fieldPropagatorMatcher) match(call *ssa.Call) bool {
-	if call.Call.StaticCallee() == nil {
-		return false
-	}
-
-	recv := call.Call.Signature().Recv()
-	if recv == nil {
-		return false
-	}
-
-	return f.Receiver == utils.Dereference(recv.Type()).String() &&
-		f.AccessorRE.MatchString(call.Call.StaticCallee().Name())
 }
 
 type transformingPropagatorMatcher struct {
