@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package sinks
+package propagation
 
 import (
 	"fmt"
@@ -29,6 +29,10 @@ func TestIdentityPropagator(s core.Source) {
 	core.Sink(i) // want "a source has reached a sink"
 }
 
+func ReturnFive(arg interface{}) interface{} {
+	return 5
+}
+
 func ToString(arg interface{}) string {
 	return fmt.Sprintf("%v", arg)
 }
@@ -36,4 +40,9 @@ func ToString(arg interface{}) string {
 func TestToStringPropagator(s core.Source) {
 	v := ToString(s)
 	core.Sink(v) // want "a source has reached a sink"
+}
+
+func TestReturnFiveShouldNotLeadToDiagnostic(s core.Source) {
+	five := Identity(s)
+	core.Sink(five)
 }
