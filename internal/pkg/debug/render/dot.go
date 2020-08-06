@@ -23,8 +23,6 @@ import (
 	"golang.org/x/tools/go/ssa"
 )
 
-// TODO: render instruction/value nodes with different shapes (square, diamond, both)
-
 // DOT produces DOT source code representing the SSA graph for a function.
 func DOT(f *ssa.Function) string {
 	return renderDOT(graph.New(f))
