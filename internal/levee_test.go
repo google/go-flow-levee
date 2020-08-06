@@ -17,6 +17,7 @@ package internal
 import (
 	"testing"
 
+	"github.com/google/go-flow-levee/internal/pkg/debug"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
@@ -29,10 +30,18 @@ var patterns = []string{
 	"example.com/tests/sinks",
 }
 
+var debugging bool
+
 func TestLevee(t *testing.T) {
 	dir := analysistest.TestData()
 	if err := Analyzer.Flags.Set("config", dir+"/test-config.json"); err != nil {
 		t.Error(err)
+	}
+	if debugging {
+		analysistest.Run(t, dir, debug.Analyzer, patterns...)
+		// return without running the actual Analyzer since the above run
+		// does not produce any diagnostics, so the output will be very cluttered
+		return
 	}
 	analysistest.Run(t, dir, Analyzer, patterns...)
 }
