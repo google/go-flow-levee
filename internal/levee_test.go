@@ -33,6 +33,7 @@ func TestLevee(t *testing.T) {
 }
 
 func findTestPatterns(t *testing.T, testsDir string) (patterns []string) {
+	t.Helper()
 	files, err := ioutil.ReadDir(testsDir)
 	if err != nil {
 		t.Fatalf("Failed to read tests dir (%s): %v", testsDir, err)
