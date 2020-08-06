@@ -15,24 +15,30 @@
 package internal
 
 import (
+	"io/ioutil"
+	"path/filepath"
 	"testing"
 
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
-var patterns = []string{
-	"example.com/tests/arguments",
-	"example.com/tests/declarations",
-	"example.com/tests/dominance",
-	"example.com/tests/fields",
-	"example.com/tests/receivers",
-	"example.com/tests/sinks",
-}
-
 func TestLevee(t *testing.T) {
-	dir := analysistest.TestData()
-	if err := Analyzer.Flags.Set("config", dir+"/test-config.json"); err != nil {
+	dataDir := analysistest.TestData()
+	testsDir := filepath.Join(dataDir, "src/example.com/tests")
+	patterns := findTestPatterns(t, testsDir)
+	if err := Analyzer.Flags.Set("config", dataDir+"/test-config.json"); err != nil {
 		t.Error(err)
 	}
-	analysistest.Run(t, dir, Analyzer, patterns...)
+	analysistest.Run(t, dataDir, Analyzer, patterns...)
+}
+
+func findTestPatterns(t *testing.T, testsDir string) (patterns []string) {
+	files, err := ioutil.ReadDir(testsDir)
+	if err != nil {
+		t.Fatalf("Failed to read tests dir (%s): %v", testsDir, err)
+	}
+	for _, f := range files {
+		patterns = append(patterns, filepath.Join(testsDir, f.Name()))
+	}
+	return
 }
