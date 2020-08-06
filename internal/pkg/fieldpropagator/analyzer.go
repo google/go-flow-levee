@@ -66,44 +66,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			methods := ssaProg.MethodSets.MethodSet(ssaType.Type())
 			for i := 0; i < methods.Len(); i++ {
 				meth := ssaProg.MethodValue(methods.At(i))
-
 				// Function does not return anything
 				if res := meth.Signature.Results(); res == nil || (*res).Len() == 0 {
 					continue
 				}
-
-				var lastBlock *ssa.BasicBlock
-				for _, b := range meth.Blocks {
-					if len(b.Succs) == 0 {
-						lastBlock = b
-					}
-				}
-				if lastBlock == nil {
-					continue
-				}
-
-				lastInstr := lastBlock.Instrs[len(lastBlock.Instrs)-1]
-				ret, isRet := lastInstr.(*ssa.Return)
-				if !isRet {
-					continue
-				}
-
-				for _, r := range ret.Results {
-					unOp, ok := r.(*ssa.UnOp)
-					if !ok {
-						continue
-					}
-					fa, isFA := unOp.X.(*ssa.FieldAddr)
-					if !isFA {
-						continue
-					}
-					if conf.IsSourceFieldAddr(fa) {
-						pass.ExportObjectFact(meth.Object(), &isFieldPropagator{})
-						if reporting {
-							pass.Reportf(meth.Pos(), "field propagator identified")
-						}
-					}
-				}
+				analyzeBlocks(pass, conf, meth)
 			}
 		}
 	}
@@ -113,4 +80,36 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		isFieldPropagator[f.Object] = true
 	}
 	return isFieldPropagator, nil
+}
+
+func analyzeBlocks(pass *analysis.Pass, conf *config.Config, meth *ssa.Function) {
+	for _, b := range meth.Blocks {
+		lastInstr := b.Instrs[len(b.Instrs)-1]
+		ret, isRet := lastInstr.(*ssa.Return)
+		if !isRet {
+			continue
+		}
+		for _, r := range ret.Results {
+			fa, ok := fieldAddr(r)
+			if !ok {
+				continue
+			}
+			if conf.IsSourceFieldAddr(fa) {
+				pass.ExportObjectFact(meth.Object(), &isFieldPropagator{})
+				if reporting {
+					pass.Reportf(meth.Pos(), "field propagator identified")
+				}
+			}
+		}
+	}
+}
+
+func fieldAddr(x ssa.Value) (*ssa.FieldAddr, bool) {
+	switch t := x.(type) {
+	case *ssa.FieldAddr:
+		return t, true
+	case *ssa.UnOp:
+		return fieldAddr(t.X)
+	}
+	return nil, false
 }

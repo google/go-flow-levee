@@ -15,12 +15,38 @@
 package source
 
 type Source struct {
-	data string
-	id   int
+	data    string
+	dataPtr *string
+	id      int
 }
 
 func (s Source) Data() string { // want Data:"field propagator identified"
 	return s.data
+}
+
+func (s Source) DataRef() *string { // want DataRef:"field propagator identified"
+	return &s.data
+}
+
+func (s Source) DataPtr() *string { // want DataPtr:"field propagator identified"
+	return s.dataPtr
+}
+
+func (s Source) DataDeref() string { // want DataDeref:"field propagator identified"
+	return *s.dataPtr
+}
+
+var isAdmin bool
+
+func (s Source) MaybeData() string { // want MaybeData:"field propagator identified"
+	if isAdmin {
+		return s.data
+	}
+	return "<redacted>"
+}
+
+func (s Source) TryGetData() (string, error) { // want TryGetData:"field propagator identified"
+	return s.data, nil
 }
 
 func New(data string) Source {
