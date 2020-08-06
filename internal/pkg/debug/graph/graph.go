@@ -15,9 +15,6 @@
 package graph
 
 import (
-	"fmt"
-
-	"github.com/google/go-flow-levee/internal/pkg/debug/node"
 	"golang.org/x/tools/go/ssa"
 )
 
@@ -67,11 +64,6 @@ func (g *Graph) visit(b *ssa.BasicBlock) {
 	stack := []ssa.Node{n}
 	for len(stack) > 0 {
 		current := stack[len(stack)-1]
-
-		if node.CanonicalName(current) == "c" {
-			fmt.Println("referrers", len(*current.Referrers()))
-			fmt.Println("operands", len(current.Operands([]*ssa.Value{})))
-		}
 
 		stack = stack[:len(stack)-1]
 		var operands []*ssa.Value
