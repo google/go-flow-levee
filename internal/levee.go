@@ -18,12 +18,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/go-flow-levee/internal/pkg/call"
+
 	"github.com/google/go-flow-levee/internal/pkg/config"
+	"github.com/google/go-flow-levee/internal/pkg/varargs"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ssa"
 
 	"github.com/google/go-flow-levee/internal/pkg/source"
-	"github.com/google/go-flow-levee/internal/pkg/varargs"
 )
 
 var Analyzer = &analysis.Analyzer{
@@ -73,13 +75,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					}
 
 				case conf.IsSink(v):
-					// TODO Only variadic sink arguments are currently detected.
-					if sinkVarargs := varargs.New(v); sinkVarargs != nil {
-						for _, s := range sources {
-							if sinkVarargs.ReferredBy(s) && !s.IsSanitizedAt(v) {
-								report(pass, s, v)
-								break
-							}
+					c := makeCall(v)
+					for _, s := range sources {
+						if c.ReferredBy(s) && !s.IsSanitizedAt(v) {
+							report(pass, s, v)
+							break
 						}
 					}
 				}
@@ -88,6 +88,13 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	return nil, nil
+}
+
+func makeCall(c *ssa.Call) call.Call {
+	if sinkVarargs := varargs.New(c); sinkVarargs != nil {
+		return sinkVarargs
+	}
+	return call.Regular(c)
 }
 
 func report(pass *analysis.Pass, source *source.Source, sink ssa.Node) {

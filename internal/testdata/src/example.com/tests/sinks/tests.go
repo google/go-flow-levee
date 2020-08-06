@@ -24,9 +24,9 @@ func TestSinks(s core.Source, writer io.Writer) {
 	core.Sink(s)                  // want "a source has reached a sink"
 	core.Sinkf("a source: %v", s) // want "a source has reached a sink"
 	core.FSinkf(writer, s)        // want "a source has reached a sink"
-	core.OneArgSink(s)            // TODO want "a source has reached a sink"
+	core.OneArgSink(s)            // want "a source has reached a sink"
 
-	core.Sink([]interface{}{s, s, s}...) // TODO want "a source has reached a sink"
+	core.Sink([]interface{}{s, s, s}...) // want "a source has reached a sink"
 	core.Sink([]interface{}{s, s, s})    // TODO want "a source has reached a sink"
 }
 
@@ -34,9 +34,9 @@ func TestSinksWithRef(s *core.Source, writer io.Writer) {
 	core.Sink(s)                  // want "a source has reached a sink"
 	core.Sinkf("a source: %v", s) // want "a source has reached a sink"
 	core.FSinkf(writer, s)        // want "a source has reached a sink"
-	core.OneArgSink(s)            // TODO want "a source has reached a sink"
+	core.OneArgSink(s)            // want "a source has reached a sink"
 
-	core.Sink([]interface{}{s, s, s}...) // TODO want "a source has reached a sink"
+	core.Sink([]interface{}{s, s, s}...) // want "a source has reached a sink"
 	core.Sink([]interface{}{s, s, s})    // TODO want "a source has reached a sink"
 }
 
@@ -58,4 +58,16 @@ func TestSinksWithInnocuousRef(innoc *core.Innocuous, writer io.Writer) {
 
 	core.Sink([]interface{}{innoc, innoc, innoc}...)
 	core.Sink([]interface{}{innoc, innoc, innoc})
+}
+
+// TestSinksSourceAndInnocuous covers the situations in which both a Source and
+// a non-Source value are in scope, as well as variadic calls involving both
+// Source and non-Source arguments.
+func TestSinksSourceAndInnocuous(source core.Source, innoc core.Innocuous) {
+	core.Sink(source)        // want "a source has reached a sink"
+	core.OneArgSink(source)  // want "a source has reached a sink"
+	core.Sink(innoc, source) // want "a source has reached a sink"
+	core.Sink(source, innoc) // want "a source has reached a sink"
+	core.Sink(innoc)
+	core.OneArgSink(innoc)
 }

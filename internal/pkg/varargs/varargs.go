@@ -16,6 +16,7 @@
 package varargs
 
 import (
+	"github.com/google/go-flow-levee/internal/pkg/call"
 	"golang.org/x/tools/go/ssa"
 )
 
@@ -44,7 +45,7 @@ func New(s *ssa.Call) *Varargs {
 	}
 
 	a, ok := sl.X.(*ssa.Alloc)
-	if !ok || a.Comment != "varargs" {
+	if !ok || (a.Comment != "varargs" && a.Comment != "slicelit") {
 		return nil
 	}
 
@@ -67,14 +68,10 @@ func New(s *ssa.Call) *Varargs {
 	}
 }
 
-type referrer interface {
-	HasPathTo(node ssa.Node) bool
-}
-
 // ReferredBy determines if the supplied node refers the Vararg in question via a store instruction.
-func (v *Varargs) ReferredBy(r referrer) bool {
+func (v *Varargs) ReferredBy(r call.Referrer) bool {
 	for _, s := range v.stores {
-		if r.HasPathTo(s.Val.(ssa.Node)) {
+		if r.RefersTo(s.Val.(ssa.Node)) {
 			return true
 		}
 	}
