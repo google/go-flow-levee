@@ -110,7 +110,10 @@ func (a *Source) visitOperands(operands []*ssa.Value) {
 		if !ok || a.marked[n] {
 			continue
 		}
-		a.dfs(n)
+		al, ok := (*o).(*ssa.Alloc)
+		if !ok || al.Comment == "slicelit" || a.config.IsSource(al.Type()) {
+			a.dfs(n)
+		}
 	}
 }
 
