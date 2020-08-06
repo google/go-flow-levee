@@ -85,8 +85,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 func analyzeBlocks(pass *analysis.Pass, conf *config.Config, meth *ssa.Function) {
 	for _, b := range meth.Blocks {
 		lastInstr := b.Instrs[len(b.Instrs)-1]
-		ret, isRet := lastInstr.(*ssa.Return)
-		if !isRet {
+		ret, ok := lastInstr.(*ssa.Return)
+		if !ok {
 			continue
 		}
 		for _, r := range ret.Results {
