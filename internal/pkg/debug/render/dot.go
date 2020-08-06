@@ -74,13 +74,13 @@ func (r *renderer) writeEdges() {
 }
 
 func (r *renderer) addReferrer(n ssa.Node, ref ssa.Node) {
-	// TODO: document this in the output?
+	// TODO: document this somewhere?
 	// Red as in R-eferrer
 	r.addEdge(n, ref, "red")
 }
 
 func (r *renderer) addOperand(n ssa.Node, op ssa.Node) {
-	// TODO: document this in the output?
+	// TODO: document this somewhere?
 	// Orange as in O-perand
 	r.addEdge(n, op, "orange")
 }
@@ -100,6 +100,7 @@ func (r *renderer) finish() {
 func nodeShape(n ssa.Node) string {
 	_, isValue := n.(ssa.Value)
 	_, isInstr := n.(ssa.Instruction)
+	// TODO: document this somewhere?
 	switch {
 	case isValue && isInstr:
 		return "diamond"
