@@ -12,94 +12,128 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package graph defines an abstraction of the SSA graph that facilitates rendering.
 package graph
 
 import (
+	"errors"
+
 	"golang.org/x/tools/go/ssa"
 )
 
-type NodeRelationship int
+type relationship int
 
 const (
-	Referrer NodeRelationship = iota
+	// Referrer represents a node that is referred to as per ssa.Value.Referrers
+	Referrer relationship = iota
+	// Operand represents a node that is an operand of an instruction as per ssa.Instr.Operands
 	Operand
 )
 
-type RelatedNode struct {
+// Node represents a node in the SSA graph, along with its relationship to a parent node.
+type Node struct {
+	// N is the ssa.Node wrapped by this type.
 	N ssa.Node
-	R NodeRelationship
+	// R is the relationship between this node and its parent in the SSA graph.
+	R relationship
 }
 
-type Graph struct {
-	// the function whose graph this is
+// FuncGraph represents the SSA graph for an ssa.Function.
+type FuncGraph struct {
+	// F is the function whose graph this is
 	F *ssa.Function
-	// a mapping from each node to its neighbors (referrers + operands)
-	Neighbors map[ssa.Node][]RelatedNode
-	// this is used while creating the graph to avoid needlessly revisiting nodes
+	// Children is a mapping from each node to its children (referrers + operands)
+	Children map[ssa.Node][]Node
+	// visited is used while creating the graph to avoid needlessly revisiting nodes
 	visited map[ssa.Node]bool
 }
 
 // New returns a new Graph constructed from a given function.
-func New(f *ssa.Function) Graph {
-	g := Graph{
-		F:         f,
-		Neighbors: map[ssa.Node][]RelatedNode{},
-		visited:   map[ssa.Node]bool{},
+func New(f *ssa.Function) *FuncGraph {
+	g := FuncGraph{
+		F:        f,
+		Children: map[ssa.Node][]Node{},
+		visited:  map[ssa.Node]bool{},
 	}
 	g.visitBlocks()
-	return g
+	return &g
 }
 
-func (g *Graph) visitBlocks() {
+func (g *FuncGraph) visitBlocks() {
 	for _, b := range g.F.Blocks {
 		g.visit(b)
 	}
 }
 
-func (g *Graph) visit(b *ssa.BasicBlock) {
+func (g *FuncGraph) visit(b *ssa.BasicBlock) {
 	n := b.Instrs[0].(ssa.Node)
-
 	g.visited[n] = true
+	s := Stack([]ssa.Node{n})
 
-	stack := []ssa.Node{n}
-	for len(stack) > 0 {
-		current := stack[len(stack)-1]
-
-		stack = stack[:len(stack)-1]
-		var operands []*ssa.Value
-		operands = current.Operands(operands)
-		if operands != nil {
-			for _, o := range operands {
-				on, ok := (*o).(ssa.Node)
-				if !ok {
-					continue
-				}
-				g.addOperand(current, on)
-				if g.visited[on] {
-					continue
-				}
-				g.visited[on] = true
-				stack = append(stack, on)
-			}
+	for len(s) > 0 {
+		current, err := s.pop()
+		if err != nil {
+			break
 		}
-		if current.Referrers() != nil {
-			for _, ref := range *current.Referrers() {
-				rn := ref.(ssa.Node)
-				g.addReferrer(current, rn)
-				if g.visited[rn] {
-					continue
-				}
-				g.visited[rn] = true
-				stack = append(stack, rn)
-			}
-		}
+		s = g.visitOperands(current, s)
+		s = g.visitReferrers(current, s)
 	}
 }
 
-func (g *Graph) addReferrer(current, referrer ssa.Node) {
-	g.Neighbors[current] = append(g.Neighbors[current], RelatedNode{N: referrer, R: Referrer})
+func (g *FuncGraph) visitOperands(n ssa.Node, s Stack) Stack {
+	var operands []*ssa.Value
+	operands = n.Operands(operands)
+	if operands != nil {
+		for _, o := range operands {
+			on, ok := (*o).(ssa.Node)
+			if !ok {
+				continue
+			}
+			g.addOperand(n, on)
+			if g.visited[on] {
+				continue
+			}
+			g.visited[on] = true
+			s.push(on)
+		}
+	}
+	return s
 }
 
-func (g *Graph) addOperand(current, operand ssa.Node) {
-	g.Neighbors[current] = append(g.Neighbors[current], RelatedNode{N: operand, R: Operand})
+func (g *FuncGraph) visitReferrers(n ssa.Node, s Stack) Stack {
+	if n.Referrers() != nil {
+		for _, ref := range *n.Referrers() {
+			rn := ref.(ssa.Node)
+			g.addReferrer(n, rn)
+			if g.visited[rn] {
+				continue
+			}
+			g.visited[rn] = true
+			s.push(rn)
+		}
+	}
+	return s
+}
+
+func (g *FuncGraph) addReferrer(current, referrer ssa.Node) {
+	g.Children[current] = append(g.Children[current], Node{N: referrer, R: Referrer})
+}
+
+func (g *FuncGraph) addOperand(current, operand ssa.Node) {
+	g.Children[current] = append(g.Children[current], Node{N: operand, R: Operand})
+}
+
+type Stack []ssa.Node
+
+func (s *Stack) pop() (ssa.Node, error) {
+	if len(*s) == 0 {
+		return nil, errors.New("tried to pop from empty stack")
+	}
+	popped := (*s)[len(*s)-1]
+	*s = (*s)[:len(*s)-1]
+	return popped, nil
+}
+
+func (s *Stack) push(n ssa.Node) {
+	*s = append(*s, n)
 }

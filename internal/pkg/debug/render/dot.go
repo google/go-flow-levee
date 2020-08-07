@@ -28,13 +28,13 @@ func DOT(f *ssa.Function) string {
 	return renderDOT(graph.New(f))
 }
 
-func renderDOT(g graph.Graph) string {
+func renderDOT(g *graph.FuncGraph) string {
 	return (&renderer{strings.Builder{}, g}).Render()
 }
 
 type renderer struct {
 	strings.Builder
-	graph.Graph
+	*graph.FuncGraph
 }
 
 func (r *renderer) Render() string {
@@ -61,8 +61,8 @@ func (r *renderer) writeSubgraphs() {
 }
 
 func (r *renderer) writeEdges() {
-	for from, neighbors := range r.Neighbors {
-		for _, to := range neighbors {
+	for from, children := range r.Children {
+		for _, to := range children {
 			switch to.R {
 			case graph.Referrer:
 				r.addReferrer(from, to.N)
@@ -106,8 +106,7 @@ func nodeShape(n ssa.Node) string {
 		return "diamond"
 	case isInstr:
 		return "square"
-	case isValue:
+	default:
 		return "ellipse"
 	}
-	panic(fmt.Sprintf("nodeShape: node %v is neither a Value nor an Instruction (impossible)", n))
 }

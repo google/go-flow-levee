@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package dump contains functions for writing a function's SSA as SSA or DOT source to a file.
 package dump
 
 import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/google/go-flow-levee/internal/pkg/debug/render"
@@ -26,28 +28,22 @@ import (
 
 // SSA dumps a function's SSA to a file.
 func SSA(fileName string, f *ssa.Function) {
-	saveSSA(fileName, f.Name(), render.SSA(f))
-}
-
-func saveSSA(fileName, funcName, s string) {
-	save(fileName, funcName, s, "ssa")
+	save(fileName, f.Name(), render.SSA(f), "ssa")
 }
 
 // DOT dumps DOT source representing the function's SSA graph to a file.
 func DOT(fileName string, f *ssa.Function) {
-	saveDOT(fileName, f.Name(), render.DOT(f))
-}
-
-func saveDOT(fileName, funcName, s string) {
-	save(fileName, funcName, s, "dot")
+	save(fileName, f.Name(), render.DOT(f), "dot")
 }
 
 func save(fileName, funcName, s, ending string) {
-	outName := strings.TrimSuffix(fileName, ".go") + "_" + funcName + "." + ending
-	ioutil.WriteFile(filepath.Join(ensureExists("debug_output"), outName), []byte(s), 0666)
+	outFile := strings.TrimSuffix(fileName, ".go") + "_" + funcName + "." + ending
+	ioutil.WriteFile(filepath.Join(outDir(), outFile), []byte(s), 0666)
 }
 
-func ensureExists(dirName string) string {
-	os.MkdirAll(dirName, 0755)
-	return dirName
+func outDir() string {
+	_, currentFile, _, _ := runtime.Caller(0)
+	d := filepath.Join(filepath.Dir(currentFile), "../../../../output")
+	os.MkdirAll(d, 0755)
+	return d
 }

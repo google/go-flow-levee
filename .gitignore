@@ -2,4 +2,4 @@
 /.idea
 
 # Debugging output
-internal/debug_output
+output

@@ -15,6 +15,7 @@
 package internal
 
 import (
+	"flag"
 	"testing"
 
 	"github.com/google/go-flow-levee/internal/pkg/debug"
@@ -32,16 +33,17 @@ var patterns = []string{
 
 var debugging bool
 
+func init() {
+	flag.BoolVar(&debugging, "debug", false, "run the debug analyzer")
+}
+
 func TestLevee(t *testing.T) {
 	dir := analysistest.TestData()
 	if err := Analyzer.Flags.Set("config", dir+"/test-config.json"); err != nil {
 		t.Error(err)
 	}
 	if debugging {
-		analysistest.Run(t, dir, debug.Analyzer, patterns...)
-		// return without running the actual Analyzer since the above run
-		// does not produce any diagnostics, so the output will be very cluttered
-		return
+		Analyzer.Requires = append(Analyzer.Requires, debug.Analyzer)
 	}
 	analysistest.Run(t, dir, Analyzer, patterns...)
 }

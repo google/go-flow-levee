@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package node contains utility functions for working with SSA nodes.
 package node
 
 import (
