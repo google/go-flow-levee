@@ -87,34 +87,36 @@ func (g *FuncGraph) visit(b *ssa.BasicBlock) {
 func (g *FuncGraph) visitOperands(n ssa.Node, s Stack) Stack {
 	var operands []*ssa.Value
 	operands = n.Operands(operands)
-	if operands != nil {
-		for _, o := range operands {
-			on, ok := (*o).(ssa.Node)
-			if !ok {
-				continue
-			}
-			g.addOperand(n, on)
-			if g.visited[on] {
-				continue
-			}
-			g.visited[on] = true
-			s.push(on)
+	if operands == nil {
+		return s
+	}
+	for _, o := range operands {
+		on, ok := (*o).(ssa.Node)
+		if !ok {
+			continue
 		}
+		g.addOperand(n, on)
+		if g.visited[on] {
+			continue
+		}
+		g.visited[on] = true
+		s.push(on)
 	}
 	return s
 }
 
 func (g *FuncGraph) visitReferrers(n ssa.Node, s Stack) Stack {
-	if n.Referrers() != nil {
-		for _, ref := range *n.Referrers() {
-			rn := ref.(ssa.Node)
-			g.addReferrer(n, rn)
-			if g.visited[rn] {
-				continue
-			}
-			g.visited[rn] = true
-			s.push(rn)
+	if n.Referrers() == nil {
+		return s
+	}
+	for _, ref := range *n.Referrers() {
+		rn := ref.(ssa.Node)
+		g.addReferrer(n, rn)
+		if g.visited[rn] {
+			continue
 		}
+		g.visited[rn] = true
+		s.push(rn)
 	}
 	return s
 }
