@@ -46,6 +46,8 @@ type FuncGraph struct {
 	Children map[ssa.Node][]Node
 	// visited is used while creating the graph to avoid needlessly revisiting nodes
 	visited map[ssa.Node]bool
+	// stack is used to perform a DFS on F's SSA graph
+	stack
 }
 
 // New returns a new Graph constructed from a given function.
@@ -72,23 +74,22 @@ func (g *FuncGraph) visit(b *ssa.BasicBlock) {
 
 	n := b.Instrs[0].(ssa.Node)
 	g.visited[n] = true
-	s := Stack([]ssa.Node{n})
-
-	for len(s) > 0 {
-		current, err := s.pop()
+	g.push(n)
+	for len(g.stack) > 0 {
+		current, err := g.pop()
 		if err != nil {
 			break
 		}
-		s = g.visitOperands(current, s)
-		s = g.visitReferrers(current, s)
+		g.visitOperands(current)
+		g.visitReferrers(current)
 	}
 }
 
-func (g *FuncGraph) visitOperands(n ssa.Node, s Stack) Stack {
+func (g *FuncGraph) visitOperands(n ssa.Node) {
 	var operands []*ssa.Value
 	operands = n.Operands(operands)
 	if operands == nil {
-		return s
+		return
 	}
 	for _, o := range operands {
 		on, ok := (*o).(ssa.Node)
@@ -100,14 +101,13 @@ func (g *FuncGraph) visitOperands(n ssa.Node, s Stack) Stack {
 			continue
 		}
 		g.visited[on] = true
-		s.push(on)
+		g.push(on)
 	}
-	return s
 }
 
-func (g *FuncGraph) visitReferrers(n ssa.Node, s Stack) Stack {
+func (g *FuncGraph) visitReferrers(n ssa.Node) {
 	if n.Referrers() == nil {
-		return s
+		return
 	}
 	for _, ref := range *n.Referrers() {
 		rn := ref.(ssa.Node)
@@ -116,9 +116,8 @@ func (g *FuncGraph) visitReferrers(n ssa.Node, s Stack) Stack {
 			continue
 		}
 		g.visited[rn] = true
-		s.push(rn)
+		g.push(rn)
 	}
-	return s
 }
 
 func (g *FuncGraph) addReferrer(current, referrer ssa.Node) {
@@ -129,9 +128,9 @@ func (g *FuncGraph) addOperand(current, operand ssa.Node) {
 	g.Children[current] = append(g.Children[current], Node{N: operand, R: Operand})
 }
 
-type Stack []ssa.Node
+type stack []ssa.Node
 
-func (s *Stack) pop() (ssa.Node, error) {
+func (s *stack) pop() (ssa.Node, error) {
 	if len(*s) == 0 {
 		return nil, errors.New("tried to pop from empty stack")
 	}
@@ -140,6 +139,6 @@ func (s *Stack) pop() (ssa.Node, error) {
 	return popped, nil
 }
 
-func (s *Stack) push(n ssa.Node) {
+func (s *stack) push(n ssa.Node) {
 	*s = append(*s, n)
 }
