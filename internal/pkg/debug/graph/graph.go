@@ -97,11 +97,7 @@ func (g *FuncGraph) visitOperands(n ssa.Node) {
 			continue
 		}
 		g.addOperand(n, on)
-		if g.visited[on] {
-			continue
-		}
-		g.visited[on] = true
-		g.push(on)
+		g.visitNode(on)
 	}
 }
 
@@ -112,12 +108,16 @@ func (g *FuncGraph) visitReferrers(n ssa.Node) {
 	for _, ref := range *n.Referrers() {
 		rn := ref.(ssa.Node)
 		g.addReferrer(n, rn)
-		if g.visited[rn] {
-			continue
-		}
-		g.visited[rn] = true
-		g.push(rn)
+		g.visitNode(rn)
 	}
+}
+
+func (g *FuncGraph) visitNode(n ssa.Node) {
+	if g.visited[n] {
+		return
+	}
+	g.visited[n] = true
+	g.push(n)
 }
 
 func (g *FuncGraph) addReferrer(current, referrer ssa.Node) {
