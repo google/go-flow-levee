@@ -66,6 +66,10 @@ func (g *FuncGraph) visitBlocks() {
 }
 
 func (g *FuncGraph) visit(b *ssa.BasicBlock) {
+	if len(b.Instrs) == 0 {
+		return
+	}
+
 	n := b.Instrs[0].(ssa.Node)
 	g.visited[n] = true
 	s := Stack([]ssa.Node{n})

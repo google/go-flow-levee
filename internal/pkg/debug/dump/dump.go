@@ -16,6 +16,7 @@
 package dump
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -37,8 +38,12 @@ func DOT(fileName string, f *ssa.Function) {
 }
 
 func save(fileName, funcName, s, ending string) {
-	outFile := strings.TrimSuffix(fileName, ".go") + "_" + funcName + "." + ending
-	ioutil.WriteFile(filepath.Join(outDir(), outFile), []byte(s), 0666)
+	baseName := strings.TrimSuffix(fileName, ".go")
+	outFile := fmt.Sprintf("%s_%s.%s", baseName, funcName, ending)
+	err := ioutil.WriteFile(filepath.Join(outDir(), outFile), []byte(s), 0666)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "could not write to file: %s, error: %v\n", outFile, err)
+	}
 }
 
 func outDir() string {
