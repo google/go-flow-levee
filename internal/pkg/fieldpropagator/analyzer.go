@@ -69,10 +69,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		methods := ssaProg.MethodSets.MethodSet(ssaType.Type())
 		for i := 0; i < methods.Len(); i++ {
 			meth := ssaProg.MethodValue(methods.At(i))
-			// Function does not return anything
-			if res := meth.Signature.Results(); res == nil || (*res).Len() == 0 {
-				continue
-			}
 			analyzeBlocks(pass, conf, meth)
 		}
 	}
@@ -85,6 +81,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 }
 
 func analyzeBlocks(pass *analysis.Pass, conf *config.Config, meth *ssa.Function) {
+	// Function does not return anything
+	if res := meth.Signature.Results(); res == nil || (*res).Len() == 0 {
+		return
+	}
 	for _, b := range meth.Blocks {
 		if len(b.Instrs) == 0 {
 			continue
