@@ -20,6 +20,10 @@ type Source struct {
 	id      int
 }
 
+func (s Source) ID() int {
+	return s.id
+}
+
 func (s Source) Data() string { // want Data:"field propagator identified"
 	return s.data
 }
