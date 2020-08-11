@@ -15,11 +15,10 @@
 package main
 
 import (
-	"github.com/google/go-flow-levee/internal"
-
+	"github.com/google/go-flow-levee/pkg/levee"
 	"golang.org/x/tools/go/analysis/singlechecker"
 )
 
 func main() {
-	singlechecker.Main(internal.Analyzer)
+	singlechecker.Main(levee.Analyzer)
 }
