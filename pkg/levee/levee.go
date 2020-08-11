@@ -3,5 +3,5 @@ package levee
 
 import internal "github.com/google/go-flow-levee/internal/pkg/levee"
 
-// Analyzer reports attempts to source data to sinks.
+// Analyzer reports instances of source data reaching a sink.
 var Analyzer = internal.Analyzer
