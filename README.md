@@ -38,18 +38,20 @@ The main analyzer depends heavily on the SSA package. Being able to read the SSA
 
 Currently, debugging is only supported for `levee_test.go`. In order to add support for debugging in a new test, first add a debugging flag:
 ```go
-var debugging bool
-
-func init() {
-	flag.BoolVar(&debugging, "debug", false, "run the debug analyzer")
-}
+var debugging bool = flag.Bool("debug", false, "run the debug analyzer")
 ```
 Then add `debug.Analyzer` as a dependency of the analyzer being tested:
 ```go
-if debugging {
+if *debugging {
 	Analyzer.Requires = append(Analyzer.Requires, debug.Analyzer)
 }
 ```
+
+In the `dot` output:
+* A **red** edge points to a **Referrer** of an `ssa.Node`
+* An **orange** edges points to an **Operand** of an `ssa.Node`
+* **Diamond**-shaped nodes represent `ssa.Node`s that are both `ssa.Instruction`s and `ssa.Value`s
+* **Square**-shaped node reprsent `ssa.Node`s that are only `ssa.Instruction`s
 
 ## Source Code Headers
 

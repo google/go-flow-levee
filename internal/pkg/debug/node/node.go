@@ -24,20 +24,22 @@ import (
 
 // CanonicalName produces a canonical string representation for an SSA node.
 func CanonicalName(n ssa.Node) string {
-	var target, op string
 	value, isValue := n.(ssa.Value)
 	instr, isInstr := n.(ssa.Instruction)
-	if isInstr {
-		op = instr.String()
-	}
-	if isValue {
-		if isInstr {
-			target = fmt.Sprintf("%s = ", value.Name())
-		} else {
-			target = value.Name()
+	switch {
+	case isValue && isInstr:
+		return fmt.Sprintf("%s = %s", value.Name(), instr.String())
+	case isValue:
+		return value.Name()
+	case isInstr:
+		return instr.String()
+	default:
+		member, isMember := n.(ssa.Member)
+		if !isMember {
+			return ""
 		}
+		return member.Name()
 	}
-	return target + op
 }
 
 // TrimmedType returns the type of a node without the "*.ssa" prefix.

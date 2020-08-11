@@ -46,17 +46,17 @@ func (r *renderer) Render() string {
 }
 
 func (r *renderer) init() {
-	r.WriteString("digraph {\n")
+	_, _ = r.WriteString("digraph {\n")
 }
 
 func (r *renderer) writeSubgraphs() {
 	for bi, b := range r.F.Blocks {
-		r.WriteString(fmt.Sprintf("subgraph cluster_%d {\ncolor=black;\nlabel=%q;\n", bi, b.Comment))
+		_, _ = r.WriteString(fmt.Sprintf("\tsubgraph cluster_%d {\ncolor=black;\nlabel=%q;\n", bi, b.Comment))
 		for _, i := range b.Instrs {
 			n := i.(ssa.Node)
-			r.WriteString(fmt.Sprintf("%q [shape=%s];\n", renderNode(n), nodeShape(n)))
+			_, _ = r.WriteString(fmt.Sprintf("\t\t%q [shape=%s];\n", renderNode(n), nodeShape(n)))
 		}
-		r.WriteString("}\n")
+		_, _ = r.WriteString("}\n")
 	}
 }
 
@@ -86,7 +86,7 @@ func (r *renderer) addOperand(n ssa.Node, op ssa.Node) {
 }
 
 func (r *renderer) addEdge(from ssa.Node, to ssa.Node, color string) {
-	r.WriteString(fmt.Sprintf("%q -> %q [color=%s];\n", renderNode(from), renderNode(to), color))
+	_, _ = r.WriteString(fmt.Sprintf("\t%q -> %q [color=%s];\n", renderNode(from), renderNode(to), color))
 }
 
 func renderNode(n ssa.Node) string {
@@ -94,13 +94,12 @@ func renderNode(n ssa.Node) string {
 }
 
 func (r *renderer) finish() {
-	r.WriteString("}\n")
+	_, _ = r.WriteString("}\n")
 }
 
 func nodeShape(n ssa.Node) string {
 	_, isValue := n.(ssa.Value)
 	_, isInstr := n.(ssa.Instruction)
-	// TODO: document this somewhere?
 	switch {
 	case isValue && isInstr:
 		return "diamond"

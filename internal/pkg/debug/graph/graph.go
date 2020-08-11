@@ -16,7 +16,7 @@
 package graph
 
 import (
-	"errors"
+	"log"
 
 	"golang.org/x/tools/go/ssa"
 )
@@ -47,7 +47,7 @@ type FuncGraph struct {
 	// visited is used while creating the graph to avoid needlessly revisiting nodes
 	visited map[ssa.Node]bool
 	// stack is used to perform a DFS on F's SSA graph
-	stack
+	s stack
 }
 
 // New returns a new Graph constructed from a given function.
@@ -68,16 +68,18 @@ func (g *FuncGraph) visitBlocks() {
 }
 
 func (g *FuncGraph) visit(b *ssa.BasicBlock) {
+	// according to the ssa package docs, this should not happen,
+	// but we don't want a panic
 	if len(b.Instrs) == 0 {
 		return
 	}
 
 	n := b.Instrs[0].(ssa.Node)
 	g.visited[n] = true
-	g.push(n)
-	for len(g.stack) > 0 {
-		current, err := g.pop()
-		if err != nil {
+	g.s.push(n)
+	for len(g.s) > 0 {
+		current := g.s.pop()
+		if current == nil {
 			break
 		}
 		g.visitOperands(current)
@@ -117,7 +119,7 @@ func (g *FuncGraph) visitNode(n ssa.Node) {
 		return
 	}
 	g.visited[n] = true
-	g.push(n)
+	g.s.push(n)
 }
 
 func (g *FuncGraph) addReferrer(current, referrer ssa.Node) {
@@ -130,13 +132,13 @@ func (g *FuncGraph) addOperand(current, operand ssa.Node) {
 
 type stack []ssa.Node
 
-func (s *stack) pop() (ssa.Node, error) {
+func (s *stack) pop() ssa.Node {
 	if len(*s) == 0 {
-		return nil, errors.New("tried to pop from empty stack")
+		log.Println("tried to pop from empty stack")
 	}
 	popped := (*s)[len(*s)-1]
 	*s = (*s)[:len(*s)-1]
-	return popped, nil
+	return popped
 }
 
 func (s *stack) push(n ssa.Node) {

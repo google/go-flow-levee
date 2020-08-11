@@ -30,11 +30,11 @@ func SSA(f *ssa.Function) string {
 		b.WriteString(fmt.Sprintf("%d: %s\n", i, blk.Comment))
 		for j, instr := range blk.Instrs {
 			s := node.CanonicalName(instr.(ssa.Node))
-			b.WriteByte('\t')
-			b.WriteString(strconv.Itoa(j))
-			b.WriteString(fmt.Sprintf("(%-20T): ", instr))
-			b.WriteString(s)
-			b.WriteByte('\n')
+			_ = b.WriteByte('\t')
+			_, _ = b.WriteString(strconv.Itoa(j))
+			_, _ = b.WriteString(fmt.Sprintf("(%-20T): ", instr))
+			_, _ = b.WriteString(s)
+			_ = b.WriteByte('\n')
 		}
 	}
 	return b.String()
