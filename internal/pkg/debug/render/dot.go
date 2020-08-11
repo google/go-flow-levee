@@ -51,12 +51,12 @@ func (r *renderer) init() {
 
 func (r *renderer) writeSubgraphs() {
 	for bi, b := range r.F.Blocks {
-		_, _ = r.WriteString(fmt.Sprintf("\tsubgraph cluster_%d {\ncolor=black;\nlabel=%q;\n", bi, b.Comment))
+		_, _ = r.WriteString(fmt.Sprintf("\tsubgraph cluster_%d {\n\t\tcolor=black;\n\t\tlabel=%q;\n", bi, b.Comment))
 		for _, i := range b.Instrs {
 			n := i.(ssa.Node)
 			_, _ = r.WriteString(fmt.Sprintf("\t\t%q [shape=%s];\n", renderNode(n), nodeShape(n)))
 		}
-		_, _ = r.WriteString("}\n")
+		_, _ = r.WriteString("\t}\n")
 	}
 }
 
