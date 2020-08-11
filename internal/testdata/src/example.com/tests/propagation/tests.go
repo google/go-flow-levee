@@ -26,11 +26,8 @@ func Identity(arg interface{}) interface{} {
 
 func TestIdentityPropagator(s core.Source) {
 	i := Identity(s)
-	core.Sink(i) // want "a source has reached a sink"
-}
-
-func ReturnFive(arg interface{}) interface{} {
-	return 5
+	core.Sink(i)           // want "a source has reached a sink"
+	core.Sink(Identity(s)) // want "a source has reached a sink"
 }
 
 func ToString(arg interface{}) string {
@@ -40,9 +37,4 @@ func ToString(arg interface{}) string {
 func TestToStringPropagator(s core.Source) {
 	v := ToString(s)
 	core.Sink(v) // want "a source has reached a sink"
-}
-
-func TestReturnFiveShouldNotLeadToDiagnostic(s core.Source) {
-	five := Identity(s)
-	core.Sink(five)
 }
