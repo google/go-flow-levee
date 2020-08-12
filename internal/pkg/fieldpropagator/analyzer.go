@@ -37,14 +37,11 @@ func (i isFieldPropagator) String() string {
 	return "field propagator identified"
 }
 
-// For testing purposes.
-// Specifically, this makes the analyzer report field propagators it finds,
-// which allows us to use analysistest "want" expectations.
-var reporting bool
-
 var Analyzer = &analysis.Analyzer{
-	Name:       "fieldpropagator",
-	Doc:        "This analyzer identifies field propagators.",
+	Name: "fieldpropagator",
+	Doc: `This analyzer identifies field propagators.
+
+A field propagator is a function that returns a source field.`,
 	Flags:      config.FlagSet,
 	Run:        run,
 	Requires:   []*analysis.Analyzer{buildssa.Analyzer},
@@ -106,9 +103,6 @@ func analyzeResults(pass *analysis.Pass, conf *config.Config, meth *ssa.Function
 		}
 		if conf.IsSourceFieldAddr(fa) {
 			pass.ExportObjectFact(meth.Object(), &isFieldPropagator{})
-			if reporting {
-				pass.Reportf(meth.Pos(), "field propagator identified")
-			}
 		}
 	}
 }

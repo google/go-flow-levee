@@ -56,3 +56,11 @@ func (s Source) TryGetData() (string, error) { // want TryGetData:"field propaga
 func New(data string) Source {
 	return Source{data: data, id: 0}
 }
+
+type NotSource struct {
+	data string
+}
+
+func (n NotSource) Data() string {
+	return n.data
+}
