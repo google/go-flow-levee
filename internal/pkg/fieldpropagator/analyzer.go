@@ -43,8 +43,10 @@ func (i isFieldPropagator) String() string {
 var reporting bool
 
 var Analyzer = &analysis.Analyzer{
-	Name:       "fieldpropagator",
-	Doc:        "This analyzer identifies field propagators.",
+	Name: "fieldpropagator",
+	Doc: `This analyzer identifies field propagators.
+
+A field propagator is a function that returns a source field.`,
 	Flags:      config.FlagSet,
 	Run:        run,
 	Requires:   []*analysis.Analyzer{buildssa.Analyzer},
@@ -62,16 +64,14 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 	ssaProg := ssaInput.Pkg.Prog
 	for _, mem := range ssaInput.Pkg.Members {
-		if ssaType, ok := mem.(*ssa.Type); ok && conf.IsSource(ssaType.Type()) {
-			methods := ssaProg.MethodSets.MethodSet(ssaType.Type())
-			for i := 0; i < methods.Len(); i++ {
-				meth := ssaProg.MethodValue(methods.At(i))
-				// Function does not return anything
-				if res := meth.Signature.Results(); res == nil || (*res).Len() == 0 {
-					continue
-				}
-				analyzeBlocks(pass, conf, meth)
-			}
+		ssaType, ok := mem.(*ssa.Type)
+		if !ok || !conf.IsSource(ssaType.Type()) {
+			continue
+		}
+		methods := ssaProg.MethodSets.MethodSet(ssaType.Type())
+		for i := 0; i < methods.Len(); i++ {
+			meth := ssaProg.MethodValue(methods.At(i))
+			analyzeBlocks(pass, conf, meth)
 		}
 	}
 
@@ -83,23 +83,31 @@ func run(pass *analysis.Pass) (interface{}, error) {
 }
 
 func analyzeBlocks(pass *analysis.Pass, conf *config.Config, meth *ssa.Function) {
+	// Function does not return anything
+	if res := meth.Signature.Results(); res == nil || (*res).Len() == 0 {
+		return
+	}
 	for _, b := range meth.Blocks {
+		if len(b.Instrs) == 0 {
+			continue
+		}
 		lastInstr := b.Instrs[len(b.Instrs)-1]
 		ret, ok := lastInstr.(*ssa.Return)
 		if !ok {
 			continue
 		}
-		for _, r := range ret.Results {
-			fa, ok := fieldAddr(r)
-			if !ok {
-				continue
-			}
-			if conf.IsSourceFieldAddr(fa) {
-				pass.ExportObjectFact(meth.Object(), &isFieldPropagator{})
-				if reporting {
-					pass.Reportf(meth.Pos(), "field propagator identified")
-				}
-			}
+		analyzeResults(pass, conf, meth, ret.Results)
+	}
+}
+
+func analyzeResults(pass *analysis.Pass, conf *config.Config, meth *ssa.Function, results []ssa.Value) {
+	for _, r := range results {
+		fa, ok := fieldAddr(r)
+		if !ok {
+			continue
+		}
+		if conf.IsSourceFieldAddr(fa) {
+			pass.ExportObjectFact(meth.Object(), &isFieldPropagator{})
 		}
 	}
 }

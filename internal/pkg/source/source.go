@@ -31,6 +31,7 @@ type classifier interface {
 	IsSanitizer(*ssa.Call) bool
 	IsPropagator(*ssa.Call) bool
 	IsSourceFieldAddr(*ssa.FieldAddr) bool
+	IsSinkFunction(fn *ssa.Function) bool
 }
 
 // Source represents a Source in an SSA call tree.
@@ -68,15 +69,22 @@ func (a *Source) dfs(n ssa.Node) {
 	a.preOrder = append(a.preOrder, n)
 	a.marked[n.(ssa.Node)] = true
 
-	if n.Referrers() == nil {
-		return
+	if n.Referrers() != nil {
+		a.visitReferrers(n.Referrers())
 	}
 
-	for _, r := range *n.Referrers() {
+	var operands []*ssa.Value
+	operands = n.Operands(operands)
+	if operands != nil {
+		a.visitOperands(operands)
+	}
+}
+
+func (a *Source) visitReferrers(referrers *[]ssa.Instruction) {
+	for _, r := range *referrers {
 		if a.marked[r.(ssa.Node)] {
 			continue
 		}
-
 		switch v := r.(type) {
 		case *ssa.Call:
 			// This is to avoid attaching calls where the source is the receiver, ex:
@@ -84,7 +92,6 @@ func (a *Source) dfs(n ssa.Node) {
 			if v.Call.Signature().Recv() != nil {
 				continue
 			}
-
 			if a.config.IsSanitizer(v) {
 				a.sanitizers = append(a.sanitizers, &sanitizer.Sanitizer{Call: v})
 			}
@@ -93,8 +100,20 @@ func (a *Source) dfs(n ssa.Node) {
 				continue
 			}
 		}
-
 		a.dfs(r.(ssa.Node))
+	}
+}
+
+func (a *Source) visitOperands(operands []*ssa.Value) {
+	for _, o := range operands {
+		n, ok := (*o).(ssa.Node)
+		if !ok || a.marked[n] {
+			continue
+		}
+		al, ok := (*o).(*ssa.Alloc)
+		if !ok || al.Comment == "slicelit" || a.config.IsSource(al.Type()) {
+			a.dfs(n)
+		}
 	}
 }
 
@@ -148,6 +167,11 @@ func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Sour
 	sourceMap := make(map[*ssa.Function][]*Source)
 
 	for _, fn := range ssaInput.SrcFuncs {
+		// no need to analyze the body of sinks
+		if conf.IsSinkFunction(fn) {
+			continue
+		}
+
 		var sources []*Source
 		sources = append(sources, sourcesFromParams(fn, conf)...)
 		sources = append(sources, sourcesFromClosure(fn, conf)...)
