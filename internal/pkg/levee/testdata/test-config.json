@@ -9,7 +9,7 @@
   "Sinks": [
     {
       "PackageRE": "^example.com/core$",
-      "MethodRE": "Sink"
+      "MethodRE": "Sinkf?$"
     }
   ],
   "Sanitizers": [
