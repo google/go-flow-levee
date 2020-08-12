@@ -1,0 +1,9 @@
+{
+  "Sources": [
+    {
+      "PackageRE": "source",
+      "TypeRE": "^Source$",
+      "FieldRE": "^data"
+    }
+  ]
+}
