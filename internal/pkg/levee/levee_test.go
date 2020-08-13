@@ -15,19 +15,26 @@
 package internal
 
 import (
+	"flag"
 	"io/ioutil"
 	"path/filepath"
 	"testing"
 
+	"github.com/google/go-flow-levee/internal/pkg/debug"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
+var debugging *bool = flag.Bool("debug", false, "run the debug analyzer")
+
 func TestLevee(t *testing.T) {
 	dataDir := analysistest.TestData()
-	testsDir := filepath.Join(dataDir, "src/example.com/tests")
-	patterns := findTestPatterns(t, testsDir)
 	if err := Analyzer.Flags.Set("config", dataDir+"/test-config.json"); err != nil {
 		t.Error(err)
+	}
+	testsDir := filepath.Join(dataDir, "src/example.com/tests")
+	patterns := findTestPatterns(t, testsDir)
+	if *debugging {
+		Analyzer.Requires = append(Analyzer.Requires, debug.Analyzer)
 	}
 	analysistest.Run(t, dataDir, Analyzer, patterns...)
 }
