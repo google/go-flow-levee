@@ -56,10 +56,6 @@ For instance, a struct's `String()` method or a serializable's `Marshal()` metho
 The value returned by either can contain source data without being identifiable as the specified source's type.
 Transforming propagators are identified via regexp according to package and function name.
 
-A *field propagator* is similar to a transforming propagator,
-but it accepts a fully-qualified receiver name rather than a package name.
-Field propagators should include getter methods.
-
 An *argument propagator* is a propagator which taints an input argument rather than a return value.
 This is done, e.g., by buffer writers such as `fmt.Fprintf`, though could conceivably apply to any function that takes a source and any other reference argument.
 At time of writing, argument propagators only applies to the first argument of a method, expecting a pattern similar to buffer writers.
@@ -69,13 +65,6 @@ Argument propagators are identified via regexp matching the fully-qualified type
 ```json
 {
   "TransformingPropagators": [
-    {
-      "PackageRE": "<package path regexp>",
-      "ReceiverRE": "<type name regexp>",
-      "MethodRE": "<method name regexp>"
-    }
-  ],
-  "FieldPropagators": [
     {
       "PackageRE": "<package path regexp>",
       "ReceiverRE": "<type name regexp>",
