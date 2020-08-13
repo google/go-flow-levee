@@ -16,7 +16,6 @@ package internal
 
 import (
 	"fmt"
-	"go/types"
 	"strings"
 
 	"github.com/google/go-flow-levee/internal/pkg/call"
@@ -61,7 +60,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 				switch {
-				case isFieldPropagator(v, fieldPropagators):
+				case fieldPropagators.Contains(v):
 					sources = append(sources, source.New(v, conf))
 
 				case conf.IsPropagator(v):
@@ -122,17 +121,4 @@ func getArgumentPropagator(c *config.Config, call *ssa.Call) ssa.Node {
 	}
 
 	return nil
-}
-
-func isFieldPropagator(c *ssa.Call, fieldPropagators map[types.Object]bool) bool {
-	for o, _ := range fieldPropagators {
-		cf, ok := c.Call.Value.(*ssa.Function)
-		if !ok {
-			continue
-		}
-		if cf.Object() == o {
-			return true
-		}
-	}
-	return false
 }
