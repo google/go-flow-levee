@@ -23,6 +23,7 @@ import (
 	"github.com/google/go-flow-levee/internal/pkg/fieldpropagator"
 	"github.com/google/go-flow-levee/internal/pkg/varargs"
 	"golang.org/x/tools/go/analysis"
+	"golang.org/x/tools/go/pointer"
 	"golang.org/x/tools/go/ssa"
 
 	"github.com/google/go-flow-levee/internal/pkg/source"
@@ -81,6 +82,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				case conf.IsSink(v):
 					c := makeCall(v)
 					for _, s := range sources {
+						doPointerAnalysis(s)
 						if c.ReferredBy(s) && !s.IsSanitizedAt(v) {
 							report(pass, s, v)
 							break
@@ -92,6 +94,26 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	return nil, nil
+}
+
+func doPointerAnalysis(s *source.Source) {
+	v, ok := s.Node().(ssa.Value)
+	if !ok || !pointer.CanPoint(v.Type()) {
+		return
+	}
+
+	c := &pointer.Config{
+		Mains: []*ssa.Package{s.Node().Parent().Pkg},
+	}
+	c.AddQuery(v)
+
+	result, err := pointer.Analyze(c)
+	if err != nil {
+		panic(err) // pointer analysis internal error
+	}
+
+	ptr := result.Queries[v]
+	fmt.Println(ptr.PointsTo())
 }
 
 func makeCall(c *ssa.Call) call.Call {

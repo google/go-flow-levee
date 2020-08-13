@@ -12,29 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package propagation
+package main
 
 import (
-	"fmt"
-
 	"example.com/core"
 )
 
-func Identity(arg interface{}) interface{} {
-	return arg
+func TestSinkWrapper(s core.Source) {
+	SinkWrapper(s) // want "a source has reached a sink"
 }
 
-func TestIdentityPropagator(s core.Source) {
-	i := Identity(s)
-	core.Sink(i)           // want "a source has reached a sink"
-	core.Sink(Identity(s)) // want "a source has reached a sink"
+func SinkWrapper(arg interface{}) {
+	core.Sink(arg)
 }
 
-func ToString(arg interface{}) string {
-	return fmt.Sprintf("%v", arg)
+func ReturnsFive(arg interface{}) interface{} {
+	return 5
 }
 
-func TestToStringPropagator(s core.Source) {
-	v := ToString(s)
-	core.Sink(v) // want "a source has reached a sink"
+func TestReturnsFive(s core.Source) {
+	five := ReturnsFive(s)
+	core.Sink(five)
+}
+
+func main() {
+	// this is strictly for pointer analysis to be possible
 }
