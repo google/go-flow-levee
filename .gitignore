@@ -1,2 +1,5 @@
 # Default ignored files
 /.idea
+
+# Debugging output
+output
