@@ -44,7 +44,7 @@ func TestTaintIsNotPropagatedwhenMapIsOverwritten(s core.Source) {
 func TestValueObtainedFromTaintedMapIsTainted(s core.Source) {
 	m := map[interface{}]string{s: "source"}
 	v := m[0]
-	core.Sink(m[v]) // want "a source has reached a sink"
+	core.Sink(v) // want "a source has reached a sink"
 	delete(m, s)
 	core.Sink(m[s]) // want "a source has reached a sink"
 }
