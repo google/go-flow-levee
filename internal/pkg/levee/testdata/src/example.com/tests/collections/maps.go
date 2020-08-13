@@ -27,20 +27,20 @@ func TestMapLiteralContainingSourceKeyIsTainted(s core.Source) {
 
 func TestMapLiteralContainingSourceValueIsTainted(s core.Source) {
 	m := map[string]core.Source{"source": s}
-	core.Sink(m)              // want "a source has reached a sink"
-	core.Sink(m["source"])    // want "a source has reached a sink"
-	core.Sink(m["innocuous"]) // want "a source has reached a sink"
+	core.Sink(m)                // want "a source has reached a sink"
+	core.Sink(m["source"])      // want "a source has reached a sink"
+	core.Sink(m["nonexistent"]) // want "a source has reached a sink"
 }
 
 func TestMapIsTaintedWhenSourceIsInserted(s core.Source) {
-	m := map[string]core.Source{}
-	m["source"] = s
-	core.Sink(m)           // want "a source has reached a sink"
-	core.Sink(m["source"]) // want "a source has reached a sink"
+	m := map[core.Source]core.Source{}
+	m[s] = s
+	core.Sink(m)    // want "a source has reached a sink"
+	core.Sink(m[s]) // want "a source has reached a sink"
 }
 
 func TestTaintIsNotPropagatedwhenMapIsOverwritten(s core.Source) {
-	m := map[string]core.Source{"source": s}
+	m := map[string]interface{}{"source": s}
 	core.Sink(m) // want "a source has reached a sink"
 	m = nil
 	core.Sink(m)
