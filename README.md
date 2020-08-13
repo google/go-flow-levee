@@ -32,6 +32,28 @@ See [design/](design/README.md).
 
 See [configuration/](configuration/README.md) for configuration details.
 
+### Debugging
+
+The main analyzer depends heavily on the SSA package. Being able to read the SSA code and visualize its graph can be very useful for debugging. In order to generate the SSA code and DOT (graphviz) source for every function in a test, run `go test levee_test.go -debug`. Results are written to the `output` directory. You can generate a PDF from the DOT source using `dot -Tpdf <file> -o "$(basename <file> .dot).pdf"`.
+
+Currently, debugging is only supported for `levee_test.go`. In order to add support for debugging in a new test, first add a debugging flag:
+```go
+var debugging bool = flag.Bool("debug", false, "run the debug analyzer")
+```
+Then add `debug.Analyzer` as a dependency of the analyzer being tested:
+```go
+if *debugging {
+	Analyzer.Requires = append(Analyzer.Requires, debug.Analyzer)
+}
+```
+
+In the `dot` output:
+* A **red** edge points to a **Referrer** of an `ssa.Node`
+* An **orange** edges points to an **Operand** of an `ssa.Node`
+* **Diamond**-shaped nodes represent `ssa.Node`s that are both `ssa.Instruction`s and `ssa.Value`s
+* **Square**-shaped node represent `ssa.Node`s that are only `ssa.Instruction`s
+* **Ellipse**-shaped nodes that are either only `ssa.Value`s, or are `ssa.Member`s.
+
 ## Source Code Headers
 
 Every file containing source code must include copyright and license
