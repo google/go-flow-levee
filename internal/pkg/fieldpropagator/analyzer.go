@@ -37,11 +37,6 @@ func (i isFieldPropagator) String() string {
 	return "field propagator identified"
 }
 
-// For testing purposes.
-// Specifically, this makes the analyzer report field propagators it finds,
-// which allows us to use analysistest "want" expectations.
-var reporting bool
-
 var Analyzer = &analysis.Analyzer{
 	Name: "fieldpropagator",
 	Doc: `This analyzer identifies field propagators.
