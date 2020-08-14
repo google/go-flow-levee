@@ -45,8 +45,6 @@ func TestValueObtainedFromTaintedMapIsTainted(s core.Source) {
 	m := map[interface{}]string{s: "source"}
 	v := m[0]
 	core.Sink(v) // want "a source has reached a sink"
-	delete(m, s)
-	core.Sink(m) // want "a source has reached a sink"
 }
 
 func TestMapRemainsTaintedWhenSourceIsDeleted(s core.Source) {
