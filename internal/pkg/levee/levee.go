@@ -32,6 +32,8 @@ import (
 	"github.com/google/go-flow-levee/internal/pkg/source"
 )
 
+const sourceReachedSinkMessage = "a source has reached a sink"
+
 var Analyzer = &analysis.Analyzer{
 	Name:     "levee",
 	Run:      run,
@@ -104,7 +106,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					c := makeCall(v)
 					for _, s := range sources {
 						if c.ReferredBy(s) && !s.IsSanitizedAt(v) {
-							report(pass, s, v)
+							reportAtSink(pass, s.Node(), v)
 							break
 						}
 					}
@@ -127,15 +129,17 @@ func doPointerAnalysis(pass *analysis.Pass, analysisConf *config.Config, c *ssa.
 		Mains: []*ssa.Package{pkg},
 	}
 
-	slice, ok := c.Call.Args[0].(*ssa.Slice)
-	if !ok {
+	vs := callValues(c)
+	if len(vs) == 0 {
 		return false
 	}
-	indexAddr := (*slice.X.Referrers())[0].(*ssa.IndexAddr)
-	refs := *indexAddr.Referrers()
-	val := refs[0].(*ssa.Store).Val
 
-	pointerConf.AddQuery(val)
+	for _, v := range vs {
+		if !pointer.CanPoint((v).Type()) {
+			continue
+		}
+		pointerConf.AddQuery(v)
+	}
 
 	result, err := pointer.Analyze(pointerConf)
 	if err != nil {
@@ -150,12 +154,15 @@ func doPointerAnalysis(pass *analysis.Pass, analysisConf *config.Config, c *ssa.
 		}
 		for _, lab := range labels {
 			v := lab.Value()
-			x := v.(*ssa.MakeInterface).X
-			if !analysisConf.IsSource(utils.Dereference(x.Type())) {
+			switch t := v.(type) {
+			case *ssa.MakeInterface:
+				v = t.X
+			}
+			if !analysisConf.IsSource(utils.Dereference(v.Type())) {
 				continue
 			}
 			isSafeCall = false
-			pass.Reportf(x.Pos(), "a source has reached a sink")
+			reportAtSource(pass, v.(ssa.Node), (ssa.Node)(c))
 		}
 	}
 	return isSafeCall
@@ -168,11 +175,18 @@ func makeCall(c *ssa.Call) call.Call {
 	return call.Regular(c)
 }
 
-func report(pass *analysis.Pass, source *source.Source, sink ssa.Node) {
+func reportAtSink(pass *analysis.Pass, source ssa.Node, sink ssa.Node) {
 	var b strings.Builder
-	b.WriteString("a source has reached a sink")
-	fmt.Fprintf(&b, ", source: %v", pass.Fset.Position(source.Node().Pos()))
+	b.WriteString(sourceReachedSinkMessage)
+	fmt.Fprintf(&b, ", source: %v", pass.Fset.Position(source.Pos()))
 	pass.Reportf(sink.Pos(), b.String())
+}
+
+func reportAtSource(pass *analysis.Pass, source ssa.Node, sink ssa.Node) {
+	var b strings.Builder
+	b.WriteString(sourceReachedSinkMessage)
+	fmt.Fprintf(&b, ", sink: %v", pass.Fset.Position(sink.Pos()))
+	pass.Reportf(source.Pos(), b.String())
 }
 
 func getArgumentPropagator(c *config.Config, call *ssa.Call) ssa.Node {
@@ -190,11 +204,31 @@ func getArgumentPropagator(c *config.Config, call *ssa.Call) ssa.Node {
 	return nil
 }
 
-// for _, a := range c.Call.Args {
-// 	if !pointer.CanPoint(a.Type()) {
-// 		continue
-// 	}
-// 	// DFS TO FIND THINGS TO POINT TO
-// 	conf.AddExtendedQuery(a, "x[0]")
-// 	pointed = append(pointed, a)
-// }
+// callValues collects the ssa.Values that are arguments to an ssa.Call.
+// in particular, it handles variadic arguments to some extent.
+// We don't want to analyze what the variadic argument points to (a slice), but we do
+// want to analyze the values *within* the slice.
+func callValues(c *ssa.Call) (values []ssa.Value) {
+	for _, a := range c.Call.Args {
+		slice, ok := a.(*ssa.Slice)
+		if !ok {
+			values = append(values, a)
+			continue
+		}
+		refs := *slice.X.Referrers()
+		// the last referrer is the slice
+		for i := 0; i < len(refs)-1; i++ {
+			indexAddr := refs[i].(*ssa.IndexAddr)
+			val := (*indexAddr.Referrers())[0].(*ssa.Store).Val
+			values = append(values, val)
+			mk, ok := val.(*ssa.MakeInterface)
+			if !ok {
+				continue
+			}
+			if mk.X != nil {
+				values = append(values, mk.X)
+			}
+		}
+	}
+	return
+}

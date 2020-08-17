@@ -23,6 +23,8 @@ func main() {
 	TestSinkWrapper(core.Source{})
 	TestOneArgSinkWrapper(core.Source{})
 	TestReturnsFive(core.Source{})
+	TestSinkWrapperSlice(core.Source{})
+	TestSinkWrapperSpread(core.Source{})
 }
 
 func TestSinkWrapperWrapper(s core.Source) {
@@ -56,4 +58,28 @@ func TestReturnsFive(s core.Source) {
 
 func ReturnsFive(arg interface{}) interface{} {
 	return 5
+}
+
+func TestSinkWrapperSlice(s core.Source) {
+	// This fails because SinkWrapperSlice receives a slice of interface{}, which it then passes
+	// to core.Sink. Since core.Sink is variadic, the ssa code creates a slice, puts the first slice
+	// into it, then calls core.Sink with that. Unforunately, the first slice is represented as an
+	// `ssa.Parameter`, which is rather opaque. In particular, its only Referrer is the Store instruction,
+	// and it has no Operands because it is an ssa.Value.
+	SinkWrapperSlice("not a source", s, 0) // TODO want "a source has reached a sink"
+}
+
+func SinkWrapperSlice(args ...interface{}) {
+	core.Sink(args)
+}
+
+func TestSinkWrapperSpread(s core.Source) {
+	// This fails because in SinkWrapperSpread, core.Sink receives `args` as an ssa.Parameter.
+	// Unfortunately, ssa.Parameter is rather opaque: its only Referrer is the call to core.Sink,
+	// and it has no Operands.
+	SinkWrapperSpread("not a source", s, 0) // TODO want "a source has reached a sink"
+}
+
+func SinkWrapperSpread(args ...interface{}) {
+	core.Sink(args...)
 }
