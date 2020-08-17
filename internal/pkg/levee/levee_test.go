@@ -31,9 +31,12 @@ func TestLevee(t *testing.T) {
 	if err := Analyzer.Flags.Set("config", dataDir+"/test-config.json"); err != nil {
 		t.Error(err)
 	}
-	// testsDir := filepath.Join(dataDir, "src/example.com/tests")
-	// fmt.Println(findTestPatterns(t, testsDir))
-	patterns := []string{filepath.Join(dataDir, "src/example.com/tests", "propagation")}
+	testsDir := filepath.Join(dataDir, "src/example.com/tests")
+	patterns := findTestPatterns(t, testsDir)
+	// patterns := []string{
+	// 	filepath.Join(dataDir, "src/example.com/tests/sinks"),
+	// 	filepath.Join(dataDir, "src/example.com/tests/propagation"),
+	// }
 	if *debugging {
 		Analyzer.Requires = append(Analyzer.Requires, debug.Analyzer)
 	}

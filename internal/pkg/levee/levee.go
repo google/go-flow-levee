@@ -47,8 +47,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 	// TODO: respect configuration scope
 
+	// a call is safe if its arguments have been analyzed by pointer analysis and found not to point to Sources
+	isSafeCall := map[*ssa.Call]bool{}
 	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
-
 	for _, f := range ssaInput.SrcFuncs {
 		for _, b := range f.Blocks {
 			for _, instr := range b.Instrs {
@@ -56,70 +57,82 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				if !ok || !conf.IsSink(c) {
 					continue
 				}
-				doPointerAnalysis(pass, conf, c)
+				isSafeCall[c] = doPointerAnalysis(pass, conf, c)
 			}
 		}
-
 	}
 
-	// sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
-	// fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
-	// // Only examine functions that have sources
-	// for fn, sources := range sourcesMap {
-	// 	for _, b := range fn.Blocks {
-	// 		if b == fn.Recover {
-	// 			// TODO Handle calls to sinks in a recovery block.
-	// 			continue // skipping Recover since it does not have instructions, rather a single block.
-	// 		}
+	sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
+	fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
+	// Only examine functions that have sources
+	for fn, sources := range sourcesMap {
+		for _, b := range fn.Blocks {
+			if b == fn.Recover {
+				// TODO Handle calls to sinks in a recovery block.
+				continue // skipping Recover since it does not have instructions, rather a single block.
+			}
 
-	// 		for _, instr := range b.Instrs {
-	// 			v, ok := instr.(*ssa.Call)
-	// 			if !ok {
-	// 				continue
-	// 			}
-	// 			switch {
-	// 			case fieldPropagators.Contains(v):
-	// 				sources = append(sources, source.New(v, conf))
+			for _, instr := range b.Instrs {
+				v, ok := instr.(*ssa.Call)
+				if !ok {
+					continue
+				}
+				switch {
+				case fieldPropagators.Contains(v):
+					sources = append(sources, source.New(v, conf))
 
-	// 			case conf.IsPropagator(v):
-	// 				// Handling the case where sources are propagated to io.Writer
-	// 				// (ex. proto.MarshalText(&buf, c)
-	// 				// In such cases, "buf" becomes a source, and not the return value of the propagator.
-	// 				// TODO Do not hard-code logging sinks usecase
-	// 				// TODO  Handle case of os.Stdout and os.Stderr.
-	// 				// TODO  Do not hard-code the position of the argument, instead declaratively
-	// 				//  specify the position of the propagated source.
-	// 				// TODO  Consider turning propagators that take io.Writer into sinks.
-	// 				if a := getArgumentPropagator(conf, v); a != nil {
-	// 					sources = append(sources, source.New(a, conf))
-	// 				} else {
-	// 					sources = append(sources, source.New(v, conf))
-	// 				}
+				case conf.IsPropagator(v):
+					// Handling the case where sources are propagated to io.Writer
+					// (ex. proto.MarshalText(&buf, c)
+					// In such cases, "buf" becomes a source, and not the return value of the propagator.
+					// TODO Do not hard-code logging sinks usecase
+					// TODO  Handle case of os.Stdout and os.Stderr.
+					// TODO  Do not hard-code the position of the argument, instead declaratively
+					//  specify the position of the propagated source.
+					// TODO  Consider turning propagators that take io.Writer into sinks.
+					if a := getArgumentPropagator(conf, v); a != nil {
+						sources = append(sources, source.New(a, conf))
+					} else {
+						sources = append(sources, source.New(v, conf))
+					}
 
-	// 			case conf.IsSink(v):
-	// 				doPointerAnalysis(v)
-	// 				c := makeCall(v)
-	// 				for _, s := range sources {
-	// 					if c.ReferredBy(s) && !s.IsSanitizedAt(v) {
-	// 						report(pass, s, v)
-	// 						break
-	// 					}
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
+				case conf.IsSink(v):
+					if isSafeCall[v] {
+						continue
+					}
+
+					c := makeCall(v)
+					for _, s := range sources {
+						if c.ReferredBy(s) && !s.IsSanitizedAt(v) {
+							report(pass, s, v)
+							break
+						}
+					}
+				}
+			}
+		}
+	}
 
 	return nil, nil
 }
 
-func doPointerAnalysis(pass *analysis.Pass, analysisConf *config.Config, c *ssa.Call) {
-	var pointed []ssa.Value
-	conf := &pointer.Config{
-		Mains: []*ssa.Package{c.Parent().Pkg},
+func doPointerAnalysis(pass *analysis.Pass, analysisConf *config.Config, c *ssa.Call) (isSafeCall bool) {
+	pkg := c.Parent().Pkg
+	main := pkg.Func("main")
+	if main == nil {
+		return false
 	}
 
-	slice := c.Call.Args[0].(*ssa.Slice)
+	var pointed []ssa.Value
+	conf := &pointer.Config{
+		Mains: []*ssa.Package{pkg},
+	}
+
+	slice, ok := c.Call.Args[0].(*ssa.Slice)
+	if !ok {
+		return false
+	}
+
 	indexAddr := (*slice.X.Referrers())[0].(*ssa.IndexAddr)
 	refs := *indexAddr.Referrers()
 	addr := refs[0].(*ssa.Store).Val
@@ -129,9 +142,10 @@ func doPointerAnalysis(pass *analysis.Pass, analysisConf *config.Config, c *ssa.
 
 	result, err := pointer.Analyze(conf)
 	if err != nil {
-		panic(err) // pointer analysis internal error
+		return false
 	}
 
+	isSafeCall = true
 	for _, p := range pointed {
 		pSet := result.Queries[p]
 		if pSet.PointsTo().String() != "[]" {
@@ -139,11 +153,15 @@ func doPointerAnalysis(pass *analysis.Pass, analysisConf *config.Config, c *ssa.
 				v := lab.Value()
 				x := v.(*ssa.MakeInterface).X
 				if analysisConf.IsSource(utils.Dereference(x.Type())) {
+					isSafeCall = false
 					pass.Reportf(x.Pos(), "a source has reached a sink")
 				}
 			}
+		} else {
+			fmt.Println(p, "has empty pset")
 		}
 	}
+	return isSafeCall
 }
 
 func makeCall(c *ssa.Call) call.Call {
