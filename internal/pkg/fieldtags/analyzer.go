@@ -42,10 +42,10 @@ var patterns sourcePatterns = []keyValue{
 	{"levee", "source"},
 }
 
-// TaggedFields is named type representing a slice of Tagged Fields.
+// TaggedFields is named type representing a slice of TaggedFields.
 type TaggedFields []TaggedField
 
-// ResultType is a slice of Tagged Fields.
+// ResultType is a slice of TaggedFields.
 type ResultType = TaggedFields
 
 // A TaggedField contains the necessary information to identify a tagged struct field.
@@ -149,7 +149,7 @@ func (sp *sourcePatterns) isSource(field *ast.Field) bool {
 
 // IsSource determines whether a FieldAddr is a source, that is whether it refers to a field previously identified as a source.
 func (t TaggedFields) IsSource(f *ssa.FieldAddr) bool {
-	n, ok := named(f)
+	n, ok := namedType(f)
 	if !ok {
 		return false
 	}
@@ -162,7 +162,7 @@ func (t TaggedFields) IsSource(f *ssa.FieldAddr) bool {
 	return false
 }
 
-func named(f *ssa.FieldAddr) (*types.Named, bool) {
+func namedType(f *ssa.FieldAddr) (*types.Named, bool) {
 	structType := f.X.Type()
 	deref := utils.Dereference(structType)
 	named, ok := deref.(*types.Named)
