@@ -18,11 +18,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/go-flow-levee/internal/pkg/utils"
+
 	"github.com/google/go-flow-levee/internal/pkg/call"
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/fieldpropagator"
 	"github.com/google/go-flow-levee/internal/pkg/varargs"
 	"golang.org/x/tools/go/analysis"
+	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/pointer"
 	"golang.org/x/tools/go/ssa"
 
@@ -34,7 +37,7 @@ var Analyzer = &analysis.Analyzer{
 	Run:      run,
 	Flags:    config.FlagSet,
 	Doc:      "reports attempts to source data to sinks",
-	Requires: []*analysis.Analyzer{source.Analyzer, fieldpropagator.Analyzer},
+	Requires: []*analysis.Analyzer{buildssa.Analyzer, source.Analyzer, fieldpropagator.Analyzer},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -44,76 +47,103 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 	// TODO: respect configuration scope
 
-	sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
-	fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
+	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 
-	// Only examine functions that have sources
-	for fn, sources := range sourcesMap {
-		for _, b := range fn.Blocks {
-			if b == fn.Recover {
-				// TODO Handle calls to sinks in a recovery block.
-				continue // skipping Recover since it does not have instructions, rather a single block.
-			}
-
+	for _, f := range ssaInput.SrcFuncs {
+		for _, b := range f.Blocks {
 			for _, instr := range b.Instrs {
-				v, ok := instr.(*ssa.Call)
-				if !ok {
+				c, ok := instr.(*ssa.Call)
+				if !ok || !conf.IsSink(c) {
 					continue
 				}
-				switch {
-				case fieldPropagators.Contains(v):
-					sources = append(sources, source.New(v, conf))
-
-				case conf.IsPropagator(v):
-					// Handling the case where sources are propagated to io.Writer
-					// (ex. proto.MarshalText(&buf, c)
-					// In such cases, "buf" becomes a source, and not the return value of the propagator.
-					// TODO Do not hard-code logging sinks usecase
-					// TODO  Handle case of os.Stdout and os.Stderr.
-					// TODO  Do not hard-code the position of the argument, instead declaratively
-					//  specify the position of the propagated source.
-					// TODO  Consider turning propagators that take io.Writer into sinks.
-					if a := getArgumentPropagator(conf, v); a != nil {
-						sources = append(sources, source.New(a, conf))
-					} else {
-						sources = append(sources, source.New(v, conf))
-					}
-
-				case conf.IsSink(v):
-					c := makeCall(v)
-					for _, s := range sources {
-						doPointerAnalysis(s)
-						if c.ReferredBy(s) && !s.IsSanitizedAt(v) {
-							report(pass, s, v)
-							break
-						}
-					}
-				}
+				doPointerAnalysis(pass, conf, c)
 			}
 		}
+
 	}
+
+	// sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
+	// fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
+	// // Only examine functions that have sources
+	// for fn, sources := range sourcesMap {
+	// 	for _, b := range fn.Blocks {
+	// 		if b == fn.Recover {
+	// 			// TODO Handle calls to sinks in a recovery block.
+	// 			continue // skipping Recover since it does not have instructions, rather a single block.
+	// 		}
+
+	// 		for _, instr := range b.Instrs {
+	// 			v, ok := instr.(*ssa.Call)
+	// 			if !ok {
+	// 				continue
+	// 			}
+	// 			switch {
+	// 			case fieldPropagators.Contains(v):
+	// 				sources = append(sources, source.New(v, conf))
+
+	// 			case conf.IsPropagator(v):
+	// 				// Handling the case where sources are propagated to io.Writer
+	// 				// (ex. proto.MarshalText(&buf, c)
+	// 				// In such cases, "buf" becomes a source, and not the return value of the propagator.
+	// 				// TODO Do not hard-code logging sinks usecase
+	// 				// TODO  Handle case of os.Stdout and os.Stderr.
+	// 				// TODO  Do not hard-code the position of the argument, instead declaratively
+	// 				//  specify the position of the propagated source.
+	// 				// TODO  Consider turning propagators that take io.Writer into sinks.
+	// 				if a := getArgumentPropagator(conf, v); a != nil {
+	// 					sources = append(sources, source.New(a, conf))
+	// 				} else {
+	// 					sources = append(sources, source.New(v, conf))
+	// 				}
+
+	// 			case conf.IsSink(v):
+	// 				doPointerAnalysis(v)
+	// 				c := makeCall(v)
+	// 				for _, s := range sources {
+	// 					if c.ReferredBy(s) && !s.IsSanitizedAt(v) {
+	// 						report(pass, s, v)
+	// 						break
+	// 					}
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// }
 
 	return nil, nil
 }
 
-func doPointerAnalysis(s *source.Source) {
-	v, ok := s.Node().(ssa.Value)
-	if !ok || !pointer.CanPoint(v.Type()) {
-		return
+func doPointerAnalysis(pass *analysis.Pass, analysisConf *config.Config, c *ssa.Call) {
+	var pointed []ssa.Value
+	conf := &pointer.Config{
+		Mains: []*ssa.Package{c.Parent().Pkg},
 	}
 
-	c := &pointer.Config{
-		Mains: []*ssa.Package{s.Node().Parent().Pkg},
-	}
-	c.AddQuery(v)
+	slice := c.Call.Args[0].(*ssa.Slice)
+	indexAddr := (*slice.X.Referrers())[0].(*ssa.IndexAddr)
+	refs := *indexAddr.Referrers()
+	addr := refs[0].(*ssa.Store).Val
 
-	result, err := pointer.Analyze(c)
+	conf.AddQuery(addr)
+	pointed = append(pointed, addr)
+
+	result, err := pointer.Analyze(conf)
 	if err != nil {
 		panic(err) // pointer analysis internal error
 	}
 
-	ptr := result.Queries[v]
-	fmt.Println(ptr.PointsTo())
+	for _, p := range pointed {
+		pSet := result.Queries[p]
+		if pSet.PointsTo().String() != "[]" {
+			for _, lab := range pSet.PointsTo().Labels() {
+				v := lab.Value()
+				x := v.(*ssa.MakeInterface).X
+				if analysisConf.IsSource(utils.Dereference(x.Type())) {
+					pass.Reportf(x.Pos(), "a source has reached a sink")
+				}
+			}
+		}
+	}
 }
 
 func makeCall(c *ssa.Call) call.Call {
@@ -144,3 +174,12 @@ func getArgumentPropagator(c *config.Config, call *ssa.Call) ssa.Node {
 
 	return nil
 }
+
+// for _, a := range c.Call.Args {
+// 	if !pointer.CanPoint(a.Type()) {
+// 		continue
+// 	}
+// 	// DFS TO FIND THINGS TO POINT TO
+// 	conf.AddExtendedQuery(a, "x[0]")
+// 	pointed = append(pointed, a)
+// }
