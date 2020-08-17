@@ -135,7 +135,7 @@ func doPointerAnalysis(pass *analysis.Pass, analysisConf *config.Config, c *ssa.
 	}
 
 	for _, v := range vs {
-		if !pointer.CanPoint((v).Type()) {
+		if !pointer.CanPoint(v.Type()) {
 			continue
 		}
 		pointerConf.AddQuery(v)
