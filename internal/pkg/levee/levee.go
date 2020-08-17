@@ -221,13 +221,6 @@ func callValues(c *ssa.Call) (values []ssa.Value) {
 			indexAddr := refs[i].(*ssa.IndexAddr)
 			val := (*indexAddr.Referrers())[0].(*ssa.Store).Val
 			values = append(values, val)
-			mk, ok := val.(*ssa.MakeInterface)
-			if !ok {
-				continue
-			}
-			if mk.X != nil {
-				values = append(values, mk.X)
-			}
 		}
 	}
 	return
