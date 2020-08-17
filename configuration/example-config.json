@@ -29,14 +29,4 @@
     }
   ],
   "Sanitizers": [],
-  "TransformingPropagators": [
-    {
-      "PackageName": ".*proto$",
-      "ReceiverRE": "",
-      "MethodRE": "^Clone$|^Marshal"
-    }
-  ],
-  "PropagatorArgs": {
-    "ArgumentTypeRE": "^io\\.(?:Writer|ReadWriter|WriteCloser|ReadWriteCloser)$"
-  }
 }

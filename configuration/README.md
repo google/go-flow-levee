@@ -49,34 +49,6 @@ Sinks, sanitizers, and some propagators (below) are identified via regexp accord
 }
 ```
 
-We separate propagators into the following types:
-
-A *transforming propagator* produces a tainted value which may contain source data.
-For instance, a struct's `String()` method or a serializable's `Marshal()` method are transforming propagators.
-The value returned by either can contain source data without being identifiable as the specified source's type.
-Transforming propagators are identified via regexp according to package and function name.
-
-An *argument propagator* is a propagator which taints an input argument rather than a return value.
-This is done, e.g., by buffer writers such as `fmt.Fprintf`, though could conceivably apply to any function that takes a source and any other reference argument.
-At time of writing, argument propagators only applies to the first argument of a method, expecting a pattern similar to buffer writers.
-Configuration currently only allows for one argument propagator to be specified.
-Argument propagators are identified via regexp matching the fully-qualified type name.
-
-```json
-{
-  "TransformingPropagators": [
-    {
-      "PackageRE": "<package path regexp>",
-      "ReceiverRE": "<type name regexp>",
-      "MethodRE": "<method name regexp>"
-    }
-  ],
-  "PropagatorArgs": {
-    "ArgumentTypeRE": "^io\\.(?:Writer|ReadWriter|WriteCloser|ReadWriteCloser)$"
-  }
-}
-```
-
 For matchers that accept a `ReceiverRE` regexp matcher, an unspecified string will match any (or no) receiver.
 To match only methods without any receiver (i.e., a top-level function), use the matcher `^$` to match an empty-string receiver name.
 

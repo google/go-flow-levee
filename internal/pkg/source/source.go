@@ -29,7 +29,6 @@ import (
 type classifier interface {
 	IsSource(types.Type) bool
 	IsSanitizer(*ssa.Call) bool
-	IsPropagator(*ssa.Call) bool
 	IsSourceFieldAddr(*ssa.FieldAddr) bool
 	IsSinkFunction(fn *ssa.Function) bool
 }

@@ -18,9 +18,6 @@
       "MethodRE": "^Sanitize"
     }
   ],
-  "TransformingPropagators": [
-  ],
-  "PropagatorArgs": {},
   "Allowlist": [],
   "AnalysisScope": []
 }

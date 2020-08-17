@@ -37,13 +37,11 @@ func init() {
 
 // config contains matchers and analysis scope information
 type Config struct {
-	Sources                 []sourceMatcher
-	Sinks                   []callMatcher
-	Sanitizers              []callMatcher
-	TransformingPropagators []transformingPropagatorMatcher
-	PropagatorArgs          argumentPropagatorMatcher
-	Allowlist               []packageMatcher
-	AnalysisScope           []packageMatcher
+	Sources       []sourceMatcher
+	Sinks         []callMatcher
+	Sanitizers    []callMatcher
+	Allowlist     []packageMatcher
+	AnalysisScope []packageMatcher
 }
 
 // shouldSkip returns true for any function that is outside analysis scope,
@@ -150,36 +148,6 @@ func (c Config) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
 	return false
 }
 
-func (c Config) IsPropagator(call *ssa.Call) bool {
-	return c.isTransformingPropagator(call)
-}
-
-// A call is a transforming propagator if its name matches a pattern in the config
-// and at least one of its arguments is a Source.
-func (c Config) isTransformingPropagator(call *ssa.Call) bool {
-	for _, p := range c.TransformingPropagators {
-		if !p.match(call) {
-			continue
-		}
-
-		for _, a := range call.Call.Args {
-			// TODO Handle ChangeInterface case.
-			switch t := a.(type) {
-			case *ssa.MakeInterface:
-				if c.IsSource(utils.Dereference(t.X.Type())) {
-					return true
-				}
-			case *ssa.Parameter:
-				if c.IsSource(utils.Dereference(t.Type())) {
-					return true
-				}
-			}
-		}
-	}
-
-	return false
-}
-
 func (c Config) isAllowlisted(pkg *types.Package) bool {
 	for _, w := range c.Allowlist {
 		if w.match(pkg) {
@@ -214,25 +182,6 @@ func (s sourceMatcher) match(n *types.Named) bool {
 	}
 
 	return s.PackageRE.MatchString(n.Obj().Pkg().Path()) && s.TypeRE.MatchString(n.Obj().Name())
-}
-
-type transformingPropagatorMatcher struct {
-	PackageName string
-	MethodRE    regexp.Regexp
-}
-
-func (t transformingPropagatorMatcher) match(call *ssa.Call) bool {
-	if call.Call.StaticCallee() == nil ||
-		call.Call.StaticCallee().Pkg == nil ||
-		call.Call.StaticCallee().Pkg.Pkg.Path() != t.PackageName {
-		return false
-	}
-
-	return t.MethodRE.MatchString(call.Call.StaticCallee().Name())
-}
-
-type argumentPropagatorMatcher struct {
-	ArgumentTypeRE regexp.Regexp
 }
 
 type packageMatcher struct {
