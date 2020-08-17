@@ -19,8 +19,9 @@ import (
 )
 
 func main() {
-	TestSinkWrapper(core.Source{})
 	TestSinkWrapperWrapper(core.Source{})
+	TestSinkWrapper(core.Source{})
+	TestOneArgSinkWrapper(core.Source{})
 	TestReturnsFive(core.Source{})
 }
 
@@ -38,6 +39,14 @@ func TestSinkWrapper(s core.Source) {
 
 func SinkWrapper(arg interface{}) {
 	core.Sink(arg)
+}
+
+func TestOneArgSinkWrapper(s core.Source) {
+	OneArgSinkWrapper(s) // want "a source has reached a sink"
+}
+
+func OneArgSinkWrapper(arg interface{}) {
+	core.OneArgSink(arg)
 }
 
 func TestReturnsFive(s core.Source) {

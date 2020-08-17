@@ -123,8 +123,7 @@ func doPointerAnalysis(pass *analysis.Pass, analysisConf *config.Config, c *ssa.
 		return false
 	}
 
-	var pointed []ssa.Value
-	conf := &pointer.Config{
+	pointerConf := &pointer.Config{
 		Mains: []*ssa.Package{pkg},
 	}
 
@@ -132,33 +131,31 @@ func doPointerAnalysis(pass *analysis.Pass, analysisConf *config.Config, c *ssa.
 	if !ok {
 		return false
 	}
-
 	indexAddr := (*slice.X.Referrers())[0].(*ssa.IndexAddr)
 	refs := *indexAddr.Referrers()
-	addr := refs[0].(*ssa.Store).Val
+	val := refs[0].(*ssa.Store).Val
 
-	conf.AddQuery(addr)
-	pointed = append(pointed, addr)
+	pointerConf.AddQuery(val)
 
-	result, err := pointer.Analyze(conf)
+	result, err := pointer.Analyze(pointerConf)
 	if err != nil {
 		return false
 	}
 
 	isSafeCall = true
-	for _, p := range pointed {
-		pSet := result.Queries[p]
-		if pSet.PointsTo().String() != "[]" {
-			for _, lab := range pSet.PointsTo().Labels() {
-				v := lab.Value()
-				x := v.(*ssa.MakeInterface).X
-				if analysisConf.IsSource(utils.Dereference(x.Type())) {
-					isSafeCall = false
-					pass.Reportf(x.Pos(), "a source has reached a sink")
-				}
+	for _, pSet := range result.Queries {
+		labels := pSet.PointsTo().Labels()
+		if len(labels) == 0 {
+			continue
+		}
+		for _, lab := range labels {
+			v := lab.Value()
+			x := v.(*ssa.MakeInterface).X
+			if !analysisConf.IsSource(utils.Dereference(x.Type())) {
+				continue
 			}
-		} else {
-			fmt.Println(p, "has empty pset")
+			isSafeCall = false
+			pass.Reportf(x.Pos(), "a source has reached a sink")
 		}
 	}
 	return isSafeCall
