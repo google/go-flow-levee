@@ -109,11 +109,21 @@ func (a *Source) visitOperands(operands []*ssa.Value) {
 		if !ok || a.marked[n] {
 			continue
 		}
-		al, ok := (*o).(*ssa.Alloc)
-		if !ok || al.Comment == "varargs" || al.Comment == "slicelit" || a.config.IsSource(utils.Dereference(al.Type())) {
+		al, isAlloc := (*o).(*ssa.Alloc)
+		if !isAlloc {
+			a.dfs(n)
+			return
+		}
+		deref := utils.Dereference(al.Type())
+		if a.config.IsSource(deref) || isSlice(deref) {
 			a.dfs(n)
 		}
 	}
+}
+
+func isSlice(t types.Type) bool {
+	_, ok := t.(*types.Array)
+	return ok
 }
 
 // compress removes the elements from the graph that are not required by the
