@@ -33,10 +33,6 @@ func TestLevee(t *testing.T) {
 	}
 	testsDir := filepath.Join(dataDir, "src/example.com/tests")
 	patterns := findTestPatterns(t, testsDir)
-	// patterns := []string{
-	// 	filepath.Join(dataDir, "src/example.com/tests/sinks"),
-	// 	filepath.Join(dataDir, "src/example.com/tests/propagation"),
-	// }
 	if *debugging {
 		Analyzer.Requires = append(Analyzer.Requires, debug.Analyzer)
 	}
