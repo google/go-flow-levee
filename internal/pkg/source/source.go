@@ -111,7 +111,7 @@ func (a *Source) visitOperands(operands []*ssa.Value) {
 			continue
 		}
 		al, ok := (*o).(*ssa.Alloc)
-		if !ok || al.Comment == "slicelit" || a.config.IsSource(al.Type()) {
+		if !ok || al.Comment == "varargs" || al.Comment == "slicelit" || a.config.IsSource(utils.Dereference(al.Type())) {
 			a.dfs(n)
 		}
 	}

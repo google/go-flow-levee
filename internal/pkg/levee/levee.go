@@ -18,10 +18,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/go-flow-levee/internal/pkg/call"
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/fieldpropagator"
-	"github.com/google/go-flow-levee/internal/pkg/varargs"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ssa"
 
@@ -63,25 +61,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				case fieldPropagators.Contains(v):
 					sources = append(sources, source.New(v, conf))
 
-				case conf.IsPropagator(v):
-					// Handling the case where sources are propagated to io.Writer
-					// (ex. proto.MarshalText(&buf, c)
-					// In such cases, "buf" becomes a source, and not the return value of the propagator.
-					// TODO Do not hard-code logging sinks usecase
-					// TODO  Handle case of os.Stdout and os.Stderr.
-					// TODO  Do not hard-code the position of the argument, instead declaratively
-					//  specify the position of the propagated source.
-					// TODO  Consider turning propagators that take io.Writer into sinks.
-					if a := getArgumentPropagator(conf, v); a != nil {
-						sources = append(sources, source.New(a, conf))
-					} else {
-						sources = append(sources, source.New(v, conf))
-					}
-
 				case conf.IsSink(v):
-					c := makeCall(v)
 					for _, s := range sources {
-						if c.ReferredBy(s) && !s.IsSanitizedAt(v) {
+						if s.HasPathTo(instr.(ssa.Node)) && !s.IsSanitizedAt(v) {
 							report(pass, s, v)
 							break
 						}
@@ -94,31 +76,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func makeCall(c *ssa.Call) call.Call {
-	if sinkVarargs := varargs.New(c); sinkVarargs != nil {
-		return sinkVarargs
-	}
-	return call.Regular(c)
-}
-
 func report(pass *analysis.Pass, source *source.Source, sink ssa.Node) {
 	var b strings.Builder
 	b.WriteString("a source has reached a sink")
 	fmt.Fprintf(&b, ", source: %v", pass.Fset.Position(source.Node().Pos()))
 	pass.Reportf(sink.Pos(), b.String())
-}
-
-func getArgumentPropagator(c *config.Config, call *ssa.Call) ssa.Node {
-	if call.Call.Signature().Params().Len() == 0 {
-		return nil
-	}
-
-	firstArg := call.Call.Signature().Params().At(0)
-	if c.PropagatorArgs.ArgumentTypeRE.MatchString(firstArg.Type().String()) {
-		if a, ok := call.Call.Args[0].(*ssa.MakeInterface); ok {
-			return a.X.(ssa.Node)
-		}
-	}
-
-	return nil
 }
