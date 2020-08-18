@@ -25,7 +25,6 @@ func main() {
 	TestSinkWrapper(core.Source{})
 	TestSinkWrapperTwoArgs(core.Source{})
 	TestOneArgSinkWrapper(core.Source{})
-	TestReturnsFive(core.Source{})
 	TestSinkWrapperSlice(core.Source{})
 	TestSinkWrapperSpread(core.Source{})
 	TestStringify(core.Source{})

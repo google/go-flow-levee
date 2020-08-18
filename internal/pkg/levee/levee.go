@@ -119,36 +119,54 @@ func run(pass *analysis.Pass) (interface{}, error) {
 }
 
 func doPointerAnalysis(pass *analysis.Pass, analysisConf *config.Config, c *ssa.Call) (analyzedSuccesfully bool) {
+	// Pointer analysis requires at least one main package containing a main function.
+	// If we fail to provide such a package, the analysis will fail and produce error output in stderr.
 	pkg := c.Parent().Pkg
 	main := pkg.Func("main")
 	if main == nil {
 		return false
 	}
 
+	// This configuration is used to tell the pointer package how we want the analysis to be performed.
+	// For our purposes, we just need to give it a main package and a set of values for which we want
+	// the points-to set to be computed.
 	pointerConf := &pointer.Config{
 		Mains: []*ssa.Package{pkg},
 	}
 
+	// In general, we can't use the call's arguments as values directly. For example, when calling a variadic
+	// function, the variadic argument will be a slice, but we are not interested in the slice's points-to set,
+	// rather we are interested in the points-to sets of the values in the slice.
 	vs := callValues(c)
 	if len(vs) == 0 {
 		return false
 	}
 
 	for _, v := range vs {
+		// If we ask the pointer package to analyze a value it can't analyze (i.e., not a pointer or
+		// pointer-like type), the analysis will fail and produce error output in stderr.
 		if !pointer.CanPoint(v.Type()) {
 			continue
 		}
+		// Let the configuration know that we are interested in computing this value's points-to set.
 		pointerConf.AddQuery(v)
 	}
 
+	// Perform the actual analysis, in accordance with our configuration.
+	// The pointer package's documentation says that "an error can occur only due to an internal bug".
+	// However, failing to provide a main package, or querying for a non-queryable value, will both lead
+	// to errors. We prevent these cases with explicit checks above.
 	result, err := pointer.Analyze(pointerConf)
 	if err != nil {
 		return false
 	}
 
+	// A call was analyzed successfully if performing pointer analysis on it led to a report.
 	analyzedSuccesfully = false
-	for _, pSet := range result.Queries {
-		labels := pSet.PointsTo().Labels()
+	for _, ptr := range result.Queries {
+		// Obtain the points-to set for this pointer. Labels are used to get at the actual ssa.Values
+		// that are pointed to.
+		labels := ptr.PointsTo().Labels()
 		if len(labels) == 0 {
 			continue
 		}
@@ -205,7 +223,7 @@ func getArgumentPropagator(c *config.Config, call *ssa.Call) ssa.Node {
 }
 
 // callValues collects the ssa.Values that are arguments to an ssa.Call.
-// in particular, it handles variadic arguments to some extent.
+// In particular, it handles variadic arguments to some extent.
 // We don't want to analyze what the variadic argument points to (a slice), but we do
 // want to analyze the values *within* the slice.
 func callValues(c *ssa.Call) (values []ssa.Value) {
