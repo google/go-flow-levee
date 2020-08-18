@@ -102,9 +102,9 @@ func nodeShape(n ssa.Node) string {
 	_, isInstr := n.(ssa.Instruction)
 	switch {
 	case isValue && isInstr:
-		return "diamond"
-	case isInstr:
 		return "square"
+	case isInstr:
+		return "diamond"
 	default:
 		return "ellipse"
 	}
