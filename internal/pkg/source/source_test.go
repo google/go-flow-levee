@@ -51,11 +51,6 @@ func (c *testConfig) IsSanitizer(call *ssa.Call) bool {
 	return match
 }
 
-func (c *testConfig) IsPropagator(call *ssa.Call) bool {
-	match, _ := regexp.MatchString(c.propagatorsPattern, call.String())
-	return match
-}
-
 func (c *testConfig) IsSourceFieldAddr(field *ssa.FieldAddr) bool {
 	match, _ := regexp.MatchString(c.fieldsPattern, utils.FieldName(field))
 	return match

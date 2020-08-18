@@ -41,10 +41,6 @@ func (c *testConfig) IsSanitizer(call *ssa.Call) bool {
 	return false
 }
 
-func (c *testConfig) IsPropagator(call *ssa.Call) bool {
-	return false
-}
-
 func (c *testConfig) IsSourceFieldAddr(field *ssa.FieldAddr) bool {
 	return false
 }
