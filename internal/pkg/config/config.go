@@ -37,40 +37,9 @@ func init() {
 
 // config contains matchers and analysis scope information
 type Config struct {
-	Sources                 []sourceMatcher
-	Sinks                   []callMatcher
-	Sanitizers              []callMatcher
-	TransformingPropagators []transformingPropagatorMatcher
-	PropagatorArgs          argumentPropagatorMatcher
-	Allowlist               []packageMatcher
-	AnalysisScope           []packageMatcher
-}
-
-// shouldSkip returns true for any function that is outside analysis scope,
-// that is allowlisted,
-// whose containing package imports "testing"
-// or whose containing package does not import any package containing a source or a sink.
-func (c Config) shouldSkip(pkg *types.Package) bool {
-	if isTestPkg(pkg) || !c.isInScope(pkg) || c.isAllowlisted(pkg) {
-		return true
-	}
-
-	// TODO Does this skip packages that own sources/sinks but don't import others?
-	for _, im := range pkg.Imports() {
-		for _, s := range c.Sinks {
-			if s.matchPackage(im) {
-				return false
-			}
-		}
-
-		for _, s := range c.Sources {
-			if s.PackageRE.MatchString(im.Path()) {
-				return false
-			}
-		}
-	}
-
-	return true
+	Sources    []sourceMatcher
+	Sinks      []callMatcher
+	Sanitizers []callMatcher
 }
 
 func (c Config) IsSink(call *ssa.Call) bool {
@@ -150,54 +119,6 @@ func (c Config) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
 	return false
 }
 
-func (c Config) IsPropagator(call *ssa.Call) bool {
-	return c.isTransformingPropagator(call)
-}
-
-// A call is a transforming propagator if its name matches a pattern in the config
-// and at least one of its arguments is a Source.
-func (c Config) isTransformingPropagator(call *ssa.Call) bool {
-	for _, p := range c.TransformingPropagators {
-		if !p.match(call) {
-			continue
-		}
-
-		for _, a := range call.Call.Args {
-			// TODO Handle ChangeInterface case.
-			switch t := a.(type) {
-			case *ssa.MakeInterface:
-				if c.IsSource(utils.Dereference(t.X.Type())) {
-					return true
-				}
-			case *ssa.Parameter:
-				if c.IsSource(utils.Dereference(t.Type())) {
-					return true
-				}
-			}
-		}
-	}
-
-	return false
-}
-
-func (c Config) isAllowlisted(pkg *types.Package) bool {
-	for _, w := range c.Allowlist {
-		if w.match(pkg) {
-			return true
-		}
-	}
-	return false
-}
-
-func (c Config) isInScope(pkg *types.Package) bool {
-	for _, s := range c.AnalysisScope {
-		if s.match(pkg) {
-			return true
-		}
-	}
-	return false
-}
-
 // A sourceMatcher defines what types are or contain sources.
 // Within a given type, specific field access can be specified as the actual source data
 // via the fieldRE.
@@ -214,33 +135,6 @@ func (s sourceMatcher) match(n *types.Named) bool {
 	}
 
 	return s.PackageRE.MatchString(n.Obj().Pkg().Path()) && s.TypeRE.MatchString(n.Obj().Name())
-}
-
-type transformingPropagatorMatcher struct {
-	PackageName string
-	MethodRE    regexp.Regexp
-}
-
-func (t transformingPropagatorMatcher) match(call *ssa.Call) bool {
-	if call.Call.StaticCallee() == nil ||
-		call.Call.StaticCallee().Pkg == nil ||
-		call.Call.StaticCallee().Pkg.Pkg.Path() != t.PackageName {
-		return false
-	}
-
-	return t.MethodRE.MatchString(call.Call.StaticCallee().Name())
-}
-
-type argumentPropagatorMatcher struct {
-	ArgumentTypeRE regexp.Regexp
-}
-
-type packageMatcher struct {
-	PackageNameRE regexp.Regexp
-}
-
-func (pm packageMatcher) match(pkg *types.Package) bool {
-	return pm.PackageNameRE.MatchString(pkg.Path())
 }
 
 type callMatcher struct {
@@ -298,13 +192,4 @@ func ReadConfig() (*Config, error) {
 	})
 	_ = loadedFromCache
 	return readConfigCached, readConfigCachedErr
-}
-
-func isTestPkg(p *types.Package) bool {
-	for _, im := range p.Imports() {
-		if im.Name() == "testing" {
-			return true
-		}
-	}
-	return false
 }

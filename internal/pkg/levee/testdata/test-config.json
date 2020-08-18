@@ -17,10 +17,5 @@
       "PackageRE": "^example.com/core$",
       "MethodRE": "^Sanitize"
     }
-  ],
-  "TransformingPropagators": [
-  ],
-  "PropagatorArgs": {},
-  "Allowlist": [],
-  "AnalysisScope": []
+  ]
 }
