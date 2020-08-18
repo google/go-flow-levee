@@ -21,7 +21,4 @@ import (
 func TestArrays(s core.Source) {
 	arr := [1]core.Source{s}
 	core.Sink(arr) // want "a source has reached a sink"
-
-	sli := []core.Source{s}
-	core.Sink(sli) // want "a source has reached a sink"
 }
