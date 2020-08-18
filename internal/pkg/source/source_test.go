@@ -28,10 +28,11 @@ import (
 )
 
 type testConfig struct {
-	sourcePattern    string
-	fieldsPattern    string
-	sanitizerPattern string
-	sinkPattern      string
+	sourcePattern      string
+	propagatorsPattern string
+	fieldsPattern      string
+	sanitizerPattern   string
+	sinkPattern        string
 }
 
 func (c *testConfig) IsSource(t types.Type) bool {
@@ -70,10 +71,11 @@ var testAnalyzer = &analysis.Analyzer{
 func runTest(pass *analysis.Pass) (interface{}, error) {
 	in := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	config := &testConfig{
-		sourcePattern:    `\.foo`,
-		sanitizerPattern: "sanitizer",
-		fieldsPattern:    "name",
-		sinkPattern:      "sink",
+		sourcePattern:      `\.foo`,
+		propagatorsPattern: "propagator",
+		sanitizerPattern:   "sanitizer",
+		fieldsPattern:      "name",
+		sinkPattern:        "sink",
 	}
 
 	sm := identify(config, in)
