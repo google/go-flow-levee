@@ -149,6 +149,7 @@ func doPointerAnalysis(pass *analysis.Pass, analysisConf *config.Config, c *ssa.
 			continue
 		}
 		// Let the configuration know that we are interested in computing this value's points-to set.
+		// The points-to set is the set of values that this pointer value might point to.
 		pointerConf.AddQuery(v)
 	}
 
