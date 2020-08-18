@@ -49,7 +49,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 	// TODO: respect configuration scope
 
-	// a call is safe if its arguments have been analyzed by pointer analysis and found not to point to Sources
 	wasPointerAnalyzed := map[*ssa.Call]bool{}
 	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	for _, f := range ssaInput.SrcFuncs {
