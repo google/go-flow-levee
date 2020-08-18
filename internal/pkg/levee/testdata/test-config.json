@@ -17,7 +17,5 @@
       "PackageRE": "^example.com/core$",
       "MethodRE": "^Sanitize"
     }
-  ],
-  "Allowlist": [],
-  "AnalysisScope": []
+  ]
 }

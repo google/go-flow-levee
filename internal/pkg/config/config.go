@@ -37,38 +37,9 @@ func init() {
 
 // config contains matchers and analysis scope information
 type Config struct {
-	Sources       []sourceMatcher
-	Sinks         []callMatcher
-	Sanitizers    []callMatcher
-	Allowlist     []packageMatcher
-	AnalysisScope []packageMatcher
-}
-
-// shouldSkip returns true for any function that is outside analysis scope,
-// that is allowlisted,
-// whose containing package imports "testing"
-// or whose containing package does not import any package containing a source or a sink.
-func (c Config) shouldSkip(pkg *types.Package) bool {
-	if isTestPkg(pkg) || !c.isInScope(pkg) || c.isAllowlisted(pkg) {
-		return true
-	}
-
-	// TODO Does this skip packages that own sources/sinks but don't import others?
-	for _, im := range pkg.Imports() {
-		for _, s := range c.Sinks {
-			if s.matchPackage(im) {
-				return false
-			}
-		}
-
-		for _, s := range c.Sources {
-			if s.PackageRE.MatchString(im.Path()) {
-				return false
-			}
-		}
-	}
-
-	return true
+	Sources    []sourceMatcher
+	Sinks      []callMatcher
+	Sanitizers []callMatcher
 }
 
 func (c Config) IsSink(call *ssa.Call) bool {
@@ -148,24 +119,6 @@ func (c Config) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
 	return false
 }
 
-func (c Config) isAllowlisted(pkg *types.Package) bool {
-	for _, w := range c.Allowlist {
-		if w.match(pkg) {
-			return true
-		}
-	}
-	return false
-}
-
-func (c Config) isInScope(pkg *types.Package) bool {
-	for _, s := range c.AnalysisScope {
-		if s.match(pkg) {
-			return true
-		}
-	}
-	return false
-}
-
 // A sourceMatcher defines what types are or contain sources.
 // Within a given type, specific field access can be specified as the actual source data
 // via the fieldRE.
@@ -182,14 +135,6 @@ func (s sourceMatcher) match(n *types.Named) bool {
 	}
 
 	return s.PackageRE.MatchString(n.Obj().Pkg().Path()) && s.TypeRE.MatchString(n.Obj().Name())
-}
-
-type packageMatcher struct {
-	PackageNameRE regexp.Regexp
-}
-
-func (pm packageMatcher) match(pkg *types.Package) bool {
-	return pm.PackageNameRE.MatchString(pkg.Path())
 }
 
 type callMatcher struct {
@@ -247,13 +192,4 @@ func ReadConfig() (*Config, error) {
 	})
 	_ = loadedFromCache
 	return readConfigCached, readConfigCachedErr
-}
-
-func isTestPkg(p *types.Package) bool {
-	for _, im := range p.Imports() {
-		if im.Name() == "testing" {
-			return true
-		}
-	}
-	return false
 }

@@ -28,7 +28,7 @@ Sources are identified via regexp according to package, type, and field names.
 }
 ```
 
-Sinks, sanitizers, and some propagators (below) are identified via regexp according to package, method, and (optional) receiver name.
+Sinks and sanitizers are identified via regexp according to package, method, and (optional) receiver name.
 
 ```json
 {
@@ -48,6 +48,8 @@ Sinks, sanitizers, and some propagators (below) are identified via regexp accord
   ]
 }
 ```
+
+Taint propagation is performed automatically and does not need to be explicitly configured.
 
 For matchers that accept a `ReceiverRE` regexp matcher, an unspecified string will match any (or no) receiver.
 To match only methods without any receiver (i.e., a top-level function), use the matcher `^$` to match an empty-string receiver name.
