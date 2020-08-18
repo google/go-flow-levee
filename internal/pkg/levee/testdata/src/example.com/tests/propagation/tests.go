@@ -15,6 +15,8 @@
 package propagation
 
 import (
+	"fmt"
+
 	"example.com/core"
 )
 
@@ -26,6 +28,7 @@ func main() {
 	TestReturnsFive(core.Source{})
 	TestSinkWrapperSlice(core.Source{})
 	TestSinkWrapperSpread(core.Source{})
+	TestStringify(core.Source{})
 }
 
 func TestSinkWrapperWrapper(s core.Source) {
@@ -60,15 +63,6 @@ func OneArgSinkWrapper(arg interface{}) {
 	core.OneArgSink(arg)
 }
 
-func TestReturnsFive(s core.Source) {
-	five := ReturnsFive(s)
-	core.Sink(five)
-}
-
-func ReturnsFive(arg interface{}) interface{} {
-	return 5
-}
-
 func TestSinkWrapperSlice(s core.Source) {
 	// This fails because SinkWrapperSlice receives a slice of interface{}, which it then passes
 	// to core.Sink. Since core.Sink is variadic, the ssa code creates a slice, puts the first slice
@@ -91,4 +85,13 @@ func TestSinkWrapperSpread(s core.Source) {
 
 func SinkWrapperSpread(args ...interface{}) {
 	core.Sink(args...)
+}
+
+func TestStringify(s core.Source) {
+	str := Stringify(s)
+	core.Sink(str) // want "a source has reached a sink"
+}
+
+func Stringify(arg interface{}) string {
+	return fmt.Sprintf("%v", arg)
 }

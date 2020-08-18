@@ -50,7 +50,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	// TODO: respect configuration scope
 
 	// a call is safe if its arguments have been analyzed by pointer analysis and found not to point to Sources
-	isSafeCall := map[*ssa.Call]bool{}
+	wasPointerAnalyzed := map[*ssa.Call]bool{}
 	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	for _, f := range ssaInput.SrcFuncs {
 		for _, b := range f.Blocks {
@@ -59,7 +59,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				if !ok || !conf.IsSink(c) {
 					continue
 				}
-				isSafeCall[c] = doPointerAnalysis(pass, conf, c)
+				wasPointerAnalyzed[c] = doPointerAnalysis(pass, conf, c)
 			}
 		}
 	}
@@ -99,7 +99,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					}
 
 				case conf.IsSink(v):
-					if isSafeCall[v] {
+					if wasPointerAnalyzed[v] {
 						continue
 					}
 
@@ -118,7 +118,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func doPointerAnalysis(pass *analysis.Pass, analysisConf *config.Config, c *ssa.Call) (isSafeCall bool) {
+func doPointerAnalysis(pass *analysis.Pass, analysisConf *config.Config, c *ssa.Call) (analyzedSuccesfully bool) {
 	pkg := c.Parent().Pkg
 	main := pkg.Func("main")
 	if main == nil {
@@ -146,7 +146,7 @@ func doPointerAnalysis(pass *analysis.Pass, analysisConf *config.Config, c *ssa.
 		return false
 	}
 
-	isSafeCall = true
+	analyzedSuccesfully = false
 	for _, pSet := range result.Queries {
 		labels := pSet.PointsTo().Labels()
 		if len(labels) == 0 {
@@ -161,11 +161,11 @@ func doPointerAnalysis(pass *analysis.Pass, analysisConf *config.Config, c *ssa.
 			if !analysisConf.IsSource(utils.Dereference(v.Type())) {
 				continue
 			}
-			isSafeCall = false
+			analyzedSuccesfully = true
 			reportAtSource(pass, v.(ssa.Node), (ssa.Node)(c))
 		}
 	}
-	return isSafeCall
+	return analyzedSuccesfully
 }
 
 func makeCall(c *ssa.Call) call.Call {
