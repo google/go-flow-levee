@@ -110,11 +110,11 @@ func (a *Source) visitOperands(operands []*ssa.Value) {
 			continue
 		}
 		al, isAlloc := (*o).(*ssa.Alloc)
-		// An Alloc represents the allocation of space for a variable. If a node is an alloc,
+		// An Alloc represents the allocation of space for a variable. If a Node is an Alloc,
 		// and the thing being allocated is not a slice, then either:
 		// a) it is a Source value, in which case it will get its own DFS
 		// b) it is not a Source value, in which case we should not DFS through it.
-		// However, if the alloc is a slice, then that means the source that we are DFSing from
+		// However, if the Alloc is a slice, then that means the source that we are DFSing from
 		// is being placed into that slice, so we do need to keep DFSing.
 		if isAlloc && !isSlice(utils.Dereference(al.Type())) {
 			return
