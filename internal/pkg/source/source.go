@@ -109,15 +109,17 @@ func (a *Source) visitOperands(operands []*ssa.Value) {
 		if !ok || a.marked[n] {
 			continue
 		}
-		al, isAlloc := (*o).(*ssa.Alloc)
 		// An Alloc represents the allocation of space for a variable. If a Node is an Alloc,
-		// and the thing being allocated is not a slice, then either:
+		// and the thing being allocated is not an array, then either:
 		// a) it is a Source value, in which case it will get its own DFS
 		// b) it is not a Source value, in which case we should not DFS through it.
-		// However, if the Alloc is a slice, then that means the source that we are DFSing from
-		// is being placed into that slice, so we do need to keep DFSing.
-		if isAlloc && !isSlice(utils.Dereference(al.Type())) {
-			return
+		// However, if the Alloc is an array, then that means the source that we are DFSing from
+		// is being placed into an array, slice or varags, so we do need to keep DFSing.
+		al, isAlloc := (*o).(*ssa.Alloc)
+		if isAlloc {
+			if _, isArray := utils.Dereference(al.Type()).(*types.Array); !isArray {
+				return
+			}
 		}
 		a.dfs(n)
 	}
