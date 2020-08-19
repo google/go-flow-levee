@@ -111,7 +111,8 @@ func (a *Source) visitOperands(operands []*ssa.Value) {
 		}
 		// An Alloc represents the allocation of space for a variable. If a Node is an Alloc,
 		// and the thing being allocated is not an array, then either:
-		// a) it is a Source value, in which case it will get its own DFS
+		// a) it is a Source value, in which case it will get its own DFS when sourcesFromBlocks
+		//    finds this Alloc
 		// b) it is not a Source value, in which case we should not DFS through it.
 		// However, if the Alloc is an array, then that means the source that we are DFSing from
 		// is being placed into an array, slice or varags, so we do need to keep DFSing.
