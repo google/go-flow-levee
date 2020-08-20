@@ -18,10 +18,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/go-flow-levee/internal/pkg/call"
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/fieldpropagator"
-	"github.com/google/go-flow-levee/internal/pkg/varargs"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ssa"
 
@@ -64,9 +62,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					sources = append(sources, source.New(v, conf))
 
 				case conf.IsSink(v):
-					c := makeCall(v)
 					for _, s := range sources {
-						if c.ReferredBy(s) && !s.IsSanitizedAt(v) {
+						if s.HasPathTo(instr.(ssa.Node)) && !s.IsSanitizedAt(v) {
 							report(pass, s, v)
 							break
 						}
@@ -77,13 +74,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	return nil, nil
-}
-
-func makeCall(c *ssa.Call) call.Call {
-	if sinkVarargs := varargs.New(c); sinkVarargs != nil {
-		return sinkVarargs
-	}
-	return call.Regular(c)
 }
 
 func report(pass *analysis.Pass, source *source.Source, sink ssa.Node) {

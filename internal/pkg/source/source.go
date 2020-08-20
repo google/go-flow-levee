@@ -109,10 +109,19 @@ func (a *Source) visitOperands(operands []*ssa.Value) {
 		if !ok || a.marked[n] {
 			continue
 		}
-		al, ok := (*o).(*ssa.Alloc)
-		if !ok || al.Comment == "slicelit" || a.config.IsSource(al.Type()) {
-			a.dfs(n)
+		// An Alloc represents the allocation of space for a variable. If a Node is an Alloc,
+		// and the thing being allocated is not an array, then either:
+		// a) it is a Source value, in which case it will get its own traversal when sourcesFromBlocks
+		//    finds this Alloc
+		// b) it is not a Source value, in which case we should not visit it.
+		// However, if the Alloc is an array, then that means the source that we are visiting from
+		// is being placed into an array, slice or varags, so we do need to keep visiting.
+		if al, isAlloc := (*o).(*ssa.Alloc); isAlloc {
+			if _, isArray := utils.Dereference(al.Type()).(*types.Array); !isArray {
+				return
+			}
 		}
+		a.dfs(n)
 	}
 }
 
