@@ -72,6 +72,16 @@ func (c Config) IsSanitizer(call *ssa.Call) bool {
 	return false
 }
 
+func (c Config) IsSanitizerFunction(f *ssa.Function) bool {
+	for _, p := range c.Sanitizers {
+		if p.MethodRE.MatchString(f.Name()) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (c Config) IsSource(t types.Type) bool {
 	n, ok := t.(*types.Named)
 	if !ok {
