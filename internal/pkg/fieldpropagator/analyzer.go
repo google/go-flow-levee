@@ -21,6 +21,7 @@ import (
 	"reflect"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
+	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
@@ -44,12 +45,13 @@ var Analyzer = &analysis.Analyzer{
 A field propagator is a function that returns a source field.`,
 	Flags:      config.FlagSet,
 	Run:        run,
-	Requires:   []*analysis.Analyzer{buildssa.Analyzer},
+	Requires:   []*analysis.Analyzer{buildssa.Analyzer, fieldtags.Analyzer},
 	ResultType: reflect.TypeOf(new(ResultType)).Elem(),
 	FactTypes:  []analysis.Fact{new(isFieldPropagator)},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
+	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 
 	conf, err := config.ReadConfig()
@@ -66,7 +68,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		methods := ssaProg.MethodSets.MethodSet(ssaType.Type())
 		for i := 0; i < methods.Len(); i++ {
 			meth := ssaProg.MethodValue(methods.At(i))
-			analyzeBlocks(pass, conf, meth)
+			analyzeBlocks(pass, conf, taggedFields, meth)
 		}
 	}
 
@@ -77,7 +79,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return FieldPropagators(isFieldPropagator), nil
 }
 
-func analyzeBlocks(pass *analysis.Pass, conf *config.Config, meth *ssa.Function) {
+func analyzeBlocks(pass *analysis.Pass, conf *config.Config, tf fieldtags.TaggedFields, meth *ssa.Function) {
 	// Function does not return anything
 	if res := meth.Signature.Results(); res == nil || (*res).Len() == 0 {
 		return
@@ -91,17 +93,17 @@ func analyzeBlocks(pass *analysis.Pass, conf *config.Config, meth *ssa.Function)
 		if !ok {
 			continue
 		}
-		analyzeResults(pass, conf, meth, ret.Results)
+		analyzeResults(pass, conf, tf, meth, ret.Results)
 	}
 }
 
-func analyzeResults(pass *analysis.Pass, conf *config.Config, meth *ssa.Function, results []ssa.Value) {
+func analyzeResults(pass *analysis.Pass, conf *config.Config, tf fieldtags.TaggedFields, meth *ssa.Function, results []ssa.Value) {
 	for _, r := range results {
 		fa, ok := fieldAddr(r)
 		if !ok {
 			continue
 		}
-		if conf.IsSourceFieldAddr(fa) {
+		if conf.IsSourceFieldAddr(fa) || tf.IsSource(fa) {
 			pass.ExportObjectFact(meth.Object(), &isFieldPropagator{})
 		}
 	}

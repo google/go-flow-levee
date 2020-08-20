@@ -15,6 +15,7 @@
 package source
 
 type Source struct {
+	secret  string `levee:"source"`
 	data    string
 	dataPtr *string
 	id      int
@@ -22,6 +23,10 @@ type Source struct {
 
 func (s Source) ID() int {
 	return s.id
+}
+
+func (s Source) Secret() string { // want Secret:"field propagator identified"
+	return s.secret
 }
 
 func (s Source) Data() string { // want Data:"field propagator identified"
