@@ -50,13 +50,6 @@ A field propagator is a function that returns a source field.`,
 	FactTypes:  []analysis.Fact{new(isFieldPropagator)},
 }
 
-type analysisState struct {
-	pass     *analysis.Pass
-	conf     *config.Config
-	ssaInput *buildssa.SSA
-	tf       fieldtags.TaggedFields
-}
-
 func run(pass *analysis.Pass) (interface{}, error) {
 	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
@@ -66,13 +59,18 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		return nil, err
 	}
 
-	a := &analysisState{
-		pass:     pass,
-		conf:     conf,
-		ssaInput: ssaInput,
-		tf:       taggedFields,
+	ssaProg := ssaInput.Pkg.Prog
+	for _, mem := range ssaInput.Pkg.Members {
+		ssaType, ok := mem.(*ssa.Type)
+		if !ok || !conf.IsSource(ssaType.Type()) {
+			continue
+		}
+		methods := ssaProg.MethodSets.MethodSet(ssaType.Type())
+		for i := 0; i < methods.Len(); i++ {
+			meth := ssaProg.MethodValue(methods.At(i))
+			analyzeBlocks(pass, conf, taggedFields, meth)
+		}
 	}
-	a.run()
 
 	isFieldPropagator := map[types.Object]bool{}
 	for _, f := range pass.AllObjectFacts() {
@@ -81,22 +79,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return FieldPropagators(isFieldPropagator), nil
 }
 
-func (a *analysisState) run() {
-	ssaProg := a.ssaInput.Pkg.Prog
-	for _, mem := range a.ssaInput.Pkg.Members {
-		ssaType, ok := mem.(*ssa.Type)
-		if !ok || !a.conf.IsSource(ssaType.Type()) {
-			continue
-		}
-		methods := ssaProg.MethodSets.MethodSet(ssaType.Type())
-		for i := 0; i < methods.Len(); i++ {
-			meth := ssaProg.MethodValue(methods.At(i))
-			a.analyzeBlocks(meth)
-		}
-	}
-}
-
-func (a *analysisState) analyzeBlocks(meth *ssa.Function) {
+func analyzeBlocks(pass *analysis.Pass, conf *config.Config, tf fieldtags.TaggedFields, meth *ssa.Function) {
 	// Function does not return anything
 	if res := meth.Signature.Results(); res == nil || (*res).Len() == 0 {
 		return
@@ -110,18 +93,18 @@ func (a *analysisState) analyzeBlocks(meth *ssa.Function) {
 		if !ok {
 			continue
 		}
-		a.analyzeResults(meth, ret.Results)
+		analyzeResults(pass, conf, tf, meth, ret.Results)
 	}
 }
 
-func (a *analysisState) analyzeResults(meth *ssa.Function, results []ssa.Value) {
+func analyzeResults(pass *analysis.Pass, conf *config.Config, tf fieldtags.TaggedFields, meth *ssa.Function, results []ssa.Value) {
 	for _, r := range results {
 		fa, ok := fieldAddr(r)
 		if !ok {
 			continue
 		}
-		if a.conf.IsSourceFieldAddr(fa) || a.tf.IsSource(fa) {
-			a.pass.ExportObjectFact(meth.Object(), &isFieldPropagator{})
+		if conf.IsSourceFieldAddr(fa) || tf.IsSource(fa) {
+			pass.ExportObjectFact(meth.Object(), &isFieldPropagator{})
 		}
 	}
 }
