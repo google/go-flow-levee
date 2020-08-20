@@ -18,12 +18,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/go-flow-levee/internal/pkg/utils"
-
-	"github.com/google/go-flow-levee/internal/pkg/call"
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/fieldpropagator"
-	"github.com/google/go-flow-levee/internal/pkg/varargs"
+	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/pointer"
@@ -87,9 +84,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 						continue
 					}
 
-					c := makeCall(v)
 					for _, s := range sources {
-						if c.ReferredBy(s) && !s.IsSanitizedAt(v) {
+						if s.HasPathTo(instr.(ssa.Node)) && !s.IsSanitizedAt(v) {
 							reportAtSink(pass, s.Node(), v)
 							break
 						}
@@ -169,13 +165,6 @@ func doPointerAnalysis(pass *analysis.Pass, analysisConf *config.Config, c *ssa.
 		}
 	}
 	return analyzedSuccesfully
-}
-
-func makeCall(c *ssa.Call) call.Call {
-	if sinkVarargs := varargs.New(c); sinkVarargs != nil {
-		return sinkVarargs
-	}
-	return call.Regular(c)
 }
 
 func findMains(root *ssa.Package) (mains []*ssa.Package) {
