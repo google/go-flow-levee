@@ -50,9 +50,9 @@ if *debugging {
 In the `dot` output:
 * A **red** edge points to a **Referrer** of an `ssa.Node`
 * An **orange** edges points to an **Operand** of an `ssa.Node`
-* **Diamond**-shaped nodes represent `ssa.Node`s that are both `ssa.Instruction`s and `ssa.Value`s
-* **Square**-shaped node represent `ssa.Node`s that are only `ssa.Instruction`s
-* **Ellipse**-shaped nodes that are either only `ssa.Value`s, or are `ssa.Member`s.
+* **Rectangle**-shaped nodes represent `ssa.Node`s that are both `ssa.Instruction`s and `ssa.Value`s
+* **Diamond**-shaped nodes represent `ssa.Node`s that are only `ssa.Instruction`s
+* **Ellipse**-shaped nodes represent `ssa.Node`s that are either only `ssa.Value`s, or are `ssa.Member`s.
 
 ## Source Code Headers
 

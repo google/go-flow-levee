@@ -28,11 +28,10 @@ import (
 )
 
 type testConfig struct {
-	sourcePattern      string
-	propagatorsPattern string
-	fieldsPattern      string
-	sanitizerPattern   string
-	sinkPattern        string
+	sourcePattern    string
+	fieldsPattern    string
+	sanitizerPattern string
+	sinkPattern      string
 }
 
 func (c *testConfig) IsSource(t types.Type) bool {
@@ -48,11 +47,6 @@ func (c *testConfig) IsSource(t types.Type) bool {
 
 func (c *testConfig) IsSanitizer(call *ssa.Call) bool {
 	match, _ := regexp.MatchString(c.sanitizerPattern, call.String())
-	return match
-}
-
-func (c *testConfig) IsPropagator(call *ssa.Call) bool {
-	match, _ := regexp.MatchString(c.propagatorsPattern, call.String())
 	return match
 }
 
@@ -76,11 +70,10 @@ var testAnalyzer = &analysis.Analyzer{
 func runTest(pass *analysis.Pass) (interface{}, error) {
 	in := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	config := &testConfig{
-		sourcePattern:      `\.foo`,
-		propagatorsPattern: "propagator",
-		sanitizerPattern:   "sanitizer",
-		fieldsPattern:      "name",
-		sinkPattern:        "sink",
+		sourcePattern:    `\.foo`,
+		sanitizerPattern: "sanitizer",
+		fieldsPattern:    "name",
+		sinkPattern:      "sink",
 	}
 
 	sm := identify(config, in)

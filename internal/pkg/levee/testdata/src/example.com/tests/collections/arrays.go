@@ -18,7 +18,25 @@ import (
 	"example.com/core"
 )
 
-func TestArrays(s core.Source) {
-	arr := [1]core.Source{s}
+func TestArrayLiteralContainingSourceIsTainted(s core.Source) {
+	tainted := [1]core.Source{s}
+	core.Sink(tainted) // want "a source has reached a sink"
+}
+
+func TestArrayIsTaintedWhenSourceIsInserted(s core.Source) {
+	arr := [2]interface{}{nil, nil}
+	arr[0] = s
+	core.Sink(arr) // want "a source has reached a sink"
+}
+
+func TestValueObtainedFromTaintedArrayIsTainted(s core.Source) {
+	arr := [2]interface{}{nil, nil}
+	arr[0] = s
+	core.Sink(arr[1]) // want "a source has reached a sink"
+}
+
+func TestArrayRemainsTaintedWhenSourceIsOverwritten(s core.Source) {
+	arr := [2]interface{}{s, nil}
+	arr[0] = nil
 	core.Sink(arr) // want "a source has reached a sink"
 }
