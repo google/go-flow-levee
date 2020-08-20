@@ -10,9 +10,9 @@ script:
 - go test -v ./...
 - >
   echo "Checking goimports..." && (
-    if [[ -n $(goimports -l internal cmd) ]]; then
-      goimports -d internal cmd
-      echo 'Please run `goimports -w cmd internal`.'
+    if [[ -n $(goimports -l cmd internal pkg) ]]; then
+      goimports -d cmd internal pkg
+      echo 'Please run `goimports -w cmd internal pkg`.'
       false
     fi
   )
@@ -27,7 +27,7 @@ script:
   )
 - >
   echo "Checking for license headers..." && (
-    FILES=$(grep -rL 'https://www.apache.org/licenses/LICENSE-2.0' internal cmd | grep -v ".json")
+    FILES=$(grep -rL 'https://www.apache.org/licenses/LICENSE-2.0' cmd internal pkg | grep -v ".json")
     if [[ -n ${FILES} ]]; then
       echo "The following files are missing the Apache header:"
       echo ${FILES}
