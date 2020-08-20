@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package propagation
+package propagators
 
 import (
 	"fmt"
@@ -31,7 +31,7 @@ func main() {
 }
 
 func TestSinkWrapperWrapper(s core.Source) {
-	SinkWrapperWrapper(s) // want "a source has reached a sink"
+	SinkWrapperWrapper(s) // want "a source has reached a sink, sink:"
 }
 
 func SinkWrapperWrapper(arg interface{}) {
@@ -39,7 +39,7 @@ func SinkWrapperWrapper(arg interface{}) {
 }
 
 func TestSinkWrapper(s core.Source) {
-	SinkWrapper(s) // want "a source has reached a sink"
+	SinkWrapper(s) // want "a source has reached a sink, sink:"
 }
 
 func SinkWrapper(arg interface{}) {
@@ -47,7 +47,7 @@ func SinkWrapper(arg interface{}) {
 }
 
 func TestSinkWrapperTwoArgs(s core.Source) {
-	SinkWrapperTwoArgs("not a source", s) // want "a source has reached a sink"
+	SinkWrapperTwoArgs("not a source", s) // want "a source has reached a sink, sink:"
 }
 
 func SinkWrapperTwoArgs(a1 interface{}, a2 interface{}) {
@@ -55,7 +55,7 @@ func SinkWrapperTwoArgs(a1 interface{}, a2 interface{}) {
 }
 
 func TestOneArgSinkWrapper(s core.Source) {
-	OneArgSinkWrapper(s) // want "a source has reached a sink"
+	OneArgSinkWrapper(s) // want "a source has reached a sink, sink:"
 }
 
 func OneArgSinkWrapper(arg interface{}) {
@@ -88,7 +88,7 @@ func SinkWrapperSpread(args ...interface{}) {
 
 func TestStringify(s core.Source) {
 	str := Stringify(s)
-	core.Sink(str) // want "a source has reached a sink"
+	core.Sink(str) // want "a source has reached a sink, source:"
 }
 
 func Stringify(arg interface{}) string {

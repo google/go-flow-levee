@@ -105,9 +105,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 func doPointerAnalysis(pass *analysis.Pass, analysisConf *config.Config, c *ssa.Call) (analyzedSuccesfully bool) {
 	// Pointer analysis requires at least one main package containing a main function.
 	// If we fail to provide such a package, the analysis will fail and produce error output in stderr.
-	pkg := c.Parent().Pkg
-	main := pkg.Func("main")
-	if main == nil {
+	mains := findMains(c.Parent().Pkg)
+
+	if len(mains) == 0 {
 		return false
 	}
 
@@ -115,7 +115,7 @@ func doPointerAnalysis(pass *analysis.Pass, analysisConf *config.Config, c *ssa.
 	// For our purposes, we just need to give it a main package and a set of values for which we want
 	// the points-to set to be computed.
 	pointerConf := &pointer.Config{
-		Mains: []*ssa.Package{pkg},
+		Mains: mains,
 	}
 
 	// In general, we can't use the call's arguments as values directly. For example, when calling a variadic
@@ -178,6 +178,22 @@ func makeCall(c *ssa.Call) call.Call {
 	return call.Regular(c)
 }
 
+func findMains(root *ssa.Package) (mains []*ssa.Package) {
+	stack := []*ssa.Package{root}
+	for len(stack) > 0 {
+		current := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		for _, typesPkg := range current.Pkg.Imports() {
+			stack = append(stack, current.Prog.Package(typesPkg))
+		}
+		if current.Func("main") == nil {
+			continue
+		}
+		mains = append(mains, current)
+	}
+	return mains
+}
+
 func reportAtSink(pass *analysis.Pass, source ssa.Node, sink ssa.Node) {
 	var b strings.Builder
 	b.WriteString(sourceReachedSinkMessage)
@@ -193,9 +209,9 @@ func reportAtSource(pass *analysis.Pass, source ssa.Node, sink ssa.Node) {
 }
 
 // callValues collects the ssa.Values that are arguments to an ssa.Call.
-// In particular, it handles variadic arguments to some extent.
-// We don't want to analyze what the variadic argument points to (a slice), but we do
-// want to analyze the values *within* the slice.
+// In particular, it tries to get the values out of slices, which includes varargs.
+// We don't want to analyze slices, but we do want to analyze the values
+// *within* the slices.
 func callValues(c *ssa.Call) (values []ssa.Value) {
 	for _, a := range c.Call.Args {
 		slice, ok := a.(*ssa.Slice)
@@ -204,9 +220,11 @@ func callValues(c *ssa.Call) (values []ssa.Value) {
 			continue
 		}
 		refs := *slice.X.Referrers()
-		// the last referrer is the slice
-		for i := 0; i < len(refs)-1; i++ {
-			indexAddr := refs[i].(*ssa.IndexAddr)
+		for i := 0; i < len(refs); i++ {
+			indexAddr, ok := refs[i].(*ssa.IndexAddr)
+			if !ok {
+				continue
+			}
 			val := (*indexAddr.Referrers())[0].(*ssa.Store).Val
 			values = append(values, val)
 		}
