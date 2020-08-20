@@ -11,8 +11,8 @@ script:
 - >
   echo "Checking goimports..." && (
     if [[ -n $(goimports -l cmd internal pkg) ]]; then
-      goimports cmd internal pkg
-      echo 'Please run `goimports cmd internal pkg`.'
+      goimports -d cmd internal pkg
+      echo 'Please run `goimports -w cmd internal pkg`.'
       false
     fi
   )
