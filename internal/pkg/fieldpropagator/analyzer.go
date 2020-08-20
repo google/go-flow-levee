@@ -50,7 +50,7 @@ A field propagator is a function that returns a source field.`,
 	FactTypes:  []analysis.Fact{new(isFieldPropagator)},
 }
 
-type Analysis struct {
+type analysisState struct {
 	pass     *analysis.Pass
 	conf     *config.Config
 	ssaInput *buildssa.SSA
@@ -66,7 +66,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		return nil, err
 	}
 
-	a := &Analysis{
+	a := &analysisState{
 		pass:     pass,
 		conf:     conf,
 		ssaInput: ssaInput,
@@ -81,7 +81,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return FieldPropagators(isFieldPropagator), nil
 }
 
-func (a *Analysis) run() {
+func (a *analysisState) run() {
 	ssaProg := a.ssaInput.Pkg.Prog
 	for _, mem := range a.ssaInput.Pkg.Members {
 		ssaType, ok := mem.(*ssa.Type)
@@ -96,7 +96,7 @@ func (a *Analysis) run() {
 	}
 }
 
-func (a *Analysis) analyzeBlocks(meth *ssa.Function) {
+func (a *analysisState) analyzeBlocks(meth *ssa.Function) {
 	// Function does not return anything
 	if res := meth.Signature.Results(); res == nil || (*res).Len() == 0 {
 		return
@@ -114,7 +114,7 @@ func (a *Analysis) analyzeBlocks(meth *ssa.Function) {
 	}
 }
 
-func (a *Analysis) analyzeResults(meth *ssa.Function, results []ssa.Value) {
+func (a *analysisState) analyzeResults(meth *ssa.Function, results []ssa.Value) {
 	for _, r := range results {
 		fa, ok := fieldAddr(r)
 		if !ok {
