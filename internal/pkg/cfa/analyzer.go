@@ -234,7 +234,7 @@ func (v *visitor) visitFunc(n *ssa.Call, fact *funcFact) {
 
 		case 1:
 			for i, a := range n.Call.Args {
-				// if we've visited this argument, then we are on a path from the parameter to this call
+				// if we've visited this argument, then we are on a path from the argument to this call
 				if v.visited[a.(ssa.Node)] {
 					v.reachesSink = v.reachesSink || ff.Sinks(i)
 					argTaints := ff.Taints(i)
