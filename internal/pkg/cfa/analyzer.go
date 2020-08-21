@@ -49,6 +49,7 @@ var Analyzer = &analysis.Analyzer{
 	FactTypes:  []analysis.Fact{new(funcFact)},
 }
 
+// avoid analyzing these packages for now
 var pkgDenylist = []string{
 	"atomic",
 	"bytealg",
@@ -124,7 +125,7 @@ func analyzeGenericFunc(p *analysis.Pass, c *config.Config, f *ssa.Function) gen
 	gf.results = countResults(f)
 
 	for i, param := range f.Params {
-		reachesSink, taints := visit(p, c, positions, param)
+		reachesSink, taints := visit(p, c, f, positions, param)
 		gf.sinks[i] = reachesSink
 		gf.taints[i] = taints
 	}
@@ -140,14 +141,16 @@ type visitor struct {
 	visited         map[ssa.Node]bool
 	reachesSink     bool
 	taints          []int
+	fn              *ssa.Function
 }
 
-func visit(p *analysis.Pass, conf *config.Config, retvalPositions map[ssa.Value][]int, param *ssa.Parameter) (reachesSink bool, taints []int) {
+func visit(p *analysis.Pass, conf *config.Config, fn *ssa.Function, retvalPositions map[ssa.Value][]int, param *ssa.Parameter) (reachesSink bool, taints []int) {
 	v := visitor{
 		pass:            p,
 		conf:            conf,
 		retvalPositions: retvalPositions,
 		visited:         map[ssa.Node]bool{},
+		fn:              fn,
 	}
 
 	v.dfs(param)
@@ -186,6 +189,11 @@ func (v *visitor) dfs(n ssa.Node) {
 	if !ok {
 		v.visitReferrers(n)
 		v.visitOperands(n)
+		return
+	}
+
+	// recursive call, stop traversing
+	if v.fn.Object() == f.Object() {
 		return
 	}
 

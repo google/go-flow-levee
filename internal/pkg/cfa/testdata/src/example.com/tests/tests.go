@@ -86,3 +86,11 @@ func SinksThroughIdentity(a interface{}) { // want SinksThroughIdentity:"generic
 func Identity(a interface{}) interface{} { // want Identity: "genericFunc{ sinks: \\[\\], taints: \\[\\[0\\]\\] }"
 	return a
 }
+
+func RecursiveSinkWrapper(i int, a interface{}) { // want RecursiveSinkWrapper: "genericFunc{ sinks: \\[1\\], taints: \\[\\[\\] \\[\\]\\] }"
+	if i <= 0 {
+		core.Sink(a)
+		return
+	}
+	RecursiveSinkWrapper(i-1, a)
+}
