@@ -309,7 +309,7 @@ func (v *visitor) visitOperands(n ssa.Node) {
 	}
 }
 
-// retvalPositions returns a mapping from each return value to its index in the return instruction,
+// retvalPositions returns a mapping from each return value to its index in the return instruction
 func retvalPositions(f *ssa.Function) map[ssa.Value][]int {
 	positions := map[ssa.Value][]int{}
 	for _, ret := range findReturns(f) {
