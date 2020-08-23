@@ -17,7 +17,6 @@ package cfa
 import (
 	"go/types"
 	"reflect"
-	"strings"
 
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 
@@ -49,30 +48,7 @@ var Analyzer = &analysis.Analyzer{
 	FactTypes:  []analysis.Fact{new(funcFact)},
 }
 
-// avoid analyzing these packages for now
-var pkgDenylist = []string{
-	"atomic",
-	"bytealg",
-	"cpu",
-	"internal",
-	"math",
-	"race",
-	"reflect",
-	"reflectlite",
-	"runtime",
-	"sync",
-	"sys",
-	"unsafe",
-}
-
 func run(pass *analysis.Pass) (interface{}, error) {
-	pkgName := pass.Pkg.Name()
-	for _, d := range pkgDenylist {
-		if strings.HasPrefix(pkgName, d) {
-			return Functions(nil), nil
-		}
-	}
-
 	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 
 	conf, err := config.ReadConfig()
@@ -196,7 +172,7 @@ func (v *visitor) dfs(n ssa.Node) {
 	f, ok := call.Call.Value.(*ssa.Function)
 	// not a function
 	// assume we should keep traversing
-	if !ok {
+	if !ok || f.Object() == nil {
 		v.visitReferrers(n)
 		v.visitOperands(n)
 		return
@@ -207,10 +183,9 @@ func (v *visitor) dfs(n ssa.Node) {
 	if !hasFact {
 		analyze(v.pass, v.conf, v.analyzing, f)
 	}
+
 	hasFactNow := v.pass.ImportObjectFact(f.Object(), fact)
-	// the function being visited now either:
-	// 1. cannot be analyzed (e.g. it is in a denylisted package)
-	// 2. is part of a cycle in the call graph
+	// the function being visited now is part of a cycle in the call graph
 	// assume we should keep traversing
 	if !hasFactNow {
 		v.visitReferrers(n)
