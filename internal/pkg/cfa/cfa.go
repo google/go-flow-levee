@@ -91,7 +91,9 @@ func (g genericFunc) Taints(arg int) (tainted []int) {
 
 func (g genericFunc) String() string {
 	var b strings.Builder
-	b.WriteString("genericFunc{ sinks: [")
+	b.WriteString("genericFunc{ ")
+
+	b.WriteString("sinks: <")
 	var reached []string
 	for i, reachesSink := range g.sinks {
 		if reachesSink {
@@ -99,15 +101,20 @@ func (g genericFunc) String() string {
 		}
 	}
 	b.WriteString(strings.Join(reached, " "))
-	b.WriteString("], taints: [")
-	for i, s := range g.taints {
-		sort.Ints(s)
-		b.WriteString(fmt.Sprintf("%v", s))
-		if i < len(g.sinks)-1 {
-			b.WriteByte(' ')
+	b.WriteByte('>')
+
+	b.WriteString(", taints: <")
+	var taints []string
+	for _, ts := range g.taints {
+		sort.Ints(ts)
+		var tainted []string
+		for _, t := range ts {
+			tainted = append(tainted, strconv.Itoa(t))
 		}
+		taints = append(taints, fmt.Sprintf("<%v>", strings.Join(tainted, " ")))
 	}
-	b.WriteString("] }")
+	b.WriteString(strings.Join(taints, " "))
+	b.WriteString("> }")
 	return b.String()
 }
 
