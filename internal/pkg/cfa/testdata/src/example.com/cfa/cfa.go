@@ -89,38 +89,6 @@ func Identity(a interface{}) interface{} { // want Identity:"genericFunc{ sinks:
 	return a
 }
 
-func RecursiveSinkWrapper(i int, a interface{}) { // want RecursiveSinkWrapper:"genericFunc{ sinks: <1>, taints: <<> <>> }"
-	if i <= 0 {
-		core.Sink(a)
-		return
-	}
-	RecursiveSinkWrapper(i-1, a)
-}
-
-func IsEven(i int) bool { // want IsEven:"genericFunc{ sinks: <>, taints: <<0>> }"
-	return !IsOdd(i)
-}
-
-func IsOdd(i int) bool { // want IsOdd:"genericFunc{ sinks: <>, taints: <<0>> }"
-	return !IsEven(i)
-}
-
-func A(e interface{}) { // want A:"genericFunc{ sinks: <0>, taints: <<>> }"
-	B(e)
-}
-
-func B(e interface{}) { // want B:"genericFunc{ sinks: <0>, taints: <<>> }"
-	C(e)
-}
-
-func C(e interface{}) { // want C:"genericFunc{ sinks: <0>, taints: <<>> }"
-	if _, ok := e.(int); ok {
-		A(0)
-	} else {
-		core.Sink(e)
-	}
-}
-
 func TestStringify(e interface{}) { // want TestStringify:"genericFunc{ sinks: <0>, taints: <<>> }"
 	s := Stringify(e)
 	core.Sink(s)
