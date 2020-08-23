@@ -80,8 +80,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		return nil, err
 	}
 
+	analyzing := map[*ssa.Function]bool{}
 	for _, fn := range ssaInput.SrcFuncs {
-		analyze(pass, conf, fn)
+		analyze(pass, conf, analyzing, fn)
 	}
 
 	functions := map[types.Object]Function{}
@@ -95,16 +96,24 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return Functions(functions), nil
 }
 
-func analyze(pass *analysis.Pass, conf *config.Config, fn *ssa.Function) {
+func analyze(pass *analysis.Pass, conf *config.Config, analyzing map[*ssa.Function]bool, fn *ssa.Function) {
+	// this function is part of a cycle
+	if analyzing[fn] {
+		return
+	}
+
 	// methods are not supported for now
 	if fn.Signature.Recv() != nil {
 		return
 	}
-	// this function is in a denylisted package; exporting a fact on another package's objects is an error
+
+	// this function is in a different package; exporting a fact on another package's objects is an error
 	// some functions do not have objects
 	if fn.Pkg.Pkg != pass.Pkg || fn.Object() == nil {
 		return
 	}
+
+	analyzing[fn] = true
 	switch {
 	case conf.IsSinkFunction(fn):
 		pass.ExportObjectFact(fn.Object(), &funcFact{sink{}})
@@ -113,19 +122,20 @@ func analyze(pass *analysis.Pass, conf *config.Config, fn *ssa.Function) {
 		pass.ExportObjectFact(fn.Object(), &funcFact{sanitizer{}})
 
 	default:
-		gf := analyzeGenericFunc(pass, conf, fn)
+		gf := analyzeGenericFunc(pass, conf, analyzing, fn)
 		pass.ExportObjectFact(fn.Object(), &funcFact{gf})
 	}
+	analyzing[fn] = false
 }
 
-func analyzeGenericFunc(p *analysis.Pass, c *config.Config, f *ssa.Function) genericFunc {
+func analyzeGenericFunc(pass *analysis.Pass, conf *config.Config, analyzing map[*ssa.Function]bool, f *ssa.Function) genericFunc {
 	gf := newGenericFunc(f)
 
 	positions := retvalPositions(f)
 	gf.results = countResults(f)
 
 	for i, param := range f.Params {
-		reachesSink, taints := visit(p, c, f, positions, param)
+		reachesSink, taints := visit(pass, conf, analyzing, f, positions, param)
 		gf.sinks[i] = reachesSink
 		gf.taints[i] = taints
 	}
@@ -141,16 +151,16 @@ type visitor struct {
 	visited         map[ssa.Node]bool
 	reachesSink     bool
 	taints          []int
-	fn              *ssa.Function
+	analyzing       map[*ssa.Function]bool
 }
 
-func visit(p *analysis.Pass, conf *config.Config, fn *ssa.Function, retvalPositions map[ssa.Value][]int, param *ssa.Parameter) (reachesSink bool, taints []int) {
+func visit(p *analysis.Pass, conf *config.Config, analyzing map[*ssa.Function]bool, fn *ssa.Function, retvalPositions map[ssa.Value][]int, param *ssa.Parameter) (reachesSink bool, taints []int) {
 	v := visitor{
 		pass:            p,
 		conf:            conf,
 		retvalPositions: retvalPositions,
 		visited:         map[ssa.Node]bool{},
-		fn:              fn,
+		analyzing:       analyzing,
 	}
 
 	v.dfs(param)
@@ -192,22 +202,18 @@ func (v *visitor) dfs(n ssa.Node) {
 		return
 	}
 
-	// recursive call, stop traversing
-	if v.fn.Object() == f.Object() {
-		return
-	}
-
 	fact := &funcFact{}
 	hasFact := v.pass.ImportObjectFact(f.Object(), fact)
 	if !hasFact {
-		analyze(v.pass, v.conf, f)
+		analyze(v.pass, v.conf, v.analyzing, f)
 	}
 	hasFactNow := v.pass.ImportObjectFact(f.Object(), fact)
-	// this should only happen if the function being visited is in a denylisted package
+	// the function being visited now either:
+	// 1. cannot be analyzed (e.g. it is in a denylisted package)
+	// 2. is part of a cycle in the call graph
 	// assume we should keep traversing
 	if !hasFactNow {
 		v.visitReferrers(n)
-		v.visitOperands(n)
 		return
 	}
 
@@ -224,7 +230,14 @@ func (v *visitor) visitFunc(n *ssa.Call, fact *funcFact) {
 		// value has been sanitized, stop traversing
 		return
 	case genericFunc:
-		// if the function has 0 results, there is nothing to visit
+		// determine if this function taints an argument visited from the current parameter
+		for i, a := range n.Call.Args {
+			// if we've visited this argument, then we are on a path from the current parameter to this call
+			if v.visited[a.(ssa.Node)] {
+				v.reachesSink = v.reachesSink || ff.Sinks(i)
+			}
+		}
+		// if the function has 0 results, there are no return values to visit
 		// if the function has 1 result, and it taints that result, keep visiting
 		// if the function has 2+ results, visit only the ones that are tainted
 		switch ff.Results() {
@@ -234,9 +247,8 @@ func (v *visitor) visitFunc(n *ssa.Call, fact *funcFact) {
 
 		case 1:
 			for i, a := range n.Call.Args {
-				// if we've visited this argument, then we are on a path from the argument to this call
+				// if we've visited this argument, then we are on a path from the current parameter to this call
 				if v.visited[a.(ssa.Node)] {
-					v.reachesSink = v.reachesSink || ff.Sinks(i)
 					argTaints := ff.Taints(i)
 					if len(argTaints) == 0 {
 						// this function does not taint its return value, stop traversing
@@ -262,9 +274,8 @@ func (v *visitor) visitFunc(n *ssa.Call, fact *funcFact) {
 			}
 			taintUnion := map[int]bool{}
 			for i, a := range n.Call.Args {
-				// if we've visited this argument, then we are on a path from the parameter to this call
+				// if we've visited this argument, then we are on a path from the current parameter to this call
 				if v.visited[a.(ssa.Node)] {
-					v.reachesSink = v.reachesSink || ff.Sinks(i)
 					for _, j := range ff.Taints(i) {
 						taintUnion[j] = true
 					}
