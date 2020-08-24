@@ -2,7 +2,7 @@
   "Sinks": [
     {
       "PackageRE": "^core$",
-      "MethodRE": "^Sink"
+      "MethodRE": "^Sink$"
     }
   ]
 }
