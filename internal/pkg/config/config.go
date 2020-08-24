@@ -59,12 +59,20 @@ func (c Config) IsSinkFunction(f *ssa.Function) bool {
 		return false
 	}
 
+	recv := f.Signature.Recv()
+	var recvName string
+	if recv != nil {
+		recvName = recv.Type().String()
+	}
+
 	for _, p := range c.Sinks {
-		if p.PackageRE.MatchString(f.Pkg.Pkg.Name()) && p.MethodRE.MatchString(f.Name()) {
+		if !p.PackageRE.MatchString(f.Pkg.Pkg.Name()) || !p.MethodRE.MatchString(f.Name()) {
+			continue
+		}
+		if p.ReceiverRE.MatchString(recvName) {
 			return true
 		}
 	}
-
 	return false
 }
 

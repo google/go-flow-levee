@@ -3,6 +3,11 @@
     {
       "PackageRE": "^core$",
       "MethodRE": "^Sink$"
+    },
+    {
+      "PackageRE": "^core$",
+      "MethodRE": "^Do$",
+      "TypeRE": "^Sinker$"
     }
   ]
 }
