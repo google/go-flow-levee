@@ -24,7 +24,7 @@ import (
 type writer struct{}
 
 func (w *writer) Write(bytes []byte) (n int, err error) {
-	return len(bytes), nil
+	return 0, nil
 }
 
 func TestSinkAllocatedWriterTaintedBySource(s core.Source) {
