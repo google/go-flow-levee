@@ -16,6 +16,7 @@ package colocation
 
 import (
 	"fmt"
+	"io"
 
 	"example.com/core"
 )
@@ -26,8 +27,13 @@ func (w *writer) Write(bytes []byte) (n int, err error) {
 	return len(bytes), nil
 }
 
-func TestSinkWriterTaintedBySource(s core.Source) {
+func TestSinkAllocatedWriterTaintedBySource(s core.Source) {
 	w := writer{}
 	_, _ = fmt.Fprintf(&w, "%v", s)
 	core.Sink(w) // TODO want "a source has reached a sink"
+}
+
+func TestSinkArgumentWriterTaintedBySource(w io.Writer, s core.Source) {
+	_, _ = fmt.Fprintf(w, "%v", s)
+	core.Sink(w) // want "a source has reached a sink"
 }
