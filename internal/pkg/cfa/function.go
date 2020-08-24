@@ -86,12 +86,23 @@ func newGenericFunc(f *ssa.Function) GenericFunc {
 	}
 }
 
-func (g GenericFunc) Sinks(arg int) bool {
-	return g.sinks[arg]
+// Sinks returns whether the GenericFunc's nth argument reaches a sink.
+// This function will panic if `n` is out of range,
+// i.e. n <= 0 || n >= len(g.sinks)
+// Such a panic can only occur due to a programming error, which should
+// be caught during development.
+func (g GenericFunc) Sinks(n int) bool {
+	return g.sinks[n]
 }
 
-func (g GenericFunc) Taints(arg int) []int {
-	return g.taints[arg]
+// Taints returns the positions of the return values reached by GenericFunc's
+// nth argument.
+// This function will panic if `n` is out of range,
+// i.e. n <= 0 || n >= len(g.sinks)
+// Such a panic can only occur due to a programming error, which should
+// be caught during development.
+func (g GenericFunc) Taints(n int) []int {
+	return g.taints[n]
 }
 
 func (g GenericFunc) String() string {
@@ -123,7 +134,7 @@ func (g GenericFunc) String() string {
 	return b.String()
 }
 
-// Results returns the number of return values that this function has.
+// Results returns the number of results (return values) that this function has.
 func (g GenericFunc) Results() int {
 	return g.results
 }
