@@ -1,0 +1,8 @@
+{
+  "Sinks": [
+    {
+      "PackageRE": "^core$",
+      "MethodRE": "^Sink"
+    }
+  ]
+}

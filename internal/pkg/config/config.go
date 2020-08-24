@@ -53,8 +53,14 @@ func (c Config) IsSink(call *ssa.Call) bool {
 }
 
 func (c Config) IsSinkFunction(f *ssa.Function) bool {
+	// according to the documentation for ssa.Function, this can happen if
+	// f is a "shared func", e.g. "wrappers and error.Error"
+	if f.Pkg == nil {
+		return false
+	}
+
 	for _, p := range c.Sinks {
-		if p.MethodRE.MatchString(f.Name()) {
+		if p.PackageRE.MatchString(f.Pkg.Pkg.Name()) && p.MethodRE.MatchString(f.Name()) {
 			return true
 		}
 	}
