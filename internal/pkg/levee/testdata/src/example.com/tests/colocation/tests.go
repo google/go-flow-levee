@@ -39,6 +39,7 @@ func TestSinkArgumentWriterTaintedBySource(w io.Writer, s core.Source) {
 }
 
 func TestSinkArgumentWriterTaintedBySourceAfterSinkCall(w io.Writer, s core.Source) {
+	// TODO: this should not produce a diagnostic
 	core.Sink(w)
 	_, _ = fmt.Fprintf(w, "%v", s)
 }
