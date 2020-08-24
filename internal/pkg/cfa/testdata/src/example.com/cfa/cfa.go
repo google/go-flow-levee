@@ -62,6 +62,16 @@ func SinkWrapper(a interface{}, b interface{}) (interface{}, interface{}) { // w
 	return tainted, sanitized
 }
 
+func SinkWrapperSinkTainted(a interface{}) { // want SinkWrapperSinkTainted:"genericFunc{ sinks: <0>, taints: <<>> }"
+	tainted, _ := SinkWrapper("", a)
+	core.Sink(tainted)
+}
+
+func SinkWrapperSinkSanitized(a interface{}) { // want SinkWrapperSinkSanitized:"genericFunc{ sinks: <>, taints: <<>> }"
+	_, sanitized := SinkWrapper("", a)
+	core.Sink(sanitized)
+}
+
 func SinkWrapperWrapper(c interface{}) { // want SinkWrapperWrapper:"genericFunc{ sinks: <0>, taints: <<>> }"
 	SinkWrapper(c, "")
 }

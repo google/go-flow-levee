@@ -107,11 +107,11 @@ func analyze(pass *analysis.Pass, conf *config.Config, analyzing map[*ssa.Functi
 func analyzeGenericFunc(pass *analysis.Pass, conf *config.Config, analyzing map[*ssa.Function]bool, f *ssa.Function) genericFunc {
 	gf := newGenericFunc(f)
 
-	positions := retvalPositions(f)
-	gf.results = countResults(f)
+	retPositions := retvalPositions(f)
+	gf.results = f.Signature.Results().Len()
 
 	for i, param := range f.Params {
-		reachesSink, taints := visit(pass, conf, analyzing, f, positions, param)
+		reachesSink, taints := visit(pass, conf, analyzing, retPositions, param)
 		gf.sinks[i] = reachesSink
 		gf.taints[i] = taints
 	}
@@ -120,9 +120,8 @@ func analyzeGenericFunc(pass *analysis.Pass, conf *config.Config, analyzing map[
 }
 
 type visitor struct {
-	pass *analysis.Pass
-	conf *config.Config
-	// needs to be a []int in case a value is returned more than once, e.g. return x, x
+	pass            *analysis.Pass
+	conf            *config.Config
 	retvalPositions map[ssa.Value][]int
 	visited         map[ssa.Node]bool
 	reachesSink     bool
@@ -130,13 +129,13 @@ type visitor struct {
 	analyzing       map[*ssa.Function]bool
 }
 
-func visit(p *analysis.Pass, conf *config.Config, analyzing map[*ssa.Function]bool, fn *ssa.Function, retvalPositions map[ssa.Value][]int, param *ssa.Parameter) (reachesSink bool, taints []int) {
+func visit(p *analysis.Pass, conf *config.Config, analyzing map[*ssa.Function]bool, retvalPositions map[ssa.Value][]int, param *ssa.Parameter) (reachesSink bool, taints []int) {
 	v := visitor{
 		pass:            p,
 		conf:            conf,
+		analyzing:       analyzing,
 		retvalPositions: retvalPositions,
 		visited:         map[ssa.Node]bool{},
-		analyzing:       analyzing,
 	}
 
 	v.dfs(param)
@@ -185,9 +184,10 @@ func (v *visitor) dfs(n ssa.Node) {
 	}
 
 	hasFactNow := v.pass.ImportObjectFact(f.Object(), fact)
-	// the function being visited now is part of a cycle in the call graph
+	// the function being called is part of a cycle in the call graph
 	// assume we should keep traversing
 	if !hasFactNow {
+		// do not visit the operands since these are the call's other arguments
 		v.visitReferrers(n)
 		return
 	}
@@ -196,73 +196,86 @@ func (v *visitor) dfs(n ssa.Node) {
 }
 
 func (v *visitor) visitFunc(n *ssa.Call, fact *funcFact) {
-	switch ff := fact.Function.(type) {
-	case sink:
-		v.reachesSink = true
-		// value has reached a sink, stop traversing
+	ff := fact.Function
+
+	for i, a := range n.Call.Args {
+		// if we've visited this argument, then we are on a path from the current parameter to this call
+		if v.visited[a.(ssa.Node)] {
+			v.reachesSink = v.reachesSink || ff.Sinks(i)
+		}
+	}
+
+	taintsAny := false
+	for i, a := range n.Call.Args {
+		// if we've visited this argument, then we are on a path from the current parameter to this call
+		if v.visited[a.(ssa.Node)] {
+			argTaints := ff.Taints(i)
+			taintsAny = taintsAny || len(argTaints) > 0
+		}
+	}
+	if !taintsAny {
 		return
-	case sanitizer:
-		// value has been sanitized, stop traversing
+	}
+
+	gen, ok := ff.(genericFunc)
+	if !ok {
 		return
-	case genericFunc:
-		// determine if this function taints an argument visited from the current parameter
+	}
+	v.visitGenericFunc(n, gen)
+}
+
+func (v *visitor) visitGenericFunc(n *ssa.Call, gf genericFunc) {
+	// if the function has 0 results, there are no return values to visit
+	// if the function has 1 result, and it taints that result, keep visiting
+	// if the function has 2+ results, visit only the ones that are tainted
+	switch gf.Results() {
+	case 0:
+		// function has no return value, stop visiting
+		return
+
+	case 1:
 		for i, a := range n.Call.Args {
 			// if we've visited this argument, then we are on a path from the current parameter to this call
 			if v.visited[a.(ssa.Node)] {
-				v.reachesSink = v.reachesSink || ff.Sinks(i)
+				argTaints := gf.Taints(i)
+				if len(argTaints) == 0 {
+					// this function does not taint its return value, stop traversing
+					return
+				}
+				// since this function has only 1 return value, we know it is tainted
+				// only visit the Referrers, since the operands are the call's arguments
+				v.visitReferrers(n)
 			}
 		}
-		// if the function has 0 results, there are no return values to visit
-		// if the function has 1 result, and it taints that result, keep visiting
-		// if the function has 2+ results, visit only the ones that are tainted
-		switch ff.Results() {
-		case 0:
-			// function has no return value, stop visiting
+
+	// 2+ results
+	// The results of a function with 2+ results appear as "Extracts" in the ssa.
+	// The `ssa.Extract` instruction represents getting a value out of the
+	// tuple of results that the function returns.
+	default:
+		// find extracts and make them accessible by index
+		extracts := map[int]*ssa.Extract{}
+		for _, r := range *n.Referrers() {
+			if e, ok := r.(*ssa.Extract); ok {
+				extracts[e.Index] = e
+			}
+		}
+		// function has >= 2 return values, but they are not extracted
+		if len(extracts) == 0 {
 			return
+		}
 
-		case 1:
-			for i, a := range n.Call.Args {
-				// if we've visited this argument, then we are on a path from the current parameter to this call
-				if v.visited[a.(ssa.Node)] {
-					argTaints := ff.Taints(i)
-					if len(argTaints) == 0 {
-						// this function does not taint its return value, stop traversing
-						return
-					}
-					// since this function has only 1 return value, we know it is tainted
-					// only visit the Referrers, since the operands are the call's arguments
-					v.visitReferrers(n)
+		taintUnion := map[int]bool{}
+		for i, a := range n.Call.Args {
+			// if we've visited this argument, then we are on a path from the current parameter to this call
+			if v.visited[a.(ssa.Node)] {
+				for _, j := range gf.Taints(i) {
+					taintUnion[j] = true
 				}
 			}
-
-		// 2+ results
-		// The results of a function with 2+ results appear as "Extracts" in the ssa.
-		// The `ssa.Extract` instruction represents getting a value out of the
-		// tuple of results that the function returns.
-		default:
-			// find extracts and make them accessible by index
-			extracts := map[int]*ssa.Extract{}
-			for _, r := range *n.Referrers() {
-				if e, ok := r.(*ssa.Extract); ok {
-					extracts[e.Index] = e
-				}
-			}
-			taintUnion := map[int]bool{}
-			for i, a := range n.Call.Args {
-				// if we've visited this argument, then we are on a path from the current parameter to this call
-				if v.visited[a.(ssa.Node)] {
-					for _, j := range ff.Taints(i) {
-						taintUnion[j] = true
-					}
-				}
-			}
-			// function has >= 2 return values, but they are not extracted
-			if len(extracts) == 0 {
-				return
-			}
-			for i := range taintUnion {
-				v.dfs(extracts[i])
-			}
+		}
+		for i := range taintUnion {
+			v.dfs(extracts[i])
 		}
 	}
 }
@@ -295,7 +308,9 @@ func (v *visitor) visitOperands(n ssa.Node) {
 	}
 }
 
-// retvalPositions returns a mapping from each return value to its index in the return instruction
+// retvalPositions returns a mapping from each return value to its index in the return instruction.
+// The values in the mapping need to be []int because a value may be returned in different positions
+// in the same or different return statements, e.g. return x, x
 func retvalPositions(f *ssa.Function) map[ssa.Value][]int {
 	positions := map[ssa.Value][]int{}
 	for _, ret := range findReturns(f) {
@@ -306,13 +321,7 @@ func retvalPositions(f *ssa.Function) map[ssa.Value][]int {
 	return positions
 }
 
-func countResults(f *ssa.Function) int {
-	for _, r := range findReturns(f) {
-		return len(r.Results)
-	}
-	return 0
-}
-
+// findReturns finds the return instructions in a function's body.
 func findReturns(f *ssa.Function) (returns []*ssa.Return) {
 	for _, b := range f.Blocks {
 		if len(b.Instrs) == 0 {
