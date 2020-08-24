@@ -38,11 +38,12 @@ type classifier interface {
 // its referrers.
 // Source.sanitized notes sanitizer calls that sanitize this Source
 type Source struct {
-	node       ssa.Node
-	marked     map[ssa.Node]bool
-	preOrder   []ssa.Node
-	sanitizers []*sanitizer.Sanitizer
-	config     classifier
+	node            ssa.Node
+	marked          map[ssa.Node]bool
+	preOrder        []ssa.Node
+	sanitizers      []*sanitizer.Sanitizer
+	config          classifier
+	maxInstrReached map[*ssa.BasicBlock]int
 }
 
 // Node returns the underlying ssa.Node of the Source.
@@ -53,9 +54,10 @@ func (a *Source) Node() ssa.Node {
 // New constructs a Source
 func New(in ssa.Node, config classifier) *Source {
 	a := &Source{
-		node:   in,
-		marked: make(map[ssa.Node]bool),
-		config: config,
+		node:            in,
+		marked:          make(map[ssa.Node]bool),
+		config:          config,
+		maxInstrReached: map[*ssa.BasicBlock]int{},
 	}
 	a.dfs(in)
 	return a
@@ -68,6 +70,10 @@ func (a *Source) dfs(n ssa.Node) {
 	a.preOrder = append(a.preOrder, n)
 	a.marked[n.(ssa.Node)] = true
 
+	if instr, ok := n.(ssa.Instruction); ok {
+		a.recordIndex(instr)
+	}
+
 	if n.Referrers() != nil {
 		a.visitReferrers(n.Referrers())
 	}
@@ -76,6 +82,14 @@ func (a *Source) dfs(n ssa.Node) {
 	operands = n.Operands(operands)
 	if operands != nil {
 		a.visitOperands(operands)
+	}
+}
+
+func (a *Source) recordIndex(target ssa.Instruction) {
+	b := target.Block()
+	i := indexInBlock(target)
+	if a.maxInstrReached[b] < i {
+		a.maxInstrReached[b] = i
 	}
 }
 
@@ -94,6 +108,13 @@ func (a *Source) visitReferrers(referrers *[]ssa.Instruction) {
 			if a.config.IsSanitizer(v) {
 				a.sanitizers = append(a.sanitizers, &sanitizer.Sanitizer{Call: v})
 			}
+
+			// If this call's index is lower than the highest in its block,
+			// then this call is "in the past" and we should stop traversing.
+			if indexInBlock(r) < a.maxInstrReached[r.Block()] {
+				continue
+			}
+
 		case *ssa.FieldAddr:
 			if !a.config.IsSourceFieldAddr(v) {
 				continue
@@ -265,4 +286,14 @@ func isProducedBySanitizer(v *ssa.Alloc, conf classifier) bool {
 		}
 	}
 	return false
+}
+
+func indexInBlock(target ssa.Instruction) int {
+	for i, instr := range target.Block().Instrs {
+		if instr == target {
+			return i
+		}
+	}
+	// this cannot happen
+	return -1
 }
