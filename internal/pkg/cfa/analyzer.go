@@ -83,9 +83,9 @@ func analyze(pass *analysis.Pass, conf *config.Config, analyzing map[*ssa.Functi
 		return
 	}
 
-	// this function is in a different package; exporting a fact on another package's objects is an error
-	// some functions do not have objects
-	if fn.Pkg.Pkg != pass.Pkg || fn.Object() == nil {
+	// some functions do not have objects, so they can't be analyzed
+	// e.g. exporting a fact on a nil object is an error
+	if fn.Object() == nil {
 		return
 	}
 
