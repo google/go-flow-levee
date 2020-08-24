@@ -37,3 +37,8 @@ func TestSinkArgumentWriterTaintedBySource(w io.Writer, s core.Source) {
 	_, _ = fmt.Fprintf(w, "%v", s)
 	core.Sink(w) // want "a source has reached a sink"
 }
+
+func TestSinkArgumentWriterTaintedBySourceAfterSinkCall(w io.Writer, s core.Source) {
+	core.Sink(w)
+	_, _ = fmt.Fprintf(w, "%v", s)
+}
