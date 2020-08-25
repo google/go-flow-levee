@@ -30,3 +30,9 @@ func TestSinkBeforeTainting(s core.Source, w io.Writer) {
 	core.Sink(w)
 	_, _ = fmt.Fprintf(w, "%v", s)
 }
+
+func TestSinkBeforeAndAfterTainting(s core.Source, w io.Writer) {
+	core.Sink(w)
+	_, _ = fmt.Fprintf(w, "%v", s)
+	core.Sink(w) // want "a source has reached a sink"
+}
