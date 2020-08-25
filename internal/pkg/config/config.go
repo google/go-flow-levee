@@ -59,9 +59,8 @@ func (c Config) IsSinkFunction(f *ssa.Function) bool {
 		return false
 	}
 
-	recv := f.Signature.Recv()
 	var recvName string
-	if recv != nil {
+	if recv := f.Signature.Recv(); recv != nil {
 		recvName = recv.Type().String()
 	}
 
