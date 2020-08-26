@@ -17,6 +17,7 @@ package source
 
 import (
 	"fmt"
+	"go/token"
 	"go/types"
 	"strings"
 
@@ -232,25 +233,49 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 
 		for _, instr := range b.Instrs {
 			switch v := instr.(type) {
-			// Looking for sources of PII allocated within the body of a function.
+			default:
+				continue
+
+			// source variable allocated
 			case *ssa.Alloc:
-				if conf.IsSource(utils.Dereference(v.Type())) && !isProducedBySanitizer(v, conf) {
-					sources = append(sources, New(v, conf))
+				if isProducedBySanitizer(v, conf) {
+					continue
 				}
 
-				// Handling the case where PII may be in a receiver
-				// (ex. func(b *something) { log.Info(something.PII) }
-			case *ssa.FieldAddr:
-				if conf.IsSource(utils.Dereference(v.Type())) {
-					sources = append(sources, New(v, conf))
+			// source returned from call
+			case *ssa.Call:
+				if isProducedBySanitizer(v, conf) {
+					continue
 				}
+
+			// source obtained from field
+			case *ssa.FieldAddr:
+
+			// source obtained from array by index
+			case *ssa.IndexAddr:
+
+			// source obtained from map by key
+			case *ssa.Lookup:
+
+			// source received from chan
+			case *ssa.UnOp:
+				// not a <-chan operation
+				if v.Op != token.ARROW {
+					continue
+				}
+			}
+
+			// all of the above instructions are values as per ssa/doc.go
+			v, _ := instr.(ssa.Value)
+			if conf.IsSource(utils.Dereference(v.Type())) {
+				sources = append(sources, New(v.(ssa.Node), conf))
 			}
 		}
 	}
 	return sources
 }
 
-func isProducedBySanitizer(v *ssa.Alloc, conf classifier) bool {
+func isProducedBySanitizer(v ssa.Value, conf classifier) bool {
 	for _, instr := range *v.Referrers() {
 		store, ok := instr.(*ssa.Store)
 		if !ok {

@@ -18,16 +18,16 @@ import (
 	"example.com/core"
 )
 
-func CreateSource() core.Source {
-	return core.Source{}
+func NewSource() *core.Source {
+	return &core.Source{}
 }
 
 func TestInlinedCall() {
-	core.Sink(CreateSource()) // want "a source has reached a sink"
+	core.Sink(NewSource()) // want "a source has reached a sink"
 }
 
 func TestNonInlinedCall() {
-	s := CreateSource()
+	s := NewSource()
 	core.Sink(s) // want "a source has reached a sink"
 }
 
