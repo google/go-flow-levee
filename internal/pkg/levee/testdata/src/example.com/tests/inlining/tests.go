@@ -26,34 +26,14 @@ func TestInlinedCall() {
 	core.Sink(NewSource()) // want "a source has reached a sink"
 }
 
-func TestNonInlinedCall() {
-	s := NewSource()
-	core.Sink(s) // want "a source has reached a sink"
-}
-
 func TestInlinedRecv(sources <-chan core.Source) {
 	core.Sink(<-sources) // want "a source has reached a sink"
-}
-
-func TestNonInlinedRecv(sources <-chan core.Source) {
-	s := <-sources
-	core.Sink(s) // want "a source has reached a sink"
 }
 
 func TestInlinedArrayIndex(sources [1]core.Source) {
 	core.Sink(sources[0]) // want "a source has reached a sink"
 }
 
-func TestNonInlinedArrayIndex(sources [1]core.Source) {
-	s := sources[0]
-	core.Sink(s) // want "a source has reached a sink"
-}
-
 func TestInlinedMapKey(sources map[string]core.Source) {
 	core.Sink(sources["source"]) // want "a source has reached a sink"
-}
-
-func TestNonInlinedMapKey(sources map[string]core.Source) {
-	s := sources["source"]
-	core.Sink(s) // want "a source has reached a sink"
 }
