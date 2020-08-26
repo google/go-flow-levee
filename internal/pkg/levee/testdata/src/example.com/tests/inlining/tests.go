@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package wrap
+package inlining
 
 import (
 	"example.com/core"
@@ -22,38 +22,38 @@ func CreateSource() core.Source {
 	return core.Source{}
 }
 
-func TestWrappedCall() {
+func TestInlinedCall() {
 	core.Sink(CreateSource()) // want "a source has reached a sink"
 }
 
-func TestNonWrappedCall() {
+func TestNonInlinedCall() {
 	s := CreateSource()
 	core.Sink(s) // want "a source has reached a sink"
 }
 
-func TestWrappedRecv(sources <-chan core.Source) {
+func TestInlinedRecv(sources <-chan core.Source) {
 	core.Sink(<-sources) // want "a source has reached a sink"
 }
 
-func TestNonWrappedRecv(sources <-chan core.Source) {
+func TestNonInlinedRecv(sources <-chan core.Source) {
 	s := <-sources
 	core.Sink(s) // want "a source has reached a sink"
 }
 
-func TestWrappedArray(sources [1]core.Source) {
+func TestInlinedArrayIndex(sources [1]core.Source) {
 	core.Sink(sources[0]) // want "a source has reached a sink"
 }
 
-func TestNonWrappedArray(sources [1]core.Source) {
+func TestNonInlinedArrayIndex(sources [1]core.Source) {
 	s := sources[0]
 	core.Sink(s) // want "a source has reached a sink"
 }
 
-func TestWrappedMap(sources map[string]core.Source) {
+func TestInlinedMapKey(sources map[string]core.Source) {
 	core.Sink(sources["source"]) // want "a source has reached a sink"
 }
 
-func TestNonWrappedMap(sources map[string]core.Source) {
+func TestNonInlinedMapKey(sources map[string]core.Source) {
 	s := sources["source"]
 	core.Sink(s) // want "a source has reached a sink"
 }
