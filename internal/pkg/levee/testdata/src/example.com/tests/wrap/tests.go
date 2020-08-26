@@ -40,10 +40,20 @@ func TestNonWrappedRecv(sources <-chan core.Source) {
 	core.Sink(s) // want "a source has reached a sink"
 }
 
-func TestWrappedIndex(sources [1]core.Source) {
+func TestWrappedArray(sources [1]core.Source) {
 	core.Sink(sources[0]) // want "a source has reached a sink"
 }
-func TestNonWrappedIndex(sources [1]core.Source) {
+
+func TestNonWrappedArray(sources [1]core.Source) {
 	s := sources[0]
+	core.Sink(s) // want "a source has reached a sink"
+}
+
+func TestWrappedMap(sources map[string]core.Source) {
+	core.Sink(sources["source"]) // want "a source has reached a sink"
+}
+
+func TestNonWrappedMap(sources map[string]core.Source) {
+	s := sources["source"]
 	core.Sink(s) // want "a source has reached a sink"
 }
