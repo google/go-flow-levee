@@ -57,11 +57,5 @@ func (s Sanitizer) Dominates(target ssa.Instruction) bool {
 		return sanitizationIdx < targetIdx
 	}
 
-	for _, d := range s.Call.Block().Dominees() {
-		if target.Block() == d {
-			return true
-		}
-	}
-
 	return false
 }

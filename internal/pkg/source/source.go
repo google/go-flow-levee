@@ -87,7 +87,10 @@ func (a *Source) dfs(n ssa.Node) {
 
 func (a *Source) recordIndex(target ssa.Instruction) {
 	b := target.Block()
-	i := indexInBlock(target)
+	i, ok := indexInBlock(target)
+	if !ok {
+		return
+	}
 	if a.maxInstrReached[b] < i {
 		a.maxInstrReached[b] = i
 	}
@@ -111,7 +114,12 @@ func (a *Source) visitReferrers(referrers *[]ssa.Instruction) {
 
 			// If this call's index is lower than the highest in its block,
 			// then this call is "in the past" and we should stop traversing.
-			if indexInBlock(r) < a.maxInstrReached[r.Block()] {
+			i, ok := indexInBlock(r)
+			if !ok {
+				break
+			}
+
+			if i < a.maxInstrReached[r.Block()] {
 				continue
 			}
 
@@ -288,12 +296,14 @@ func isProducedBySanitizer(v *ssa.Alloc, conf classifier) bool {
 	return false
 }
 
-func indexInBlock(target ssa.Instruction) int {
+// indexInBlock returns this instruction's index in its parent block.
+func indexInBlock(target ssa.Instruction) (int, bool) {
 	for i, instr := range target.Block().Instrs {
 		if instr == target {
-			return i
+			return i, true
 		}
 	}
-	// this cannot happen
-	return -1
+	// we can only hit this return if there is a bug in the ssa package
+	// i.e. an instruction does not appear within its parent block
+	return 0, false
 }
