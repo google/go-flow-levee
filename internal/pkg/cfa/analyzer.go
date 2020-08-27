@@ -108,7 +108,6 @@ func analyzeGenericFunc(pass *analysis.Pass, conf *config.Config, analyzing map[
 	gf := newGenericFunc(f)
 
 	retPositions := retvalPositions(f)
-	gf.results = f.Signature.Results().Len()
 
 	for i, param := range f.Params {
 		reachesSink, taints := visit(pass, conf, analyzing, retPositions, param)
@@ -196,84 +195,36 @@ func (v *visitor) dfs(n ssa.Node) {
 }
 
 func (v *visitor) visitFunc(n *ssa.Call, fact *funcFact) {
-	ff := fact.Function
+	f := fact.Function
 
+	taintUnion := map[int]bool{}
 	for i, a := range n.Call.Args {
 		// if we've visited this argument, then we are on a path from the current parameter to this call
 		if v.visited[a.(ssa.Node)] {
-			v.reachesSink = v.reachesSink || ff.Sinks(i)
-		}
-	}
-
-	taintsAny := false
-	for i, a := range n.Call.Args {
-		// if we've visited this argument, then we are on a path from the current parameter to this call
-		if v.visited[a.(ssa.Node)] {
-			argTaints := ff.Taints(i)
-			taintsAny = taintsAny || len(argTaints) > 0
-		}
-	}
-	if !taintsAny {
-		return
-	}
-
-	gen, ok := ff.(genericFunc)
-	if !ok {
-		return
-	}
-	v.visitGenericFunc(n, gen)
-}
-
-func (v *visitor) visitGenericFunc(n *ssa.Call, gf genericFunc) {
-	// if the function has 0 results, there are no return values to visit
-	// if the function has 1 result, and it taints that result, keep visiting
-	// if the function has 2+ results, visit only the ones that are tainted
-	switch gf.Results() {
-	case 0:
-		// function has no return value, stop visiting
-		return
-
-	case 1:
-		for i, a := range n.Call.Args {
-			// if we've visited this argument, then we are on a path from the current parameter to this call
-			if v.visited[a.(ssa.Node)] {
-				argTaints := gf.Taints(i)
-				if len(argTaints) == 0 {
-					// this function does not taint its return value, stop traversing
-					return
-				}
-				// since this function has only 1 return value, we know it is tainted
-				// only visit the Referrers, since the operands are the call's arguments
-				v.visitReferrers(n)
+			v.reachesSink = v.reachesSink || f.Sinks(i)
+			for _, j := range f.Taints(i) {
+				taintUnion[j] = true
 			}
 		}
+	}
 
-	// 2+ results
-	// The results of a function with 2+ results appear as "Extracts" in the ssa.
-	// The `ssa.Extract` instruction represents getting a value out of the
-	// tuple of results that the function returns.
-	default:
-		// find extracts and make them accessible by index
-		extracts := map[int]*ssa.Extract{}
-		for _, r := range *n.Referrers() {
-			if e, ok := r.(*ssa.Extract); ok {
-				extracts[e.Index] = e
-			}
+	// a function call will have extracts if the function
+	// returns more than 1 value and these values are extracted
+	// e.g. n, err := fmt.Fprintf(...)
+	extracts := map[int]*ssa.Extract{}
+	for _, r := range *n.Referrers() {
+		if e, ok := r.(*ssa.Extract); ok {
+			extracts[e.Index] = e
 		}
-		// function has >= 2 return values, but they are not extracted
-		if len(extracts) == 0 {
-			return
-		}
+	}
 
-		taintUnion := map[int]bool{}
-		for i, a := range n.Call.Args {
-			// if we've visited this argument, then we are on a path from the current parameter to this call
-			if v.visited[a.(ssa.Node)] {
-				for _, j := range gf.Taints(i) {
-					taintUnion[j] = true
-				}
-			}
-		}
+	switch {
+	// function has one return value and it is tainted
+	case len(extracts) == 0 && len(taintUnion) == 1:
+		v.visitReferrers(n)
+	// function has multiple return values and they
+	// are extracted from the call
+	case len(extracts) > 0:
 		for i := range taintUnion {
 			v.dfs(extracts[i])
 		}

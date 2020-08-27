@@ -68,9 +68,8 @@ func (s sanitizer) String() string {
 }
 
 type genericFunc struct {
-	sinks   []bool
-	taints  [][]int
-	results int
+	sinks  []bool
+	taints [][]int
 }
 
 func newGenericFunc(f *ssa.Function) genericFunc {
@@ -116,9 +115,4 @@ func (g genericFunc) String() string {
 	b.WriteString(strings.Join(taints, " "))
 	b.WriteString("> }")
 	return b.String()
-}
-
-// Results returns the number of return values that this function has.
-func (g genericFunc) Results() int {
-	return g.results
 }
