@@ -52,5 +52,7 @@ func TestConfig(t *testing.T) {
 	if err := FlagSet.Set("config", filepath.Join(testdata, "test-config.json")); err != nil {
 		t.Fatal(err)
 	}
-	analysistest.Run(t, testdata, testAnalyzer, "core", "notcore")
+	for _, p := range []string{"example.com/core", "example.com/notcore", "notexample.com/core"} {
+		analysistest.Run(t, testdata, testAnalyzer, p)
+	}
 }
