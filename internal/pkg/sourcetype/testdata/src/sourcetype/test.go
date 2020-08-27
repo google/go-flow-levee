@@ -15,8 +15,9 @@
 package sourcetype
 
 type Source struct { // want Source:"source type"
-	Data string // want Data:"source field"
-	ID   int
+	Data   string // want Data:"source field"
+	Tagged string `levee:"source"` // want Tagged:"source field"
+	ID     int
 }
 
 type AliasStruct = Source // want AliasStruct:"source type"
