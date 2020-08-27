@@ -67,17 +67,17 @@ func (s sanitizer) String() string {
 	return "sanitizer"
 }
 
-// A GenericFunc is a generic Go function, i.e. neither a sink nor a sanitizer.
+// A genericFunc is a generic Go function, i.e. neither a sink nor a sanitizer.
 // As such, each of its arguments may or may not reach a sink. Also, each of
 // its arguments may taint 0 or more of its return values.
-type GenericFunc struct {
+type genericFunc struct {
 	sinks  []bool
 	taints [][]int
 }
 
-func newGenericFunc(f *ssa.Function) GenericFunc {
+func newGenericFunc(f *ssa.Function) genericFunc {
 	params := f.Signature.Params().Len()
-	return GenericFunc{
+	return genericFunc{
 		sinks:  make([]bool, params),
 		taints: make([][]int, params),
 	}
@@ -88,7 +88,7 @@ func newGenericFunc(f *ssa.Function) GenericFunc {
 // i.e. n <= 0 || n >= len(g.sinks)
 // Such a panic can only occur due to a programming error, which should
 // be caught during development.
-func (g GenericFunc) Sinks(n int) bool {
+func (g genericFunc) Sinks(n int) bool {
 	return g.sinks[n]
 }
 
@@ -98,11 +98,11 @@ func (g GenericFunc) Sinks(n int) bool {
 // i.e. n <= 0 || n >= len(g.sinks)
 // Such a panic can only occur due to a programming error, which should
 // be caught during development.
-func (g GenericFunc) Taints(n int) []int {
+func (g genericFunc) Taints(n int) []int {
 	return g.taints[n]
 }
 
-func (g GenericFunc) String() string {
+func (g genericFunc) String() string {
 	var b strings.Builder
 	b.WriteString("genericFunc{ ")
 
