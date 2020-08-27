@@ -197,13 +197,13 @@ func (v *visitor) dfs(n ssa.Node) {
 func (v *visitor) visitFunc(n *ssa.Call, fact *funcFact) {
 	f := fact.Function
 
-	taintUnion := map[int]bool{}
+	taintedRetvals := map[int]bool{}
 	for i, a := range n.Call.Args {
 		// if we've visited this argument, then we are on a path from the current parameter to this call
 		if v.visited[a.(ssa.Node)] {
 			v.reachesSink = v.reachesSink || f.Sinks(i)
 			for _, j := range f.Taints(i) {
-				taintUnion[j] = true
+				taintedRetvals[j] = true
 			}
 		}
 	}
@@ -220,12 +220,12 @@ func (v *visitor) visitFunc(n *ssa.Call, fact *funcFact) {
 
 	switch {
 	// function has one return value and it is tainted
-	case len(extracts) == 0 && len(taintUnion) == 1:
+	case len(extracts) == 0 && len(taintedRetvals) == 1:
 		v.visitReferrers(n)
 	// function has multiple return values and they
 	// are extracted from the call
 	case len(extracts) > 0:
-		for i := range taintUnion {
+		for i := range taintedRetvals {
 			v.dfs(extracts[i])
 		}
 	}
