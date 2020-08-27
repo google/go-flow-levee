@@ -17,13 +17,10 @@
 package fieldtags
 
 import (
-	"fmt"
 	"go/ast"
 	"go/types"
 	"reflect"
 	"strings"
-
-	"github.com/google/go-flow-levee/internal/pkg/utils"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -42,15 +39,18 @@ var patterns sourcePatterns = []keyValue{
 	{"levee", "source"},
 }
 
-// TaggedFields is named type representing a slice of TaggedFields.
-type TaggedFields []TaggedField
-
-// ResultType is a slice of TaggedFields.
+// ResultType is a map telling whether an object is a tagged field.
 type ResultType = TaggedFields
 
-// A TaggedField contains the necessary information to identify a tagged struct field.
-type TaggedField struct {
-	pkg, typ, field string
+// TaggedFields is map telling whether an object is a tagged field.
+type TaggedFields map[types.Object]bool
+
+type isTaggedField struct{}
+
+func (i *isTaggedField) AFact() {}
+
+func (i *isTaggedField) String() string {
+	return "tagged field"
 }
 
 var Analyzer = &analysis.Analyzer{
@@ -61,11 +61,11 @@ var Analyzer = &analysis.Analyzer{
 		inspect.Analyzer,
 	},
 	ResultType: reflect.TypeOf(new(ResultType)).Elem(),
+	FactTypes:  []analysis.Fact{new(isTaggedField)},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	inspectResult := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	var taggedFields TaggedFields
 
 	nodeFilter := []ast.Node{
 		(*ast.TypeSpec)(nil),
@@ -82,17 +82,16 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 		for _, f := range (*s).Fields.List {
 			if patterns.isSource(f) && len(f.Names) > 0 {
-				tf := TaggedField{
-					pkg:   pass.Pkg.Name(),
-					typ:   t.Name.Name,
-					field: f.Names[0].Name,
-				}
-				taggedFields = append(taggedFields, tf)
-				pass.Reportf(f.Pos(), "tagged field: %s", tf)
+				pass.ExportObjectFact(pass.TypesInfo.ObjectOf(f.Names[0]), &isTaggedField{})
 			}
 		}
 	})
-	return taggedFields, nil
+
+	taggedFields := TaggedFields{}
+	for _, of := range pass.AllObjectFacts() {
+		taggedFields[of.Object] = true
+	}
+	return TaggedFields(taggedFields), nil
 }
 
 func (sp *sourcePatterns) isSource(field *ast.Field) bool {
@@ -149,30 +148,7 @@ func (sp *sourcePatterns) isSource(field *ast.Field) bool {
 
 // IsSource determines whether a FieldAddr is a source, that is whether it refers to a field previously identified as a source.
 func (t TaggedFields) IsSource(f *ssa.FieldAddr) bool {
-	n, ok := namedType(f)
-	if !ok {
-		return false
-	}
-	fName := utils.FieldName(f)
-	for _, tf := range t {
-		if tf.matches(n.String(), fName) {
-			return true
-		}
-	}
-	return false
-}
-
-func namedType(f *ssa.FieldAddr) (*types.Named, bool) {
-	structType := f.X.Type()
-	deref := utils.Dereference(structType)
-	named, ok := deref.(*types.Named)
-	return named, ok
-}
-
-func (t TaggedField) matches(typeName, fieldName string) bool {
-	return fmt.Sprintf("%s.%s", t.pkg, t.typ) == typeName && t.field == fieldName
-}
-
-func (t TaggedField) String() string {
-	return fmt.Sprintf("%s.%s.%s", t.pkg, t.typ, t.field)
+	// incantation plundered from the ssa package
+	field := f.X.Type().Underlying().(*types.Pointer).Elem().Underlying().(*types.Struct).Field(f.Field)
+	return t[field]
 }
