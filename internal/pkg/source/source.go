@@ -20,6 +20,7 @@ import (
 	"go/types"
 	"strings"
 
+	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
@@ -38,11 +39,12 @@ type classifier interface {
 // its referrers.
 // Source.sanitized notes sanitizer calls that sanitize this Source
 type Source struct {
-	node       ssa.Node
-	marked     map[ssa.Node]bool
-	preOrder   []ssa.Node
-	sanitizers []*sanitizer.Sanitizer
-	config     classifier
+	node         ssa.Node
+	marked       map[ssa.Node]bool
+	preOrder     []ssa.Node
+	sanitizers   []*sanitizer.Sanitizer
+	config       classifier
+	taggedFields fieldtags.TaggedFields
 }
 
 // Node returns the underlying ssa.Node of the Source.
@@ -51,11 +53,12 @@ func (a *Source) Node() ssa.Node {
 }
 
 // New constructs a Source
-func New(in ssa.Node, config classifier) *Source {
+func New(in ssa.Node, config classifier, taggedFields fieldtags.TaggedFields) *Source {
 	a := &Source{
-		node:   in,
-		marked: make(map[ssa.Node]bool),
-		config: config,
+		node:         in,
+		marked:       make(map[ssa.Node]bool),
+		config:       config,
+		taggedFields: taggedFields,
 	}
 	a.dfs(in)
 	return a
@@ -95,7 +98,7 @@ func (a *Source) visitReferrers(referrers *[]ssa.Instruction) {
 				a.sanitizers = append(a.sanitizers, &sanitizer.Sanitizer{Call: v})
 			}
 		case *ssa.FieldAddr:
-			if !a.config.IsSourceFieldAddr(v) {
+			if !a.config.IsSourceFieldAddr(v) && !a.taggedFields.IsSource(v) {
 				continue
 			}
 		}
@@ -171,7 +174,7 @@ func (a *Source) String() string {
 	return b.String()
 }
 
-func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Source {
+func identify(conf classifier, ssaInput *buildssa.SSA, taggedFields fieldtags.TaggedFields) map[*ssa.Function][]*Source {
 	sourceMap := make(map[*ssa.Function][]*Source)
 
 	for _, fn := range ssaInput.SrcFuncs {
@@ -181,9 +184,9 @@ func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Sour
 		}
 
 		var sources []*Source
-		sources = append(sources, sourcesFromParams(fn, conf)...)
-		sources = append(sources, sourcesFromClosure(fn, conf)...)
-		sources = append(sources, sourcesFromBlocks(fn, conf)...)
+		sources = append(sources, sourcesFromParams(fn, conf, taggedFields)...)
+		sources = append(sources, sourcesFromClosure(fn, conf, taggedFields)...)
+		sources = append(sources, sourcesFromBlocks(fn, conf, taggedFields)...)
 
 		if len(sources) > 0 {
 			sourceMap[fn] = sources
@@ -192,13 +195,13 @@ func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Sour
 	return sourceMap
 }
 
-func sourcesFromParams(fn *ssa.Function, conf classifier) []*Source {
+func sourcesFromParams(fn *ssa.Function, conf classifier, taggedFields fieldtags.TaggedFields) []*Source {
 	var sources []*Source
 	for _, p := range fn.Params {
 		switch t := p.Type().(type) {
 		case *types.Pointer:
 			if n, ok := t.Elem().(*types.Named); ok && conf.IsSource(n) {
-				sources = append(sources, New(p, conf))
+				sources = append(sources, New(p, conf, taggedFields))
 			}
 			// TODO Handle the case where sources arepassed by value: func(c sourceType)
 			// TODO Handle cases where PII is wrapped in struct/slice/map
@@ -207,7 +210,7 @@ func sourcesFromParams(fn *ssa.Function, conf classifier) []*Source {
 	return sources
 }
 
-func sourcesFromClosure(fn *ssa.Function, conf classifier) []*Source {
+func sourcesFromClosure(fn *ssa.Function, conf classifier, taggedFields fieldtags.TaggedFields) []*Source {
 	var sources []*Source
 	for _, p := range fn.FreeVars {
 		switch t := p.Type().(type) {
@@ -215,14 +218,14 @@ func sourcesFromClosure(fn *ssa.Function, conf classifier) []*Source {
 			// FreeVars (variables from a closure) appear as double-pointers
 			// Hence, the need to dereference them recursively.
 			if s, ok := utils.Dereference(t).(*types.Named); ok && conf.IsSource(s) {
-				sources = append(sources, New(p, conf))
+				sources = append(sources, New(p, conf, taggedFields))
 			}
 		}
 	}
 	return sources
 }
 
-func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
+func sourcesFromBlocks(fn *ssa.Function, conf classifier, taggedFields fieldtags.TaggedFields) []*Source {
 	var sources []*Source
 	for _, b := range fn.Blocks {
 		if b == fn.Recover {
@@ -235,14 +238,14 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 			// Looking for sources of PII allocated within the body of a function.
 			case *ssa.Alloc:
 				if conf.IsSource(utils.Dereference(v.Type())) && !isProducedBySanitizer(v, conf) {
-					sources = append(sources, New(v, conf))
+					sources = append(sources, New(v, conf, taggedFields))
 				}
 
 				// Handling the case where PII may be in a receiver
 				// (ex. func(b *something) { log.Info(something.PII) }
 			case *ssa.FieldAddr:
-				if conf.IsSource(utils.Dereference(v.Type())) {
-					sources = append(sources, New(v, conf))
+				if conf.IsSource(utils.Dereference(v.Type())) || taggedFields.IsSource(v) {
+					sources = append(sources, New(v, conf, taggedFields))
 				}
 			}
 		}

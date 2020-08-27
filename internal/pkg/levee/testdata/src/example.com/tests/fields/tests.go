@@ -20,15 +20,18 @@ import (
 )
 
 func TestFieldAccessors(s core.Source, ptr *core.Source) {
-	core.Sinkf("Data: %v", s.GetData()) // want "a source has reached a sink"
+	core.Sinkf("Data: %v", s.GetData())     // want "a source has reached a sink"
+	core.Sinkf("Tagged: %v", s.GetTagged()) // want "a source has reached a sink"
 	core.Sinkf("ID: %v", s.GetID())
 
-	core.Sinkf("Data: %v", ptr.GetData()) // want "a source has reached a sink"
+	core.Sinkf("Data: %v", ptr.GetData())     // want "a source has reached a sink"
+	core.Sinkf("Tagged: %v", ptr.GetTagged()) // want "a source has reached a sink"
 	core.Sinkf("ID: %v", ptr.GetID())
 }
 
 func TestDirectFieldAccess(c *core.Source) {
-	core.Sinkf("Data: %v", c.Data) // want "a source has reached a sink"
+	core.Sinkf("Data: %v", c.Data)     // want "a source has reached a sink"
+	core.Sinkf("Tagged: %v", c.Tagged) // want "a source has reached a sink"
 	core.Sinkf("ID: %v", c.ID)
 }
 
@@ -37,11 +40,13 @@ func TestProtoStyleFieldAccessorSanitizedPII(c *core.Source) {
 }
 
 func TestProtoStyleFieldAccessorPIISecondLevel(wrapper struct{ *core.Source }) {
-	core.Sinkf("Source data: %v", wrapper.Source.GetData()) // want "a source has reached a sink"
+	core.Sinkf("Source data: %v", wrapper.Source.GetData())     // want "a source has reached a sink"
+	core.Sinkf("Source tagged: %v", wrapper.Source.GetTagged()) // want "a source has reached a sink"
 	core.Sinkf("Source id: %v", wrapper.Source.GetID())
 }
 
-func tesDirectFieldAccessorPIISecondLevel(wrapper struct{ *core.Source }) {
-	core.Sinkf("Source data: %v", wrapper.Source.Data) // want "a source has reached a sink"
+func TestDirectFieldAccessorPIISecondLevel(wrapper struct{ *core.Source }) {
+	core.Sinkf("Source data: %v", wrapper.Source.Data)     // want "a source has reached a sink"
+	core.Sinkf("Source tagged: %v", wrapper.Source.Tagged) // want "a source has reached a sink"
 	core.Sinkf("Source id: %v", wrapper.Source.ID)
 }

@@ -15,9 +15,11 @@
 package core
 
 // Source will be configured to be detected as a source struct, with Source.Data as the source field.
+// Source.Tagged is also a source field, as indicated by the field tag.
 type Source struct {
-	Data string
-	ID   int
+	Data   string
+	Tagged string `levee:"source"`
+	ID     int
 }
 
 func (s Source) GetID() int {
@@ -26,6 +28,10 @@ func (s Source) GetID() int {
 
 func (s Source) GetData() string {
 	return s.Data
+}
+
+func (s Source) GetTagged() string {
+	return s.Tagged
 }
 
 // Innocuous will _not_ be configured to be a source, even though underlying types are equal.
