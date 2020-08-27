@@ -266,7 +266,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 			}
 
 			// all of the above instructions are values as per ssa/doc.go
-			v, _ := instr.(ssa.Value)
+			v := instr.(ssa.Value)
 			if conf.IsSource(utils.Dereference(v.Type())) {
 				sources = append(sources, New(v.(ssa.Node), conf))
 			}
