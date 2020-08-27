@@ -70,12 +70,9 @@ func (s sanitizer) String() string {
 // A GenericFunc is a generic Go function, i.e. neither a sink nor a sanitizer.
 // As such, each of its arguments may or may not reach a sink. Also, each of
 // its arguments may taint 0 or more of its return values.
-// Because it may taint its return values, GenericFunc provides a way for
-// users to know how many results (return values) it has.
 type GenericFunc struct {
-	sinks   []bool
-	taints  [][]int
-	results int
+	sinks  []bool
+	taints [][]int
 }
 
 func newGenericFunc(f *ssa.Function) GenericFunc {
@@ -132,9 +129,4 @@ func (g GenericFunc) String() string {
 	b.WriteString(strings.Join(taints, " "))
 	b.WriteString("> }")
 	return b.String()
-}
-
-// Results returns the number of results (return values) that this function has.
-func (g GenericFunc) Results() int {
-	return g.results
 }
