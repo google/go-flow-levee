@@ -12,28 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package core
+package inlining
 
-func Sink() {} // want "sink"
+import (
+	"example.com/core"
+)
 
-func NotSink() {}
+func NewSource() *core.Source {
+	return &core.Source{}
+}
 
-type Sinker struct{}
+func TestInlinedCall() {
+	core.Sink(NewSource()) // want "a source has reached a sink"
+}
 
-func (s Sinker) Do() {} // want "sink"
+func TestInlinedRecv(sources <-chan core.Source) {
+	core.Sink(<-sources) // want "a source has reached a sink"
+}
 
-func (s Sinker) DoNot() {}
+func TestInlinedArrayIndex(sources [1]core.Source) {
+	core.Sink(sources[0]) // want "a source has reached a sink"
+}
 
-type NotSinker struct{}
-
-func (ns NotSinker) Do() {}
-
-func Calls() {
-	Sink() // want "sink call"
-	NotSink()
-	s := Sinker{}
-	s.Do() // want "sink call"
-	s.DoNot()
-	ns := NotSinker{}
-	ns.Do()
+func TestInlinedMapKey(sources map[string]core.Source) {
+	core.Sink(sources["source"]) // want "a source has reached a sink"
 }

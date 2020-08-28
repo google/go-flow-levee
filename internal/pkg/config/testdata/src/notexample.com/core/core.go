@@ -16,10 +16,6 @@ package core
 
 func Sink() {}
 
-func NotSink() {}
-
 type Sinker struct{}
 
 func (s Sinker) Do() {}
-
-func (s Sinker) DoNot() {}

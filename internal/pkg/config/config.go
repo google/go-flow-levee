@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"go/types"
 	"io/ioutil"
+	"strings"
 	"sync"
 
 	"github.com/google/go-flow-levee/internal/pkg/config/regexp"
@@ -61,7 +62,7 @@ func (c Config) IsSinkFunction(f *ssa.Function) bool {
 
 	var recvName string
 	if recv := f.Signature.Recv(); recv != nil {
-		recvName = recv.Type().String()
+		recvName = unqualifiedName(recv)
 	}
 
 	for _, p := range c.Sinks {
@@ -186,10 +187,19 @@ func (r callMatcher) Match(c *ssa.Call) bool {
 	recv := c.Call.Signature().Recv()
 	var recvName string
 	if recv != nil {
-		recvName = recv.Type().String()
+		recvName = unqualifiedName(recv)
 	}
 
 	return r.ReceiverRE.MatchString(recvName)
+}
+
+func unqualifiedName(v *types.Var) string {
+	packageQualifiedName := v.Type().String()
+	dotPos := strings.LastIndexByte(packageQualifiedName, '.')
+	if dotPos == -1 {
+		return packageQualifiedName
+	}
+	return packageQualifiedName[dotPos+1:]
 }
 
 var readFileOnce sync.Once

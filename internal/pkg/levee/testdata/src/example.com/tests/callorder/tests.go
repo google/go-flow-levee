@@ -12,28 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package core
+package callorder
 
-func Sink() {} // want "sink"
+import (
+	"fmt"
+	"io"
 
-func NotSink() {}
+	"example.com/core"
+)
 
-type Sinker struct{}
+func TestTaintBeforeSinking(s core.Source, w io.Writer) {
+	_, _ = fmt.Fprintf(w, "%v", s)
+	core.Sink(w) // want "a source has reached a sink"
+}
 
-func (s Sinker) Do() {} // want "sink"
+func TestSinkBeforeTainting(s core.Source, w io.Writer) {
+	core.Sink(w)
+	_, _ = fmt.Fprintf(w, "%v", s)
+}
 
-func (s Sinker) DoNot() {}
-
-type NotSinker struct{}
-
-func (ns NotSinker) Do() {}
-
-func Calls() {
-	Sink() // want "sink call"
-	NotSink()
-	s := Sinker{}
-	s.Do() // want "sink call"
-	s.DoNot()
-	ns := NotSinker{}
-	ns.Do()
+func TestSinkBeforeAndAfterTainting(s core.Source, w io.Writer) {
+	core.Sink(w)
+	_, _ = fmt.Fprintf(w, "%v", s)
+	core.Sink(w) // want "a source has reached a sink"
 }
