@@ -7,6 +7,19 @@ before_script:
 - go install golang.org/x/tools/cmd/goimports
 
 script:
+- >
+  failed=false
+  echo "Checking JSON files..." && (
+  while read -r -d '' line
+  do
+    if ! OUT=$(jq type "$line"); then
+      echo "$OUT"
+      failed=true
+    fi
+  done < <(find . -iname '*.json' -print0)
+  $failed
+  )
+
 - go test -v ./...
 - >
   echo "Checking goimports..." && (
@@ -34,16 +47,3 @@ script:
       false
     fi
   )
-- >
-  echo "Checking JSON files..." && (
-  failed=false
-  while read -r -d '' line
-  do
-    if ! OUT=$(jq type "$line"); then
-      echo "$OUT"
-      failed=true
-    fi
-  done < <(find . -iname '*.json' -print0)
-  $failed
-  )
-
