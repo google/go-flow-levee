@@ -7,7 +7,6 @@ before_script:
 - go install golang.org/x/tools/cmd/goimports
 
 script:
-- ./travis_scripts/check_json.sh
 - go test -v ./...
 - >
   echo "Checking goimports..." && (
@@ -35,3 +34,4 @@ script:
       false
     fi
   )
+- ./travis_scripts/check_json.sh
