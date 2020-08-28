@@ -7,7 +7,7 @@
     {
       "PackageRE": "^example.com/core$",
       "MethodRE": "^Do$",
-      "TypeRE": "^Sinker$"
+      "ReceiverRE": "^Sinker$"
     }
   ]
 }
