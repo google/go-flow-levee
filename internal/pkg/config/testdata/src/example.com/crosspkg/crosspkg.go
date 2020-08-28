@@ -38,8 +38,6 @@ func NotCoreCalls() {
 
 func NotExampleComCalls() {
 	necore.Sink()
-	necore.NotSink()
 	s := necore.Sinker{}
 	s.Do()
-	s.DoNot()
 }
