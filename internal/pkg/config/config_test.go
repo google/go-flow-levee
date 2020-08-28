@@ -21,6 +21,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
+	"golang.org/x/tools/go/ssa"
 )
 
 var testAnalyzer = &analysis.Analyzer{
@@ -42,6 +43,13 @@ func runTest(pass *analysis.Pass) (interface{}, error) {
 		if conf.IsSinkFunction(f) {
 			pass.Reportf(f.Pos(), "sink")
 		}
+		for _, b := range f.Blocks {
+			for _, i := range b.Instrs {
+				if c, ok := i.(*ssa.Call); ok && conf.IsSink(c) {
+					pass.Reportf(i.Pos(), "sink call")
+				}
+			}
+		}
 	}
 
 	return nil, nil
@@ -55,4 +63,5 @@ func TestConfig(t *testing.T) {
 	for _, p := range []string{"core", "notcore", "crosspkg"} {
 		analysistest.Run(t, testdata, testAnalyzer, filepath.Join(testdata, "src/example.com", p))
 	}
+	analysistest.Run(t, testdata, testAnalyzer, filepath.Join(testdata, "src/notexample.com/core"))
 }

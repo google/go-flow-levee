@@ -65,7 +65,7 @@ func (c Config) IsSinkFunction(f *ssa.Function) bool {
 	}
 
 	for _, p := range c.Sinks {
-		if !p.PackageRE.MatchString(f.Pkg.Pkg.Name()) || !p.MethodRE.MatchString(f.Name()) {
+		if !p.PackageRE.MatchString(f.Pkg.Pkg.Path()) || !p.MethodRE.MatchString(f.Name()) {
 			continue
 		}
 		if p.ReceiverRE.MatchString(recvName) {

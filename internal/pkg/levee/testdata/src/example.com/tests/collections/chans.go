@@ -12,34 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package crosspkg
+package collections
 
 import (
 	"example.com/core"
-	"example.com/notcore"
-	necore "notexample.com/core"
 )
 
-func CoreCalls() {
-	core.Sink() // want "sink call"
-	core.NotSink()
-	s := core.Sinker{}
-	s.Do() // want "sink call"
-	s.DoNot()
+func TestSourceReceivedFromChannelIsTainted(sources <-chan core.Source) {
+	s := <-sources
+	core.Sink(s) // want "a source has reached a sink"
 }
 
-func NotCoreCalls() {
-	notcore.Sink()
-	notcore.NotSink()
-	s := notcore.Sinker{}
-	s.Do()
-	s.DoNot()
+func TestChannelIsTaintedWhenSourceIsPlacedOnIt(sources chan<- core.Source) {
+	sources <- core.Source{}
+	core.Sink(sources) // want "a source has reached a sink"
 }
 
-func NotExampleComCalls() {
-	necore.Sink()
-	necore.NotSink()
-	s := necore.Sinker{}
-	s.Do()
-	s.DoNot()
+func TestValueObtainedFromTaintedChannelIsTainted(c chan interface{}) {
+	c <- core.Source{}
+	s := <-c
+	core.Sink(s) // want "a source has reached a sink"
+}
+
+func TestChannelIsNoLongerTaintedWhenNilledOut(sources chan core.Source) {
+	sources <- core.Source{}
+	sources = nil
+	core.Sink(sources)
 }
