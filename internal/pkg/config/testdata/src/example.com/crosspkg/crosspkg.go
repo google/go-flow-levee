@@ -12,14 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package core
+package crosspkg
 
-func Sink() {} // want "sink"
+import (
+	"example.com/core"
+	"example.com/notcore"
+)
 
-func NotSink() {}
+func CoreCalls() {
+	core.Sink() // want "sink call"
+	core.NotSink()
+	s := core.Sinker{}
+	s.Do() // want "sink call"
+	s.DoNot()
+}
 
-type Sinker struct{}
-
-func (s Sinker) Do() {} // want "sink"
-
-func (s Sinker) DoNot() {}
+func NotCoreCalls() {
+	notcore.Sink()
+	notcore.NotSink()
+	s := notcore.Sinker{}
+	s.Do()
+	s.DoNot()
+}
