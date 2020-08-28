@@ -10,13 +10,11 @@ script:
 - >
   failed=false
   echo "Checking JSON files..." && (
-  while read -r -d '' line
-  do
+  for f in $(find . -iname '*.json' -print0); do
     if ! OUT=$(jq type "$line"); then
       echo "$OUT"
       failed=true
     fi
-  done < <(find . -iname '*.json' -print0)
   $failed
   )
 
