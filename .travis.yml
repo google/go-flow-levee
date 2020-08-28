@@ -5,6 +5,7 @@ go:
 
 before_script:
 - go install golang.org/x/tools/cmd/goimports
+- sudo apt-get install -y jq
 
 script:
 - go test -v ./...
@@ -34,3 +35,15 @@ script:
       false
     fi
   )
+- >
+  echo "Checking JSON files..." && (
+  failed=false
+  while IFS= read -r -d '' line; do 
+    if ! OUT=$(jq type "$line"); then
+      echo "$OUT"
+      failed=true
+    fi
+  done < <(find . -iname '*.json' -print0)
+  $failed
+  )
+
