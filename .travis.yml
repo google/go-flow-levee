@@ -7,17 +7,7 @@ before_script:
 - go install golang.org/x/tools/cmd/goimports
 
 script:
-- >
-  failed=false
-  echo "Checking JSON files..." && (
-  for f in $(find . -iname '*.json'); do
-    if ! OUT=$(jq type "$f"); then
-      echo "$OUT"
-      failed=true
-    fi
-  done
-  $failed
-  )
+- ./travis_scripts/check_json.sh
 - go test -v ./...
 - >
   echo "Checking goimports..." && (
