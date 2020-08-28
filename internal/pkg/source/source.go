@@ -17,6 +17,7 @@ package source
 
 import (
 	"fmt"
+	"go/token"
 	"go/types"
 	"strings"
 
@@ -252,6 +253,7 @@ func sourcesFromClosure(fn *ssa.Function, conf classifier) []*Source {
 	return sources
 }
 
+// sourcesFromBlocks finds Source values created by instructions within a function's body.
 func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 	var sources []*Source
 	for _, b := range fn.Blocks {
@@ -261,26 +263,42 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 		}
 
 		for _, instr := range b.Instrs {
+			// This type switch is used to catch instructions that could produce sources.
+			// All instructions that do not match one of the cases will hit the "default"
+			// and they will not be examined any further.
 			switch v := instr.(type) {
-			// Looking for sources of PII allocated within the body of a function.
-			case *ssa.Alloc:
-				if conf.IsSource(utils.Dereference(v.Type())) && !isProducedBySanitizer(v, conf) {
-					sources = append(sources, New(v, conf))
+			// drop anything that doesn't match one of the following cases
+			default:
+				continue
+
+			// source defined as a local variable or returned from a call
+			case *ssa.Alloc, *ssa.Call:
+				// Allocs and Calls are values
+				if isProducedBySanitizer(v.(ssa.Value), conf) {
+					continue
 				}
 
-				// Handling the case where PII may be in a receiver
-				// (ex. func(b *something) { log.Info(something.PII) }
-			case *ssa.FieldAddr:
-				if conf.IsSource(utils.Dereference(v.Type())) {
-					sources = append(sources, New(v, conf))
+			// source received from chan
+			case *ssa.UnOp:
+				// not a <-chan operation
+				if v.Op != token.ARROW {
+					continue
 				}
+
+			// source obtained through a field or an index operation
+			case *ssa.FieldAddr, *ssa.IndexAddr, *ssa.Lookup:
+			}
+
+			// all of the instructions that the switch lets through are values as per ssa/doc.go
+			if v := instr.(ssa.Value); conf.IsSource(utils.Dereference(v.Type())) {
+				sources = append(sources, New(v.(ssa.Node), conf))
 			}
 		}
 	}
 	return sources
 }
 
-func isProducedBySanitizer(v *ssa.Alloc, conf classifier) bool {
+func isProducedBySanitizer(v ssa.Value, conf classifier) bool {
 	for _, instr := range *v.Referrers() {
 		store, ok := instr.(*ssa.Store)
 		if !ok {
