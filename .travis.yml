@@ -34,3 +34,4 @@ script:
       false
     fi
   )
+- echo "Checking json..." && find . -name '*.json' -exec jq type {} + &>/dev/null
