@@ -109,7 +109,6 @@ func (sp *sourcePatterns) isSource(field *ast.Field) bool {
 		for j < len(tag) && tag[j] != ':' {
 			j++
 		}
-
 		key := tag[i:j]
 		if key == "" {
 			return false
