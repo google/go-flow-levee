@@ -105,9 +105,10 @@ func (a *Source) visitReferrers(referrers *[]ssa.Instruction) {
 		case *ssa.Call:
 			// This is to avoid attaching calls where the source is the receiver, ex:
 			// core.Sinkf("Source id: %v", wrapper.Source.GetID())
-			if v.Call.Signature().Recv() != nil {
+			if recv := v.Call.Signature().Recv(); recv != nil && a.config.IsSource(utils.Dereference(recv.Type())) {
 				continue
 			}
+
 			if a.config.IsSanitizer(v) {
 				a.sanitizers = append(a.sanitizers, &sanitizer.Sanitizer{Call: v})
 			}

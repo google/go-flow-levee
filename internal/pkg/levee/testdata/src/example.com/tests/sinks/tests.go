@@ -21,6 +21,7 @@ import (
 )
 
 func TestSinks(s core.Source, writer io.Writer) {
+	core.Sinker{}.Sink(s)         // want "a source has reached a sink"
 	core.Sink(s)                  // want "a source has reached a sink"
 	core.Sinkf("a source: %v", s) // want "a source has reached a sink"
 	core.FSinkf(writer, s)        // want "a source has reached a sink"
@@ -28,6 +29,7 @@ func TestSinks(s core.Source, writer io.Writer) {
 }
 
 func TestSinksWithRef(s *core.Source, writer io.Writer) {
+	core.Sinker{}.Sink(s)         // want "a source has reached a sink"
 	core.Sink(s)                  // want "a source has reached a sink"
 	core.Sinkf("a source: %v", s) // want "a source has reached a sink"
 	core.FSinkf(writer, s)        // want "a source has reached a sink"
@@ -35,6 +37,7 @@ func TestSinksWithRef(s *core.Source, writer io.Writer) {
 }
 
 func TestSinksInnocuous(innoc core.Innocuous, writer io.Writer) {
+	core.Sinker{}.Sink(innoc)
 	core.Sink(innoc)
 	core.Sinkf("a source: %v", innoc)
 	core.FSinkf(writer, innoc)
@@ -45,6 +48,7 @@ func TestSinksInnocuous(innoc core.Innocuous, writer io.Writer) {
 }
 
 func TestSinksWithInnocuousRef(innoc *core.Innocuous, writer io.Writer) {
+	core.Sinker{}.Sink(innoc)
 	core.Sink(innoc)
 	core.Sinkf("a source: %v", innoc)
 	core.FSinkf(writer, innoc)
