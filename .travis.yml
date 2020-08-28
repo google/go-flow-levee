@@ -34,4 +34,4 @@ script:
       false
     fi
   )
-- ./travis_scripts/check_json.sh
+- echo "Checking json..." && find . -name '*.json' -exec jq type {} + &>/dev/null
