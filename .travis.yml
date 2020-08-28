@@ -10,14 +10,14 @@ script:
 - >
   failed=false
   echo "Checking JSON files..." && (
-  for f in $(find . -iname '*.json' -print0); do
-    if ! OUT=$(jq type "$line"); then
+  for f in $(find . -iname '*.json'); do
+    if ! OUT=$(jq type "$f"); then
       echo "$OUT"
       failed=true
     fi
+  done
   $failed
   )
-
 - go test -v ./...
 - >
   echo "Checking goimports..." && (
