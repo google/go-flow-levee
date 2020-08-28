@@ -115,7 +115,7 @@ func (sp *sourcePatterns) isSource(field *ast.Field) bool {
 		}
 
 		i = j + 1 // skip colon
-		if i > len(tag) {
+		if i >= len(tag) {
 			return false
 		}
 		if tag[i] == '\\' {
