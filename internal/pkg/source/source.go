@@ -223,6 +223,7 @@ func sourcesFromClosure(fn *ssa.Function, conf classifier) []*Source {
 	return sources
 }
 
+// sourcesFromBlocks finds Source values created by instructions within a function's body.
 func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 	var sources []*Source
 	for _, b := range fn.Blocks {
@@ -232,30 +233,20 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 		}
 
 		for _, instr := range b.Instrs {
+			// This type switch is used to catch instructions that could produce sources.
+			// All instructions that do not match one of the cases will hit the "default"
+			// and they will not be examined any further.
 			switch v := instr.(type) {
+			// drop anything that doesn't match one of the following cases
 			default:
 				continue
 
-			// source variable allocated
-			case *ssa.Alloc:
-				if isProducedBySanitizer(v, conf) {
+			// source defined as a local variable or returned from a call
+			case *ssa.Alloc, *ssa.Call:
+				// Allocs and Calls are values
+				if isProducedBySanitizer(v.(ssa.Value), conf) {
 					continue
 				}
-
-			// source returned from call
-			case *ssa.Call:
-				if isProducedBySanitizer(v, conf) {
-					continue
-				}
-
-			// source obtained from field
-			case *ssa.FieldAddr:
-
-			// source obtained from array by index
-			case *ssa.IndexAddr:
-
-			// source obtained from map by key
-			case *ssa.Lookup:
 
 			// source received from chan
 			case *ssa.UnOp:
@@ -263,11 +254,13 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 				if v.Op != token.ARROW {
 					continue
 				}
+
+			// source obtained through a field or an index operation
+			case *ssa.FieldAddr, *ssa.IndexAddr, *ssa.Lookup:
 			}
 
-			// all of the above instructions are values as per ssa/doc.go
-			v := instr.(ssa.Value)
-			if conf.IsSource(utils.Dereference(v.Type())) {
+			// all of the instructions that the switch lets through are values as per ssa/doc.go
+			if v := instr.(ssa.Value); conf.IsSource(utils.Dereference(v.Type())) {
 				sources = append(sources, New(v.(ssa.Node), conf))
 			}
 		}
