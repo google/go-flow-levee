@@ -1,13 +1,13 @@
 {
   "Sinks": [
     {
-      "PackageRE": "^core$",
+      "PackageRE": "^example.com/core$",
       "MethodRE": "^Sink$"
     },
     {
-      "PackageRE": "^core$",
+      "PackageRE": "^example.com/core$",
       "MethodRE": "^Do$",
-      "TypeRE": "^Sinker$"
+      "ReceiverRE": "^Sinker$"
     }
   ]
 }

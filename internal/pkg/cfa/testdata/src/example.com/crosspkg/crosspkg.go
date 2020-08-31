@@ -12,13 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package fieldtags
+package crosspkg
 
-type Person struct {
-	password             string      `levee:"source"`               // want "tagged field: fieldtags.Person.password"
-	secret               string      `json:"secret" levee:"source"` // want "tagged field: fieldtags.Person.secret"
-	another              interface{} "levee:\"source\""             // want "tagged field: fieldtags.Person.another"
-	name                 string      `some_key:"non_secret"`
-	spaceAfterFinalQuote string      `key:"value" `
-	someNotTaggedField   int
+import "example.com/cfa"
+
+func TestCrossPkg(e interface{}) { // want TestCrossPkg:"genericFunc{ sinks: <0>, taints: <<>> }"
+	cfa.OneParamSinkWrapper(e)
 }

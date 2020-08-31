@@ -12,13 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package fieldtags
+package notcore
 
-type Person struct {
-	password             string      `levee:"source"`               // want "tagged field: fieldtags.Person.password"
-	secret               string      `json:"secret" levee:"source"` // want "tagged field: fieldtags.Person.secret"
-	another              interface{} "levee:\"source\""             // want "tagged field: fieldtags.Person.another"
-	name                 string      `some_key:"non_secret"`
-	spaceAfterFinalQuote string      `key:"value" `
-	someNotTaggedField   int
+func Sink() {}
+
+func NotSink() {}
+
+type Sinker struct{}
+
+func (s Sinker) Do() {}
+
+func (s Sinker) DoNot() {}
+
+func Calls() {
+	Sink()
+	NotSink()
+	s := Sinker{}
+	s.Do()
+	s.DoNot()
 }
