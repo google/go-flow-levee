@@ -28,7 +28,7 @@ import (
 )
 
 // ResultType is a map telling whether an object (really a function) is a field propagator.
-type ResultType = FieldPropagators
+type ResultType map[types.Object]bool
 
 type isFieldPropagator struct{}
 
@@ -76,7 +76,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	for _, f := range pass.AllObjectFacts() {
 		isFieldPropagator[f.Object] = true
 	}
-	return FieldPropagators(isFieldPropagator), nil
+	return ResultType(isFieldPropagator), nil
 }
 
 func analyzeBlocks(pass *analysis.Pass, conf *config.Config, tf fieldtags.TaggedFields, meth *ssa.Function) {
@@ -119,10 +119,8 @@ func fieldAddr(x ssa.Value) (*ssa.FieldAddr, bool) {
 	return nil, false
 }
 
-type FieldPropagators map[types.Object]bool
-
 // Contains determines whether a call is a field propagator, i.e. whether it is contained by the FieldPropagators map.
-func (f FieldPropagators) Contains(c *ssa.Call) bool {
+func (r ResultType) Contains(c *ssa.Call) bool {
 	cf, ok := c.Call.Value.(*ssa.Function)
-	return ok && f[cf.Object()]
+	return ok && r[cf.Object()]
 }
