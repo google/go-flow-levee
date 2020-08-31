@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package fieldtags
+package core
 
-type Person struct {
-	password             string      `levee:"source"`               // want "tagged field: password"
-	secret               string      `json:"secret" levee:"source"` // want "tagged field: secret"
-	another              interface{} "levee:\"source\""             // want "tagged field: another"
-	name                 string      `some_key:"non_secret"`
-	spaceAfterFinalQuote string      `key:"value" `
-	someNotTaggedField   int
+func Sanitize(args ...interface{}) []interface{} { // want Sanitize:"sanitizer"
+	return args
+}
+
+func SanitizeSource(s Source) Source { // want SanitizeSource:"sanitizer"
+	return Source{ID: s.ID}
 }

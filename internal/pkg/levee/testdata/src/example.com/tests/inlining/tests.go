@@ -12,13 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package fieldtags
+package inlining
 
-type Person struct {
-	password             string      `levee:"source"`               // want "tagged field: password"
-	secret               string      `json:"secret" levee:"source"` // want "tagged field: secret"
-	another              interface{} "levee:\"source\""             // want "tagged field: another"
-	name                 string      `some_key:"non_secret"`
-	spaceAfterFinalQuote string      `key:"value" `
-	someNotTaggedField   int
+import (
+	"example.com/core"
+)
+
+func NewSource() *core.Source {
+	return &core.Source{}
+}
+
+func TestInlinedCall() {
+	core.Sink(NewSource()) // want "a source has reached a sink"
+}
+
+func TestInlinedRecv(sources <-chan core.Source) {
+	core.Sink(<-sources) // want "a source has reached a sink"
+}
+
+func TestInlinedArrayIndex(sources [1]core.Source) {
+	core.Sink(sources[0]) // want "a source has reached a sink"
+}
+
+func TestInlinedMapKey(sources map[string]core.Source) {
+	core.Sink(sources["source"]) // want "a source has reached a sink"
 }

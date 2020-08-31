@@ -14,12 +14,12 @@
 
 package core
 
-func Sink() {} // want "sink"
+import "io"
 
-func NotSink() {}
+func Sink(args ...interface{}) {} // want Sink:"sink"
 
-type Sinker struct{}
+func Sinkf(format string, args ...interface{}) {} // want Sinkf:"sink"
 
-func (s Sinker) Do() {} // want "sink"
+func FSinkf(writer io.Writer, args ...interface{}) {} // want FSinkf:"sink"
 
-func (s Sinker) DoNot() {}
+func OneArgSink(interface{}) {} // want OneArgSink:"sink"

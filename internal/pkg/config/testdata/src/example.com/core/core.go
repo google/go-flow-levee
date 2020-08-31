@@ -12,14 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package notcore
+package core
 
-func Sink() {}
+func Sink() {} // want "sink"
 
 func NotSink() {}
 
 type Sinker struct{}
 
-func (s Sinker) Do() {}
+func (s Sinker) Do() {} // want "sink"
 
 func (s Sinker) DoNot() {}
+
+type NotSinker struct{}
+
+func (ns NotSinker) Do() {}
+
+func Calls() {
+	Sink() // want "sink call"
+	NotSink()
+	s := Sinker{}
+	s.Do() // want "sink call"
+	s.DoNot()
+	ns := NotSinker{}
+	ns.Do()
+}

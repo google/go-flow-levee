@@ -12,13 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package fieldtags
+package core
 
-type Person struct {
-	password             string      `levee:"source"`               // want "tagged field: password"
-	secret               string      `json:"secret" levee:"source"` // want "tagged field: secret"
-	another              interface{} "levee:\"source\""             // want "tagged field: another"
-	name                 string      `some_key:"non_secret"`
-	spaceAfterFinalQuote string      `key:"value" `
-	someNotTaggedField   int
+// Source will be configured to be detected as a source struct, with Source.Data as the source field.
+type Source struct {
+	Data string
+	ID   int
+}
+
+func (s Source) GetID() int {
+	return s.ID
+}
+
+func (s Source) GetData() string {
+	return s.Data
+}
+
+// Innocuous will _not_ be configured to be a source, even though underlying types are equal.
+type Innocuous struct {
+	Data string
+	ID   int
+}
+
+func (i Innocuous) GetID() int {
+	return i.ID
+}
+
+func (i Innocuous) GetData() string {
+	return i.Data
 }
