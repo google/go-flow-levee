@@ -109,7 +109,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return classifier, nil
 }
 
-func exportSourceFacts(pass *analysis.Pass, ssaType *ssa.Type, conf *config.Config, taggedFields fieldtags.TaggedFields) {
+func exportSourceFacts(pass *analysis.Pass, ssaType *ssa.Type, conf *config.Config, taggedFields fieldtags.ResultType) {
 	pass.ExportObjectFact(ssaType.Object(), &typeDeclFact{})
 	if under, ok := ssaType.Type().Underlying().(*types.Struct); ok {
 		for i := 0; i < under.NumFields(); i++ {

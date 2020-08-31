@@ -39,12 +39,9 @@ var patterns sourcePatterns = []keyValue{
 	{"levee", "source"},
 }
 
-// TaggedFields is a map from types.Object to bool.
+// ResultType is a map from types.Object to bool.
 // It can be used to determine whether a field is a tagged Source field.
-type TaggedFields map[types.Object]bool
-
-// ResultType is a slice of TaggedFields.
-type ResultType = TaggedFields
+type ResultType map[types.Object]bool
 
 var Analyzer = &analysis.Analyzer{
 	Name: "fieldtags",
@@ -75,10 +72,12 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 		for _, f := range (*s).Fields.List {
 			if patterns.isSource(f) && len(f.Names) > 0 {
-				fName := f.Names[0]
-				obj := pass.TypesInfo.ObjectOf(fName)
-				taggedFields[obj] = true
-				pass.Reportf(f.Pos(), "tagged field: %s", fName)
+				fNames := make([]string, len(f.Names))
+				for i, ident := range f.Names {
+					fNames[i] = ident.Name
+					taggedFields[pass.TypesInfo.ObjectOf(ident)] = true
+				}
+				pass.Reportf(f.Pos(), "tagged field: %s", strings.Join(fNames, ", "))
 			}
 		}
 	})
@@ -142,13 +141,13 @@ func (sp *sourcePatterns) isSource(field *ast.Field) bool {
 }
 
 // IsSourceFieldAddr determines whether a ssa.FieldAddr is a source, that is whether it refers to a field previously identified as a source.
-func (t TaggedFields) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
-	// incantation plundered from the documentation for ssa.FieldAddr
+func (r ResultType) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
+	// incantation plundered from the docstring for ssa.FieldAddr.Field
 	field := fa.X.Type().Underlying().(*types.Pointer).Elem().Underlying().(*types.Struct).Field(fa.Field)
-	return t.IsSource(field)
+	return r.IsSource(field)
 }
 
 // IsSource determines whether a types.Var is a source, that is whether it refers to a field previously identified as a source.
-func (t TaggedFields) IsSource(field *types.Var) bool {
-	return t[(types.Object)(field)]
+func (r ResultType) IsSource(field *types.Var) bool {
+	return r[(types.Object)(field)]
 }
