@@ -72,10 +72,12 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 		for _, f := range (*s).Fields.List {
 			if patterns.isSource(f) && len(f.Names) > 0 {
-				fName := f.Names[0]
-				obj := pass.TypesInfo.ObjectOf(fName)
-				taggedFields[obj] = true
-				pass.Reportf(f.Pos(), "tagged field: %s", fName)
+				fNames := make([]string, len(f.Names))
+				for i, ident := range f.Names {
+					fNames[i] = ident.Name
+					taggedFields[pass.TypesInfo.ObjectOf(ident)] = true
+				}
+				pass.Reportf(f.Pos(), "tagged field: %s", strings.Join(fNames, ", "))
 			}
 		}
 	})

@@ -17,11 +17,33 @@ package fieldtags
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
 func TestFieldTagsAnalysis(t *testing.T) {
 	testdata := analysistest.TestData()
 
-	analysistest.Run(t, testdata, Analyzer, "tests")
+	results := analysistest.Run(t, testdata, Analyzer, "tests")
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+
+	want := []string{
+		"password",
+		"creds",
+		"secret",
+		"another",
+	}
+
+	var got []string
+	for o := range results[0].Result.(ResultType) {
+		got = append(got, o.Name())
+	}
+
+	if diff := cmp.Diff(want, got, cmpopts.SortSlices(func(a, b string) bool { return a < b })); diff != "" {
+		t.Errorf("Tagged Fields diff (-want +got):\n%s", diff)
+	}
 }
