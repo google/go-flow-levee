@@ -18,6 +18,7 @@ import (
 	"reflect"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
+	"github.com/google/go-flow-levee/internal/pkg/fieldpropagator"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
@@ -30,7 +31,7 @@ var Analyzer = &analysis.Analyzer{
 	Doc:        "This analyzer identifies ssa.Values as dataflow sources.",
 	Flags:      config.FlagSet,
 	Run:        run,
-	Requires:   []*analysis.Analyzer{buildssa.Analyzer},
+	Requires:   []*analysis.Analyzer{buildssa.Analyzer, fieldpropagator.Analyzer},
 	ResultType: reflect.TypeOf(new(ResultType)).Elem(),
 }
 
@@ -40,12 +41,14 @@ var reporting bool
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
+	fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
+
 	conf, err := config.ReadConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	sourceMap := identify(conf, ssaInput)
+	sourceMap := identify(conf, ssaInput, fieldPropagators)
 
 	if reporting {
 		for _, srcs := range sourceMap {

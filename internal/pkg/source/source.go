@@ -21,6 +21,7 @@ import (
 	"go/types"
 	"strings"
 
+	"github.com/google/go-flow-levee/internal/pkg/fieldpropagator"
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
@@ -44,6 +45,7 @@ type Source struct {
 	preOrder        []ssa.Node
 	sanitizers      []*sanitizer.Sanitizer
 	config          classifier
+	fp              fieldpropagator.FieldPropagators
 	maxInstrReached map[*ssa.BasicBlock]int
 }
 
@@ -53,11 +55,12 @@ func (a *Source) Node() ssa.Node {
 }
 
 // New constructs a Source
-func New(in ssa.Node, config classifier) *Source {
+func New(in ssa.Node, config classifier, fp fieldpropagator.FieldPropagators) *Source {
 	a := &Source{
 		node:            in,
 		marked:          make(map[ssa.Node]bool),
 		config:          config,
+		fp:              fp,
 		maxInstrReached: map[*ssa.BasicBlock]int{},
 	}
 	a.dfs(in)
@@ -104,10 +107,12 @@ func (a *Source) visitReferrers(referrers *[]ssa.Instruction) {
 		}
 		switch v := r.(type) {
 		case *ssa.Call:
-			// This is to avoid attaching calls where the source is the receiver, ex:
-			// core.Sinkf("Source id: %v", wrapper.Source.GetID())
-			if recv := v.Call.Signature().Recv(); recv != nil && a.config.IsSource(utils.Dereference(recv.Type())) {
-				continue
+			// Do not traverse through method calls on Source types, unless the method is
+			// a field propagator.
+			if recv := v.Call.Signature().Recv(); recv != nil {
+				if a.config.IsSource(utils.Dereference(recv.Type())) && !a.fp.Contains(v) {
+					continue
+				}
 			}
 
 			if a.config.IsSanitizer(v) {
@@ -202,7 +207,7 @@ func (a *Source) String() string {
 	return b.String()
 }
 
-func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Source {
+func identify(conf classifier, ssaInput *buildssa.SSA, fp fieldpropagator.FieldPropagators) map[*ssa.Function][]*Source {
 	sourceMap := make(map[*ssa.Function][]*Source)
 
 	for _, fn := range ssaInput.SrcFuncs {
@@ -212,9 +217,9 @@ func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Sour
 		}
 
 		var sources []*Source
-		sources = append(sources, sourcesFromParams(fn, conf)...)
-		sources = append(sources, sourcesFromClosure(fn, conf)...)
-		sources = append(sources, sourcesFromBlocks(fn, conf)...)
+		sources = append(sources, sourcesFromParams(fn, conf, fp)...)
+		sources = append(sources, sourcesFromClosure(fn, conf, fp)...)
+		sources = append(sources, sourcesFromBlocks(fn, conf, fp)...)
 
 		if len(sources) > 0 {
 			sourceMap[fn] = sources
@@ -223,13 +228,13 @@ func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Sour
 	return sourceMap
 }
 
-func sourcesFromParams(fn *ssa.Function, conf classifier) []*Source {
+func sourcesFromParams(fn *ssa.Function, conf classifier, fp fieldpropagator.FieldPropagators) []*Source {
 	var sources []*Source
 	for _, p := range fn.Params {
 		switch t := p.Type().(type) {
 		case *types.Pointer:
 			if n, ok := t.Elem().(*types.Named); ok && conf.IsSource(n) {
-				sources = append(sources, New(p, conf))
+				sources = append(sources, New(p, conf, fp))
 			}
 			// TODO Handle the case where sources arepassed by value: func(c sourceType)
 			// TODO Handle cases where PII is wrapped in struct/slice/map
@@ -238,7 +243,7 @@ func sourcesFromParams(fn *ssa.Function, conf classifier) []*Source {
 	return sources
 }
 
-func sourcesFromClosure(fn *ssa.Function, conf classifier) []*Source {
+func sourcesFromClosure(fn *ssa.Function, conf classifier, fp fieldpropagator.FieldPropagators) []*Source {
 	var sources []*Source
 	for _, p := range fn.FreeVars {
 		switch t := p.Type().(type) {
@@ -246,7 +251,7 @@ func sourcesFromClosure(fn *ssa.Function, conf classifier) []*Source {
 			// FreeVars (variables from a closure) appear as double-pointers
 			// Hence, the need to dereference them recursively.
 			if s, ok := utils.Dereference(t).(*types.Named); ok && conf.IsSource(s) {
-				sources = append(sources, New(p, conf))
+				sources = append(sources, New(p, conf, fp))
 			}
 		}
 	}
@@ -254,7 +259,7 @@ func sourcesFromClosure(fn *ssa.Function, conf classifier) []*Source {
 }
 
 // sourcesFromBlocks finds Source values created by instructions within a function's body.
-func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
+func sourcesFromBlocks(fn *ssa.Function, conf classifier, fp fieldpropagator.FieldPropagators) []*Source {
 	var sources []*Source
 	for _, b := range fn.Blocks {
 		if b == fn.Recover {
@@ -291,7 +296,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 
 			// all of the instructions that the switch lets through are values as per ssa/doc.go
 			if v := instr.(ssa.Value); conf.IsSource(utils.Dereference(v.Type())) {
-				sources = append(sources, New(v.(ssa.Node), conf))
+				sources = append(sources, New(v.(ssa.Node), conf, fp))
 			}
 		}
 	}

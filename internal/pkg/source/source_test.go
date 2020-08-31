@@ -19,6 +19,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/google/go-flow-levee/internal/pkg/fieldpropagator"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 
 	"golang.org/x/tools/go/analysis"
@@ -64,11 +65,13 @@ var testAnalyzer = &analysis.Analyzer{
 	Name:     "source",
 	Run:      runTest,
 	Doc:      "test harness for the logic related to sources",
-	Requires: []*analysis.Analyzer{buildssa.Analyzer},
+	Requires: []*analysis.Analyzer{buildssa.Analyzer, fieldpropagator.Analyzer},
 }
 
 func runTest(pass *analysis.Pass) (interface{}, error) {
 	in := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
+	fp := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
+
 	config := &testConfig{
 		sourcePattern:    `\.foo`,
 		sanitizerPattern: "sanitizer",
@@ -76,7 +79,7 @@ func runTest(pass *analysis.Pass) (interface{}, error) {
 		sinkPattern:      "sink",
 	}
 
-	sm := identify(config, in)
+	sm := identify(config, in, fp)
 	for _, f := range sm {
 		for _, s := range f {
 			if s.String() != "" {

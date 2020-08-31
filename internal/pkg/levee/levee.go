@@ -19,7 +19,6 @@ import (
 	"strings"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
-	"github.com/google/go-flow-levee/internal/pkg/fieldpropagator"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ssa"
 
@@ -31,7 +30,7 @@ var Analyzer = &analysis.Analyzer{
 	Run:      run,
 	Flags:    config.FlagSet,
 	Doc:      "reports attempts to source data to sinks",
-	Requires: []*analysis.Analyzer{source.Analyzer, fieldpropagator.Analyzer},
+	Requires: []*analysis.Analyzer{source.Analyzer},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -42,7 +41,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	// TODO: respect configuration scope
 
 	sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
-	fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
 
 	// Only examine functions that have sources
 	for fn, sources := range sourcesMap {
@@ -58,9 +56,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 				switch {
-				case fieldPropagators.Contains(v):
-					sources = append(sources, source.New(v, conf))
-
 				case conf.IsSink(v):
 					for _, s := range sources {
 						if s.HasPathTo(instr.(ssa.Node)) && !s.IsSanitizedAt(v) {
