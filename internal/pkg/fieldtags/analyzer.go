@@ -39,12 +39,9 @@ var patterns sourcePatterns = []keyValue{
 	{"levee", "source"},
 }
 
-// TaggedFields is a map from types.Object to bool.
+// ResultType is a map from types.Object to bool.
 // It can be used to determine whether a field is a tagged Source field.
-type TaggedFields map[types.Object]bool
-
-// ResultType is a slice of TaggedFields.
-type ResultType = TaggedFields
+type ResultType map[types.Object]bool
 
 var Analyzer = &analysis.Analyzer{
 	Name: "fieldtags",
