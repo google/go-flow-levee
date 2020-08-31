@@ -139,13 +139,13 @@ func (sp *sourcePatterns) isSource(field *ast.Field) bool {
 }
 
 // IsSourceFieldAddr determines whether a ssa.FieldAddr is a source, that is whether it refers to a field previously identified as a source.
-func (t TaggedFields) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
+func (r ResultType) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
 	// incantation plundered from the docstring for ssa.FieldAddr.Field
 	field := fa.X.Type().Underlying().(*types.Pointer).Elem().Underlying().(*types.Struct).Field(fa.Field)
-	return t.IsSource(field)
+	return r.IsSource(field)
 }
 
 // IsSource determines whether a types.Var is a source, that is whether it refers to a field previously identified as a source.
-func (t TaggedFields) IsSource(field *types.Var) bool {
-	return t[(types.Object)(field)]
+func (r ResultType) IsSource(field *types.Var) bool {
+	return r[(types.Object)(field)]
 }

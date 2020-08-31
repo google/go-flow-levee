@@ -79,7 +79,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return FieldPropagators(isFieldPropagator), nil
 }
 
-func analyzeBlocks(pass *analysis.Pass, conf *config.Config, tf fieldtags.TaggedFields, meth *ssa.Function) {
+func analyzeBlocks(pass *analysis.Pass, conf *config.Config, tf fieldtags.ResultType, meth *ssa.Function) {
 	// Function does not return anything
 	if res := meth.Signature.Results(); res == nil || (*res).Len() == 0 {
 		return
@@ -97,7 +97,7 @@ func analyzeBlocks(pass *analysis.Pass, conf *config.Config, tf fieldtags.Tagged
 	}
 }
 
-func analyzeResults(pass *analysis.Pass, conf *config.Config, tf fieldtags.TaggedFields, meth *ssa.Function, results []ssa.Value) {
+func analyzeResults(pass *analysis.Pass, conf *config.Config, tf fieldtags.ResultType, meth *ssa.Function, results []ssa.Value) {
 	for _, r := range results {
 		fa, ok := fieldAddr(r)
 		if !ok {
