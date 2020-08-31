@@ -143,7 +143,7 @@ func (sp *sourcePatterns) isSource(field *ast.Field) bool {
 
 // IsSourceFieldAddr determines whether a ssa.FieldAddr is a source, that is whether it refers to a field previously identified as a source.
 func (t TaggedFields) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
-	// incantation plundered from the documentation for ssa.FieldAddr
+	// incantation plundered from the docstring for ssa.FieldAddr.Field
 	field := fa.X.Type().Underlying().(*types.Pointer).Elem().Underlying().(*types.Struct).Field(fa.Field)
 	return t.IsSource(field)
 }
