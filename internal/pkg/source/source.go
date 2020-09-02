@@ -82,7 +82,7 @@ func (a *Source) dfs(n ssa.Node) {
 	var operands []*ssa.Value
 	operands = n.Operands(operands)
 	if operands != nil {
-		a.visitOperands(operands)
+		a.visitOperands(n, operands)
 	}
 }
 
@@ -134,12 +134,24 @@ func (a *Source) visitReferrers(referrers *[]ssa.Instruction) {
 	}
 }
 
-func (a *Source) visitOperands(operands []*ssa.Value) {
+func (a *Source) visitOperands(n ssa.Node, operands []*ssa.Value) {
+	_, visitingFromExtract := n.(*ssa.Extract)
+
 	for _, o := range operands {
 		n, ok := (*o).(ssa.Node)
 		if !ok || a.marked[n] {
 			continue
 		}
+
+		// Do not visit a Call if the current node is an Extract.
+		// This is to avoid incorrectly tainting non-Source values that are
+		// returned from a call that has a Source among its return values,
+		// e.g. a call to a function with a signature like:
+		// func CreateSource() (core.Source, error)
+		if _, ok := (*o).(*ssa.Call); visitingFromExtract && ok {
+			continue
+		}
+
 		// An Alloc represents the allocation of space for a variable. If a Node is an Alloc,
 		// and the thing being allocated is not an array, then either:
 		// a) it is a Source value, in which case it will get its own traversal when sourcesFromBlocks
