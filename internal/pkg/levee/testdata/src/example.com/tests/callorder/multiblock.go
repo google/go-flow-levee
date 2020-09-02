@@ -54,10 +54,10 @@ func TestSinkInIfBeforeTaintInIf(s core.Source, w io.Writer) {
 
 func TestTaintInIfBeforeSinkInIf(s core.Source, w io.Writer) {
 	if true {
-		fmt.Fprintf(w, "%v", s) // want "a source has reached a sink"
+		fmt.Fprintf(w, "%v", s)
 	}
 	if true {
-		core.Sink(w)
+		core.Sink(w) // want "a source has reached a sink"
 	}
 }
 
