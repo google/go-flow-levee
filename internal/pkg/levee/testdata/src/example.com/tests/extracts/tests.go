@@ -22,7 +22,7 @@ func CreateSource() (core.Source, error) {
 	return core.Source{}, nil
 }
 
-func CreateSourceRetvalsFlipped() (error, core.Source) {
+func CreateSourceFlipped() (error, core.Source) {
 	return nil, core.Source{}
 }
 
@@ -42,19 +42,19 @@ func TestOnlySourceExtractIsTaintedInstructionOrder() {
 	core.Sink(s) // want "a source has reached a sink"
 }
 
+func TestOnlySourceExtractIsTaintedFlipped() {
+	err, s := CreateSourceFlipped()
+	core.Sink(s) // want "a source has reached a sink"
+	core.Sink(err)
+}
+
 func TestOnlySourceExtractIsTaintedInstructionOrderFlipped() {
-	err, s := CreateSourceRetvalsFlipped()
-	core.Sink(s) // want "a source has reached a sink"
-	core.Sink(err)
-}
-
-func TestExtractsFlipped() {
-	err, s := CreateSourceRetvalsFlipped()
+	err, s := CreateSourceFlipped()
 	core.Sink(err)
 	core.Sink(s) // want "a source has reached a sink"
 }
 
-func TestExtractsFromCallWithSourceArg(s core.Source) {
+func TestExtractsFromCallWithSourceArgAreTainted(s core.Source) {
 	str, i, e := TakeSource(s)
 	core.Sink(str) // want "a source has reached a sink"
 	core.Sink(i)   // want "a source has reached a sink"
