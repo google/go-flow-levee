@@ -39,12 +39,13 @@ type classifier interface {
 // its referrers.
 // Source.sanitized notes sanitizer calls that sanitize this Source
 type Source struct {
-	node            ssa.Node
-	marked          map[ssa.Node]bool
-	preOrder        []ssa.Node
-	sanitizers      []*sanitizer.Sanitizer
-	config          classifier
-	maxInstrReached map[*ssa.BasicBlock]int
+	node             ssa.Node
+	marked           map[ssa.Node]bool
+	preOrder         []ssa.Node
+	sanitizers       []*sanitizer.Sanitizer
+	config           classifier
+	maxInstrReached  map[*ssa.BasicBlock]int
+	lastBlockVisited *ssa.BasicBlock
 }
 
 // Node returns the underlying ssa.Node of the Source.
@@ -72,7 +73,7 @@ func (a *Source) dfs(n ssa.Node) {
 	a.marked[n.(ssa.Node)] = true
 
 	if instr, ok := n.(ssa.Instruction); ok {
-		a.recordIndex(instr)
+		a.record(instr)
 	}
 
 	if n.Referrers() != nil {
@@ -86,8 +87,9 @@ func (a *Source) dfs(n ssa.Node) {
 	}
 }
 
-func (a *Source) recordIndex(target ssa.Instruction) {
+func (a *Source) record(target ssa.Instruction) {
 	b := target.Block()
+	a.lastBlockVisited = b
 	i, ok := indexInBlock(target)
 	if !ok {
 		return
@@ -130,8 +132,36 @@ func (a *Source) visitReferrers(referrers *[]ssa.Instruction) {
 				continue
 			}
 		}
+
+		// If the referrer is in a different block from the one we last visited,
+		// and it can't be reached from the block we are visiting, then stop visiting.
+		rb := r.Block()
+		if a.lastBlockVisited != nil && rb != a.lastBlockVisited && !a.canReach(a.lastBlockVisited, rb) {
+			continue
+		}
+
 		a.dfs(r.(ssa.Node))
 	}
+}
+
+func (a *Source) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
+	stack := []*ssa.BasicBlock{start}
+	seen := map[*ssa.BasicBlock]bool{start: true}
+	for len(stack) > 0 {
+		current := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if current == dest {
+			return true
+		}
+		for _, s := range current.Succs {
+			if seen[s] {
+				continue
+			}
+			seen[s] = true
+			stack = append(stack, s)
+		}
+	}
+	return false
 }
 
 func (a *Source) visitOperands(operands []*ssa.Value) {
