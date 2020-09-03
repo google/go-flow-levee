@@ -28,6 +28,14 @@ func (s Source) GetData() string {
 	return s.Data
 }
 
+func (s Source) Copy() (Source, error) {
+	return s, nil
+}
+
+func (s Source) CopyPointer() (*Source, error) {
+	return &s, nil
+}
+
 // Innocuous will _not_ be configured to be a source, even though underlying types are equal.
 type Innocuous struct {
 	Data string

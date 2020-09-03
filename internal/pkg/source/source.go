@@ -290,6 +290,14 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 					continue
 				}
 
+			case *ssa.Extract:
+				call := v.Tuple.(*ssa.Call)
+				extractType := call.Call.Signature().Results().At(v.Index).Type()
+				if conf.IsSource(utils.Dereference(extractType)) {
+					sources = append(sources, New(v, conf))
+				}
+				continue
+
 			// source received from chan
 			case *ssa.UnOp:
 				// not a <-chan operation
