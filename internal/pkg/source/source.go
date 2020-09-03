@@ -290,6 +290,8 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 					continue
 				}
 
+			// An Extract is used to obtain a value from a call that returns multiple values.
+			// One of the returned values could be a Source.
 			case *ssa.Extract:
 				call := v.Tuple.(*ssa.Call)
 				extractType := call.Call.Signature().Results().At(v.Index).Type()
