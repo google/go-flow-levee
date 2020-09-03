@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"go/token"
 	"go/types"
+	"log"
 	"strings"
 
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
@@ -146,11 +147,10 @@ func (a *Source) visitReferrers(referrers *[]ssa.Instruction) {
 }
 
 func (a *Source) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
-	stack := []*ssa.BasicBlock{start}
+	stack := stack([]*ssa.BasicBlock{start})
 	seen := map[*ssa.BasicBlock]bool{start: true}
 	for len(stack) > 0 {
-		current := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
+		current := stack.pop()
 		if current == dest {
 			return true
 		}
@@ -159,7 +159,7 @@ func (a *Source) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
 				continue
 			}
 			seen[s] = true
-			stack = append(stack, s)
+			stack.push(s)
 		}
 	}
 	return false
@@ -356,4 +356,19 @@ func indexInBlock(target ssa.Instruction) (int, bool) {
 	// we can only hit this return if there is a bug in the ssa package
 	// i.e. an instruction does not appear within its parent block
 	return 0, false
+}
+
+type stack []*ssa.BasicBlock
+
+func (s *stack) pop() *ssa.BasicBlock {
+	if len(*s) == 0 {
+		log.Println("tried to pop from empty stack")
+	}
+	popped := (*s)[len(*s)-1]
+	*s = (*s)[:len(*s)-1]
+	return popped
+}
+
+func (s *stack) push(b *ssa.BasicBlock) {
+	*s = append(*s, b)
 }
