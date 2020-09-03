@@ -141,7 +141,6 @@ func (a *Source) visitReferrers(referrers *[]ssa.Instruction) {
 				continue
 			}
 		}
-
 		a.dfs(r.(ssa.Node))
 	}
 }
