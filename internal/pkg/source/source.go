@@ -103,7 +103,9 @@ func (a *Source) visitReferrers(referrers *[]ssa.Instruction) {
 	for _, r := range *referrers {
 		// If the referrer is in a different block from the one we last visited,
 		// and it can't be reached from the block we are visiting, then stop visiting.
-		if rb := r.Block(); a.lastBlockVisited != nil && rb != a.lastBlockVisited && !a.canReach(a.lastBlockVisited, rb) {
+		if rb := r.Block(); a.lastBlockVisited != nil &&
+			rb != a.lastBlockVisited &&
+			!a.canReach(a.lastBlockVisited, rb) {
 			continue
 		}
 
