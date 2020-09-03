@@ -24,6 +24,7 @@ import (
 	"sort"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
+	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
@@ -78,7 +79,7 @@ var Analyzer = &analysis.Analyzer{
 	Doc:        "This analyzer identifies types.Types values which contain dataflow sources.",
 	Flags:      config.FlagSet,
 	Run:        run,
-	Requires:   []*analysis.Analyzer{buildssa.Analyzer},
+	Requires:   []*analysis.Analyzer{buildssa.Analyzer, fieldtags.Analyzer},
 	ResultType: reflect.TypeOf(new(sourceClassifier)),
 	FactTypes:  []analysis.Fact{new(typeDeclFact), new(fieldDeclFact)},
 }
@@ -86,6 +87,7 @@ var Analyzer = &analysis.Analyzer{
 var Report bool
 
 func run(pass *analysis.Pass) (interface{}, error) {
+	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	conf, err := config.ReadConfig()
 	if err != nil {
@@ -95,7 +97,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	// Members contains all named entities
 	for _, mem := range ssaInput.Pkg.Members {
 		if ssaType, ok := mem.(*ssa.Type); ok && conf.IsSource(ssaType.Type()) {
-			exportSourceFacts(pass, ssaType, conf)
+			exportSourceFacts(pass, ssaType, conf, taggedFields)
 		}
 	}
 
@@ -107,11 +109,15 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return classifier, nil
 }
 
-func exportSourceFacts(pass *analysis.Pass, ssaType *ssa.Type, conf *config.Config) {
+func exportSourceFacts(pass *analysis.Pass, ssaType *ssa.Type, conf *config.Config, taggedFields fieldtags.ResultType) {
 	pass.ExportObjectFact(ssaType.Object(), &typeDeclFact{})
 	if under, ok := ssaType.Type().Underlying().(*types.Struct); ok {
 		for i := 0; i < under.NumFields(); i++ {
-			if fld := under.Field(i); conf.IsSourceField(ssaType.Type(), fld) && fld.Pkg() == pass.Pkg {
+			fld := under.Field(i)
+			if fld.Pkg() != pass.Pkg {
+				continue
+			}
+			if conf.IsSourceField(ssaType.Type(), fld) || taggedFields.IsSource(fld) {
 				pass.ExportObjectFact(fld, &fieldDeclFact{})
 			}
 		}
