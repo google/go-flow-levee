@@ -47,3 +47,17 @@ func TestSourceDeclarations() {
 func TestSourceParameters(val Source, ptr *Source) { // want "source identified" "source identified"
 
 }
+
+func TestSourceExtracts() {
+	s, err := CreateSource() // want "source identified" "source identified"
+	sp, err := NewSource()   // want "source identified"
+	_, _, _ = s, sp, err
+}
+
+func CreateSource() (Source, error) {
+	return Source{}, nil // want "source identified"
+}
+
+func NewSource() (*Source, error) {
+	return &Source{}, nil // want "source identified"
+}
