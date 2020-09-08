@@ -43,3 +43,8 @@ func TestNotGuaranteedSanitization(c *core.Source) {
 	}
 	core.Sinkf("Sometimes sanitized: %v", p) // want "a source has reached a sink"
 }
+
+func TestSanitizationByPointer(c core.Source) {
+	core.SanitizePtr(&c)
+	core.Sink(c)
+}

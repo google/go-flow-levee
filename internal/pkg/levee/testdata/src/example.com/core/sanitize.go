@@ -21,3 +21,7 @@ func Sanitize(args ...interface{}) []interface{} {
 func SanitizeSource(s Source) Source {
 	return Source{ID: s.ID}
 }
+
+func SanitizePtr(s *Source) {
+	s.Data = "<redacted>"
+}
