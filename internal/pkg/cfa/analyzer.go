@@ -27,10 +27,7 @@ import (
 )
 
 // ResultType is a mapping from types.Object to cfa.Function
-type ResultType = Functions
-
-// Functions is a mapping from types.Object to cfa.Function
-type Functions map[types.Object]Function
+type ResultType = map[types.Object]Function
 
 type funcFact struct {
 	Function
@@ -69,7 +66,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 		functions[f.Object] = ff.Function
 	}
-	return Functions(functions), nil
+	return functions, nil
 }
 
 func analyze(pass *analysis.Pass, conf *config.Config, analyzing map[*ssa.Function]bool, fn *ssa.Function) {
