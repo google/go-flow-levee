@@ -63,7 +63,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 				case conf.IsSink(v):
 					for _, s := range sources {
-						if s.HasPathTo(instr.(ssa.Node)) && !s.IsSanitizedAt(v) {
+						if s.HasPathTo(instr.(ssa.Node)) {
 							report(pass, s, v)
 							break
 						}

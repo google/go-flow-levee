@@ -21,7 +21,6 @@ import (
 	"go/types"
 	"strings"
 
-	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
@@ -37,12 +36,10 @@ type classifier interface {
 // Source represents a Source in an SSA call tree.
 // It is based on ssa.Node, with the added functionality of computing the recursive graph of
 // its referrers.
-// Source.sanitized notes sanitizer calls that sanitize this Source
 type Source struct {
 	node            ssa.Node
 	marked          map[ssa.Node]bool
 	preOrder        []ssa.Node
-	sanitizers      []*sanitizer.Sanitizer
 	config          classifier
 	maxInstrReached map[*ssa.BasicBlock]int
 }
@@ -111,7 +108,7 @@ func (a *Source) visitReferrers(referrers *[]ssa.Instruction) {
 			}
 
 			if a.config.IsSanitizer(v) {
-				a.sanitizers = append(a.sanitizers, &sanitizer.Sanitizer{Call: v})
+				continue
 			}
 
 			// If this call's index is lower than the highest in its block,
@@ -191,17 +188,6 @@ func (a *Source) RefersTo(n ssa.Node) bool {
 // HasPathTo returns true when a Node is part of declaration-use graph.
 func (a *Source) HasPathTo(n ssa.Node) bool {
 	return a.marked[n]
-}
-
-// IsSanitizedAt returns true when the Source is sanitized by the supplied instruction.
-func (a *Source) IsSanitizedAt(call ssa.Instruction) bool {
-	for _, s := range a.sanitizers {
-		if s.Dominates(call) {
-			return true
-		}
-	}
-
-	return false
 }
 
 // String implements Stringer interface.

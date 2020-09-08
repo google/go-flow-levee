@@ -22,7 +22,7 @@ type foo struct {
 }
 
 func f1() {
-	f := &foo{name: "n", password: "p"} // want "sanitizer"
+	f := &foo{name: "n", password: "p"} // want ""
 	sanitizer(f)
 	fmt.Println(f)
 }
