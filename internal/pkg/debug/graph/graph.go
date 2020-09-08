@@ -88,8 +88,7 @@ func (g *FuncGraph) visit(b *ssa.BasicBlock) {
 }
 
 func (g *FuncGraph) visitOperands(n ssa.Node) {
-	var operands []*ssa.Value
-	operands = n.Operands(operands)
+	operands := n.Operands(nil)
 	if operands == nil {
 		return
 	}
