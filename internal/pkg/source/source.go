@@ -102,6 +102,11 @@ func (a *Source) visitReferrers(n ssa.Node) {
 	referrers := a.referrersToVisit(n)
 
 	for _, r := range referrers {
+		// If the referrer is in a different block from the one we last visited,
+		// and it can't be reached from the block we are visiting, then stop visiting.
+		if rb := r.Block(); a.lastBlockVisited != nil && !a.canReach(a.lastBlockVisited, rb) {
+			continue
+		}
 		if a.marked[r.(ssa.Node)] {
 			continue
 		}
@@ -158,6 +163,10 @@ func (a *Source) referrersToVisit(n ssa.Node) (referrers []ssa.Instruction) {
 }
 
 func (a *Source) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
+	if start.Dominates(dest) {
+		return true
+	}
+
 	stack := stack([]*ssa.BasicBlock{start})
 	seen := map[*ssa.BasicBlock]bool{start: true}
 	for len(stack) > 0 {
