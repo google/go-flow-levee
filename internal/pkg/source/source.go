@@ -102,11 +102,6 @@ func (a *Source) visitReferrers(n ssa.Node) {
 	referrers := a.referrersToVisit(n)
 
 	for _, r := range referrers {
-		// If the referrer is in a different block from the one we last visited,
-		// and it can't be reached from the block we are visiting, then stop visiting.
-		if rb := r.Block(); a.lastBlockVisited != nil && !a.canReach(a.lastBlockVisited, rb) {
-			continue
-		}
 		if a.marked[r.(ssa.Node)] {
 			continue
 		}
