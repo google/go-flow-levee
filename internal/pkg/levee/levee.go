@@ -61,7 +61,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				case fieldPropagators.Contains(v):
 					sources = append(sources, source.New(v, conf))
 
-				case conf.IsSink(v):
+				case conf.IsSinkCall(v):
 					for _, s := range sources {
 						if s.HasPathTo(instr.(ssa.Node)) && !s.IsSanitizedAt(v) {
 							report(pass, s, v)
