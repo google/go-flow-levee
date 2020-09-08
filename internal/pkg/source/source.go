@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"go/token"
 	"go/types"
+	"log"
 	"strings"
 
 	"github.com/google/go-flow-levee/internal/pkg/utils"
@@ -37,11 +38,12 @@ type classifier interface {
 // It is based on ssa.Node, with the added functionality of computing the recursive graph of
 // its referrers.
 type Source struct {
-	node            ssa.Node
-	marked          map[ssa.Node]bool
-	preOrder        []ssa.Node
-	config          classifier
-	maxInstrReached map[*ssa.BasicBlock]int
+	node             ssa.Node
+	marked           map[ssa.Node]bool
+	preOrder         []ssa.Node
+	config           classifier
+	maxInstrReached  map[*ssa.BasicBlock]int
+	lastBlockVisited *ssa.BasicBlock
 }
 
 // Node returns the underlying ssa.Node of the Source.
@@ -69,7 +71,7 @@ func (a *Source) dfs(n ssa.Node) {
 	a.marked[n.(ssa.Node)] = true
 
 	if instr, ok := n.(ssa.Instruction); ok {
-		a.recordIndex(instr)
+		a.record(instr)
 	}
 
 	if n.Referrers() != nil {
@@ -83,8 +85,9 @@ func (a *Source) dfs(n ssa.Node) {
 	}
 }
 
-func (a *Source) recordIndex(target ssa.Instruction) {
+func (a *Source) record(target ssa.Instruction) {
 	b := target.Block()
+	a.lastBlockVisited = b
 	i, ok := indexInBlock(target)
 	if !ok {
 		return
@@ -96,6 +99,12 @@ func (a *Source) recordIndex(target ssa.Instruction) {
 
 func (a *Source) visitReferrers(referrers *[]ssa.Instruction) {
 	for _, r := range *referrers {
+		// If the referrer is in a different block from the one we last visited,
+		// and it can't be reached from the block we are visiting, then stop visiting.
+		if rb := r.Block(); a.lastBlockVisited != nil && !a.canReach(a.lastBlockVisited, rb) {
+			continue
+		}
+
 		if a.marked[r.(ssa.Node)] {
 			continue
 		}
@@ -129,6 +138,29 @@ func (a *Source) visitReferrers(referrers *[]ssa.Instruction) {
 		}
 		a.dfs(r.(ssa.Node))
 	}
+}
+
+func (a *Source) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
+	if start.Dominates(dest) {
+		return true
+	}
+
+	stack := stack([]*ssa.BasicBlock{start})
+	seen := map[*ssa.BasicBlock]bool{start: true}
+	for len(stack) > 0 {
+		current := stack.pop()
+		if current == dest {
+			return true
+		}
+		for _, s := range current.Succs {
+			if seen[s] {
+				continue
+			}
+			seen[s] = true
+			stack.push(s)
+		}
+	}
+	return false
 }
 
 func (a *Source) visitOperands(n ssa.Node, operands []*ssa.Value) {
@@ -323,4 +355,19 @@ func indexInBlock(target ssa.Instruction) (int, bool) {
 	// we can only hit this return if there is a bug in the ssa package
 	// i.e. an instruction does not appear within its parent block
 	return 0, false
+}
+
+type stack []*ssa.BasicBlock
+
+func (s *stack) pop() *ssa.BasicBlock {
+	if len(*s) == 0 {
+		log.Println("tried to pop from empty stack")
+	}
+	popped := (*s)[len(*s)-1]
+	*s = (*s)[:len(*s)-1]
+	return popped
+}
+
+func (s *stack) push(b *ssa.BasicBlock) {
+	*s = append(*s, b)
 }
