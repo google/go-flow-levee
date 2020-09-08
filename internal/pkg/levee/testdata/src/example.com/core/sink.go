@@ -16,6 +16,10 @@ package core
 
 import "io"
 
+type Sinker struct{}
+
+func (s Sinker) Sink(args ...interface{}) {}
+
 func Sink(args ...interface{}) {}
 
 func Sinkf(format string, args ...interface{}) {}

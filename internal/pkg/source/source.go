@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"go/token"
 	"go/types"
+	"log"
 	"strings"
 
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
@@ -39,12 +40,13 @@ type classifier interface {
 // its referrers.
 // Source.sanitized notes sanitizer calls that sanitize this Source
 type Source struct {
-	node            ssa.Node
-	marked          map[ssa.Node]bool
-	preOrder        []ssa.Node
-	sanitizers      []*sanitizer.Sanitizer
-	config          classifier
-	maxInstrReached map[*ssa.BasicBlock]int
+	node             ssa.Node
+	marked           map[ssa.Node]bool
+	preOrder         []ssa.Node
+	sanitizers       []*sanitizer.Sanitizer
+	config           classifier
+	maxInstrReached  map[*ssa.BasicBlock]int
+	lastBlockVisited *ssa.BasicBlock
 }
 
 // Node returns the underlying ssa.Node of the Source.
@@ -72,7 +74,7 @@ func (a *Source) dfs(n ssa.Node) {
 	a.marked[n.(ssa.Node)] = true
 
 	if instr, ok := n.(ssa.Instruction); ok {
-		a.recordIndex(instr)
+		a.record(instr)
 	}
 
 	if n.Referrers() != nil {
@@ -82,12 +84,13 @@ func (a *Source) dfs(n ssa.Node) {
 	var operands []*ssa.Value
 	operands = n.Operands(operands)
 	if operands != nil {
-		a.visitOperands(operands)
+		a.visitOperands(n, operands)
 	}
 }
 
-func (a *Source) recordIndex(target ssa.Instruction) {
+func (a *Source) record(target ssa.Instruction) {
 	b := target.Block()
+	a.lastBlockVisited = b
 	i, ok := indexInBlock(target)
 	if !ok {
 		return
@@ -99,6 +102,12 @@ func (a *Source) recordIndex(target ssa.Instruction) {
 
 func (a *Source) visitReferrers(referrers *[]ssa.Instruction) {
 	for _, r := range *referrers {
+		// If the referrer is in a different block from the one we last visited,
+		// and it can't be reached from the block we are visiting, then stop visiting.
+		if rb := r.Block(); a.lastBlockVisited != nil && !a.canReach(a.lastBlockVisited, rb) {
+			continue
+		}
+
 		if a.marked[r.(ssa.Node)] {
 			continue
 		}
@@ -106,9 +115,10 @@ func (a *Source) visitReferrers(referrers *[]ssa.Instruction) {
 		case *ssa.Call:
 			// This is to avoid attaching calls where the source is the receiver, ex:
 			// core.Sinkf("Source id: %v", wrapper.Source.GetID())
-			if v.Call.Signature().Recv() != nil {
+			if recv := v.Call.Signature().Recv(); recv != nil && a.config.IsSource(utils.Dereference(recv.Type())) {
 				continue
 			}
+
 			if a.config.IsSanitizer(v) {
 				a.sanitizers = append(a.sanitizers, &sanitizer.Sanitizer{Call: v})
 			}
@@ -133,12 +143,47 @@ func (a *Source) visitReferrers(referrers *[]ssa.Instruction) {
 	}
 }
 
-func (a *Source) visitOperands(operands []*ssa.Value) {
+func (a *Source) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
+	if start.Dominates(dest) {
+		return true
+	}
+
+	stack := stack([]*ssa.BasicBlock{start})
+	seen := map[*ssa.BasicBlock]bool{start: true}
+	for len(stack) > 0 {
+		current := stack.pop()
+		if current == dest {
+			return true
+		}
+		for _, s := range current.Succs {
+			if seen[s] {
+				continue
+			}
+			seen[s] = true
+			stack.push(s)
+		}
+	}
+	return false
+}
+
+func (a *Source) visitOperands(n ssa.Node, operands []*ssa.Value) {
+	_, visitingFromExtract := n.(*ssa.Extract)
+
 	for _, o := range operands {
 		n, ok := (*o).(ssa.Node)
 		if !ok || a.marked[n] {
 			continue
 		}
+
+		// Do not visit a Call if the current node is an Extract.
+		// This is to avoid incorrectly tainting non-Source values that are
+		// returned from a call that has a Source among its return values,
+		// e.g. a call to a function with a signature like:
+		// func CreateSource() (core.Source, error)
+		if _, ok := (*o).(*ssa.Call); visitingFromExtract && ok {
+			continue
+		}
+
 		// An Alloc represents the allocation of space for a variable. If a Node is an Alloc,
 		// and the thing being allocated is not an array, then either:
 		// a) it is a Source value, in which case it will get its own traversal when sourcesFromBlocks
@@ -324,4 +369,19 @@ func indexInBlock(target ssa.Instruction) (int, bool) {
 	// we can only hit this return if there is a bug in the ssa package
 	// i.e. an instruction does not appear within its parent block
 	return 0, false
+}
+
+type stack []*ssa.BasicBlock
+
+func (s *stack) pop() *ssa.BasicBlock {
+	if len(*s) == 0 {
+		log.Println("tried to pop from empty stack")
+	}
+	popped := (*s)[len(*s)-1]
+	*s = (*s)[:len(*s)-1]
+	return popped
+}
+
+func (s *stack) push(b *ssa.BasicBlock) {
+	*s = append(*s, b)
 }
