@@ -290,15 +290,14 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 					continue
 				}
 
-			// An Extract is used to obtain a value from a call that returns multiple values.
-			// One of the returned values could be a Source.
+			// An Extract is used to obtain a value from an instruction that returns multiple values.
+			// The extracted value could be a Source.
 			case *ssa.Extract:
-				call := v.Tuple.(*ssa.Call)
-				extractType := call.Call.Signature().Results().At(v.Index).Type()
-				if conf.IsSource(utils.Dereference(extractType)) {
+				if t := v.Tuple.Type().(*types.Tuple).At(v.Index).Type(); conf.IsSource(utils.Dereference(t)) {
 					sources = append(sources, New(v, conf))
+					continue
 				}
-				continue
+				break
 
 			// source received from chan
 			case *ssa.UnOp:
