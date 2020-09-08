@@ -79,8 +79,7 @@ func (a *Source) dfs(n ssa.Node) {
 		a.visitReferrers(n.Referrers())
 	}
 
-	var operands []*ssa.Value
-	operands = n.Operands(operands)
+	operands := n.Operands(nil)
 	if operands != nil {
 		a.visitOperands(n, operands)
 	}
