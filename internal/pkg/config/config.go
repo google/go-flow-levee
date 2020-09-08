@@ -159,12 +159,11 @@ func (fm funcMatcher) matchPackage(p *types.Package) bool {
 // To explicitly match a method with no receiver (i.e., a top-level function),
 // provide the ReceiverRE regexp `^$`.
 func (fm funcMatcher) Match(f *ssa.Function) bool {
-	pkg, name, sig := f.Pkg.Pkg, f.Name(), f.Signature
-	if !fm.matchPackage(pkg) || !fm.MethodRE.MatchString(name) {
+	if !fm.matchPackage(f.Pkg.Pkg) || !fm.MethodRE.MatchString(f.Name()) {
 		return false
 	}
 
-	recv := sig.Recv()
+	recv := f.Signature.Recv()
 	var recvName string
 	if recv != nil {
 		recvName = unqualifiedName(recv)
