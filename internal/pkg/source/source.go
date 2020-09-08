@@ -146,6 +146,10 @@ func (a *Source) visitReferrers(referrers *[]ssa.Instruction) {
 }
 
 func (a *Source) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
+	if start.Dominates(dest) {
+		return true
+	}
+
 	stack := stack([]*ssa.BasicBlock{start})
 	seen := map[*ssa.BasicBlock]bool{start: true}
 	for len(stack) > 0 {
