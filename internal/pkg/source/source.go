@@ -122,6 +122,11 @@ func (a *Source) visitReferrers(n ssa.Node) {
 	}
 }
 
+// referrersToVisit produces a filtered list of Referrers for an ssa.Node.
+// Specifically, we avoid referrers that:
+// - Are in a block that is not reachable from the current instruction
+// - Are calls to a Source method
+// - Are calls that occur earlier in the same block as the value being referred
 func (a *Source) referrersToVisit(n ssa.Node) (referrers []ssa.Instruction) {
 	if n.Referrers() == nil {
 		return
