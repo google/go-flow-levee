@@ -49,9 +49,13 @@ func TestSourceParameters(val Source, ptr *Source) { // want "source identified"
 }
 
 func TestSourceExtracts() {
-	s, err := CreateSource() // want "source identified" "source identified"
-	sp, err := NewSource()   // want "source identified"
-	_, _, _ = s, sp, err
+	s, err := CreateSource()                     // want "source identified"
+	sptr, err := NewSource()                     // want "source identified"
+	mapSource, ok := map[string]Source{}[""]     // want "source identified"
+	mapSourcePtr, ok := map[string]*Source{}[""] // want "source identified"
+	chanSource, ok := <-(make(chan Source))      // want "source identified"
+	chanSourcePtr, ok := <-(make(chan *Source))  // want "source identified"
+	_, _, _, _, _, _, _, _ = s, sptr, mapSource, chanSource, mapSourcePtr, chanSourcePtr, err, ok
 }
 
 func CreateSource() (Source, error) {
