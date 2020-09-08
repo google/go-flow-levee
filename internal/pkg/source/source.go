@@ -77,9 +77,7 @@ func (a *Source) dfs(n ssa.Node) {
 		a.record(instr)
 	}
 
-	if n.Referrers() != nil {
-		a.visitReferrers(n.Referrers())
-	}
+	a.visitReferrers(n)
 
 	operands := n.Operands(nil)
 	if operands != nil {
@@ -99,38 +97,18 @@ func (a *Source) record(target ssa.Instruction) {
 	}
 }
 
-func (a *Source) visitReferrers(referrers *[]ssa.Instruction) {
-	for _, r := range *referrers {
-		// If the referrer is in a different block from the one we last visited,
-		// and it can't be reached from the block we are visiting, then stop visiting.
-		if rb := r.Block(); a.lastBlockVisited != nil && !a.canReach(a.lastBlockVisited, rb) {
-			continue
-		}
+func (a *Source) visitReferrers(n ssa.Node) {
+	referrers := a.referrersToVisit(n)
 
+	for _, r := range referrers {
 		if a.marked[r.(ssa.Node)] {
 			continue
 		}
+
 		switch v := r.(type) {
 		case *ssa.Call:
-			// This is to avoid attaching calls where the source is the receiver, ex:
-			// core.Sinkf("Source id: %v", wrapper.Source.GetID())
-			if recv := v.Call.Signature().Recv(); recv != nil && a.config.IsSource(utils.Dereference(recv.Type())) {
-				continue
-			}
-
 			if a.config.IsSanitizer(v) {
 				a.sanitizers = append(a.sanitizers, &sanitizer.Sanitizer{Call: v})
-			}
-
-			// If this call's index is lower than the highest in its block,
-			// then this call is "in the past" and we should stop traversing.
-			i, ok := indexInBlock(r)
-			if !ok {
-				break
-			}
-
-			if i < a.maxInstrReached[r.Block()] {
-				continue
 			}
 
 		case *ssa.FieldAddr:
@@ -138,8 +116,49 @@ func (a *Source) visitReferrers(referrers *[]ssa.Instruction) {
 				continue
 			}
 		}
+
 		a.dfs(r.(ssa.Node))
 	}
+}
+
+// referrersToVisit produces a filtered list of Referrers for an ssa.Node.
+// Specifically, we avoid referrers that:
+// - Are in a block that is not reachable from the current instruction
+// - Are calls to a Source method
+// - Are calls that occur earlier in the same block as the value being referred
+func (a *Source) referrersToVisit(n ssa.Node) (referrers []ssa.Instruction) {
+	if n.Referrers() == nil {
+		return
+	}
+	for _, r := range *n.Referrers() {
+		// If the referrer is in a different block from the one we last visited,
+		// and it can't be reached from the block we are visiting, then stop visiting.
+		if rb := r.Block(); a.lastBlockVisited != nil &&
+			rb != a.lastBlockVisited &&
+			!a.canReach(a.lastBlockVisited, rb) {
+			continue
+		}
+
+		if c, ok := r.(*ssa.Call); ok {
+			// This is to avoid attaching calls where the source is the receiver, ex:
+			// core.Sinkf("Source id: %v", wrapper.Source.GetID())
+			if recv := c.Call.Signature().Recv(); recv != nil && a.config.IsSource(utils.Dereference(recv.Type())) {
+				continue
+			}
+
+			// If this call's index is lower than the highest in its block,
+			// then this call is "in the past" and we should stop traversing.
+			i, ok := indexInBlock(r)
+			if !ok {
+				continue
+			}
+			if i < a.maxInstrReached[r.Block()] {
+				continue
+			}
+		}
+		referrers = append(referrers, r)
+	}
+	return referrers
 }
 
 func (a *Source) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
