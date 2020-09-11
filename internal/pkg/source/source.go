@@ -340,6 +340,16 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 					continue
 				}
 
+			// An Extract is used to obtain a value from an instruction that returns multiple values.
+			// If the Extract is used to get a Pointer, create a Source, otherwise the Source won't
+			// have an Alloc and we'll miss it.
+			case *ssa.Extract:
+				t := v.Tuple.Type().(*types.Tuple).At(v.Index).Type()
+				if _, ok := t.(*types.Pointer); ok && conf.IsSource(utils.Dereference(t)) {
+					sources = append(sources, New(v, conf))
+				}
+				continue
+
 			// source received from chan
 			case *ssa.UnOp:
 				// not a <-chan operation
