@@ -30,6 +30,12 @@ import (
 // ResultType is a map telling whether an object (really a function) is a field propagator.
 type ResultType map[types.Object]bool
 
+// IsFieldPropagator determines whether a call is a field propagator.
+func (r ResultType) IsFieldPropagator(c *ssa.Call) bool {
+	cf, ok := c.Call.Value.(*ssa.Function)
+	return ok && r[cf.Object()]
+}
+
 type isFieldPropagator struct{}
 
 func (i isFieldPropagator) AFact() {}
@@ -117,10 +123,4 @@ func fieldAddr(x ssa.Value) (*ssa.FieldAddr, bool) {
 		return fieldAddr(t.X)
 	}
 	return nil, false
-}
-
-// Contains determines whether a call is a field propagator, i.e. whether it is contained by the FieldPropagators map.
-func (r ResultType) Contains(c *ssa.Call) bool {
-	cf, ok := c.Call.Value.(*ssa.Function)
-	return ok && r[cf.Object()]
 }

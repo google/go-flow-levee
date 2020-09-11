@@ -58,7 +58,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 				switch {
-				case fieldPropagators.Contains(v):
+				case fieldPropagators.IsFieldPropagator(v):
 					sources = append(sources, source.New(v, conf))
 
 				case conf.IsSink(v):
