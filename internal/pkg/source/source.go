@@ -50,74 +50,74 @@ type Source struct {
 }
 
 // Node returns the underlying ssa.Node of the Source.
-func (a *Source) Node() ssa.Node {
-	return a.node
+func (s *Source) Node() ssa.Node {
+	return s.node
 }
 
 // New constructs a Source
 func New(in ssa.Node, config classifier) *Source {
-	a := &Source{
+	s := &Source{
 		node:            in,
 		marked:          make(map[ssa.Node]bool),
 		config:          config,
 		maxInstrReached: map[*ssa.BasicBlock]int{},
 	}
-	a.dfs(in)
-	return a
+	s.dfs(in)
+	return s
 }
 
 // dfs performs Depth-First-Search on the def-use graph of the input Source.
 // While traversing the graph we also look for potential sanitizers of this Source.
 // If the Source passes through a sanitizer, dfs does not continue through that Node.
-func (a *Source) dfs(n ssa.Node) {
-	a.preOrder = append(a.preOrder, n)
-	a.marked[n.(ssa.Node)] = true
+func (s *Source) dfs(n ssa.Node) {
+	s.preOrder = append(s.preOrder, n)
+	s.marked[n.(ssa.Node)] = true
 
 	if instr, ok := n.(ssa.Instruction); ok {
-		a.record(instr)
+		s.record(instr)
 	}
 
-	a.visitReferrers(n)
+	s.visitReferrers(n)
 
 	operands := n.Operands(nil)
 	if operands != nil {
-		a.visitOperands(n, operands)
+		s.visitOperands(n, operands)
 	}
 }
 
-func (a *Source) record(target ssa.Instruction) {
+func (s *Source) record(target ssa.Instruction) {
 	b := target.Block()
-	a.lastBlockVisited = b
+	s.lastBlockVisited = b
 	i, ok := indexInBlock(target)
 	if !ok {
 		return
 	}
-	if a.maxInstrReached[b] < i {
-		a.maxInstrReached[b] = i
+	if s.maxInstrReached[b] < i {
+		s.maxInstrReached[b] = i
 	}
 }
 
-func (a *Source) visitReferrers(n ssa.Node) {
-	referrers := a.referrersToVisit(n)
+func (s *Source) visitReferrers(n ssa.Node) {
+	referrers := s.referrersToVisit(n)
 
 	for _, r := range referrers {
-		if a.marked[r.(ssa.Node)] {
+		if s.marked[r.(ssa.Node)] {
 			continue
 		}
 
 		switch v := r.(type) {
 		case *ssa.Call:
-			if a.config.IsSanitizer(v) {
-				a.sanitizers = append(a.sanitizers, &sanitizer.Sanitizer{Call: v})
+			if s.config.IsSanitizer(v) {
+				s.sanitizers = append(s.sanitizers, &sanitizer.Sanitizer{Call: v})
 			}
 
 		case *ssa.FieldAddr:
-			if !a.config.IsSourceFieldAddr(v) {
+			if !s.config.IsSourceFieldAddr(v) {
 				continue
 			}
 		}
 
-		a.dfs(r.(ssa.Node))
+		s.dfs(r.(ssa.Node))
 	}
 }
 
@@ -126,23 +126,23 @@ func (a *Source) visitReferrers(n ssa.Node) {
 // - Are in a block that is not reachable from the current instruction
 // - Are calls to a Source method
 // - Are calls that occur earlier in the same block as the value being referred
-func (a *Source) referrersToVisit(n ssa.Node) (referrers []ssa.Instruction) {
+func (s *Source) referrersToVisit(n ssa.Node) (referrers []ssa.Instruction) {
 	if n.Referrers() == nil {
 		return
 	}
 	for _, r := range *n.Referrers() {
 		// If the referrer is in a different block from the one we last visited,
 		// and it can't be reached from the block we are visiting, then stop visiting.
-		if rb := r.Block(); a.lastBlockVisited != nil &&
-			rb != a.lastBlockVisited &&
-			!a.canReach(a.lastBlockVisited, rb) {
+		if rb := r.Block(); s.lastBlockVisited != nil &&
+			rb != s.lastBlockVisited &&
+			!s.canReach(s.lastBlockVisited, rb) {
 			continue
 		}
 
 		if c, ok := r.(*ssa.Call); ok {
 			// This is to avoid attaching calls where the source is the receiver, ex:
 			// core.Sinkf("Source id: %v", wrapper.Source.GetID())
-			if recv := c.Call.Signature().Recv(); recv != nil && a.config.IsSource(utils.Dereference(recv.Type())) {
+			if recv := c.Call.Signature().Recv(); recv != nil && s.config.IsSource(utils.Dereference(recv.Type())) {
 				continue
 			}
 
@@ -152,7 +152,7 @@ func (a *Source) referrersToVisit(n ssa.Node) (referrers []ssa.Instruction) {
 			if !ok {
 				continue
 			}
-			if i < a.maxInstrReached[r.Block()] {
+			if i < s.maxInstrReached[r.Block()] {
 				continue
 			}
 		}
@@ -161,7 +161,7 @@ func (a *Source) referrersToVisit(n ssa.Node) (referrers []ssa.Instruction) {
 	return referrers
 }
 
-func (a *Source) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
+func (s *Source) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
 	if start.Dominates(dest) {
 		return true
 	}
@@ -184,12 +184,12 @@ func (a *Source) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
 	return false
 }
 
-func (a *Source) visitOperands(n ssa.Node, operands []*ssa.Value) {
+func (s *Source) visitOperands(n ssa.Node, operands []*ssa.Value) {
 	_, visitingFromExtract := n.(*ssa.Extract)
 
 	for _, o := range operands {
 		n, ok := (*o).(ssa.Node)
-		if !ok || a.marked[n] {
+		if !ok || s.marked[n] {
 			continue
 		}
 
@@ -214,7 +214,7 @@ func (a *Source) visitOperands(n ssa.Node, operands []*ssa.Value) {
 				return
 			}
 		}
-		a.dfs(n)
+		s.dfs(n)
 	}
 }
 
@@ -222,9 +222,9 @@ func (a *Source) visitOperands(n ssa.Node, operands []*ssa.Value) {
 // taint-propagation analysis. Concretely, only propagators, sanitizers and
 // sinks should constitute the output. Since, we already know what the source
 // is, it is also removed.
-func (a *Source) compress() []ssa.Node {
+func (s *Source) compress() []ssa.Node {
 	var compressed []ssa.Node
-	for _, n := range a.preOrder {
+	for _, n := range s.preOrder {
 		switch n.(type) {
 		case *ssa.Call:
 			compressed = append(compressed, n)
@@ -234,19 +234,19 @@ func (a *Source) compress() []ssa.Node {
 	return compressed
 }
 
-func (a *Source) RefersTo(n ssa.Node) bool {
-	return a.HasPathTo(n)
+func (s *Source) RefersTo(n ssa.Node) bool {
+	return s.HasPathTo(n)
 }
 
 // HasPathTo returns true when a Node is part of declaration-use graph.
-func (a *Source) HasPathTo(n ssa.Node) bool {
-	return a.marked[n]
+func (s *Source) HasPathTo(n ssa.Node) bool {
+	return s.marked[n]
 }
 
 // IsSanitizedAt returns true when the Source is sanitized by the supplied instruction.
-func (a *Source) IsSanitizedAt(call ssa.Instruction) bool {
-	for _, s := range a.sanitizers {
-		if s.Dominates(call) {
+func (s *Source) IsSanitizedAt(call ssa.Instruction) bool {
+	for _, san := range s.sanitizers {
+		if san.Dominates(call) {
 			return true
 		}
 	}
@@ -255,9 +255,9 @@ func (a *Source) IsSanitizedAt(call ssa.Instruction) bool {
 }
 
 // String implements Stringer interface.
-func (a *Source) String() string {
+func (s *Source) String() string {
 	var b strings.Builder
-	for _, n := range a.compress() {
+	for _, n := range s.compress() {
 		b.WriteString(fmt.Sprintf("%v ", n))
 	}
 
