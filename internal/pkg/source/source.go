@@ -293,8 +293,6 @@ func sourcesFromParams(fn *ssa.Function, conf classifier) []*Source {
 			if n, ok := t.Elem().(*types.Named); ok && conf.IsSource(n) {
 				sources = append(sources, New(p, conf))
 			}
-			// TODO Handle the case where sources arepassed by value: func(c sourceType)
-			// TODO Handle cases where PII is wrapped in struct/slice/map
 		}
 	}
 	return sources
