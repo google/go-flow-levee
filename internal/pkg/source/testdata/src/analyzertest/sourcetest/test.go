@@ -41,15 +41,15 @@ func TestSourceDeclarations() {
 	var ptr *Source
 	// We do want a "source identified" here.
 	// ptr does not get optimized out because it gets assigned.
-	ptr = &Source{}                                      // want "source identified"
-	newPtr := new(Source)                                // want "source identified"
-	ptrToDeclZero := &Source{}                           // want "source identified"
-	ptrToDeclPopulated := &Source{Data: "secret", ID: 1} // want "source identified"
+	ptr = &Source{}                                       // want "source identified"
+	newPtr := new(Source)                                 // want "source identified"
+	ptrToDeclZero := &Source{}                            // want "source identified"
+	ptrToDeclPopulataed := &Source{Data: "secret", ID: 1} // want "source identified"
 
 	alias := Alias{} // want "source identified"
 	def := Definition{}
 
-	noop(varZeroVal, declZeroVal, populatedVal, constPtr, ptr, newPtr, ptrToDeclZero, ptrToDeclPopulated, alias, def)
+	noop(varZeroVal, declZeroVal, populatedVal, constPtr, ptr, newPtr, ptrToDeclZero, ptrToDeclPopulataed, alias, def)
 }
 
 // A report should be emitted for each parameter.
