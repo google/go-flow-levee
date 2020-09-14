@@ -74,13 +74,11 @@ func (r *renderer) writeEdges() {
 }
 
 func (r *renderer) addReferrer(n ssa.Node, ref ssa.Node) {
-	// TODO: document this somewhere?
 	// Red as in R-eferrer
 	r.addEdge(n, ref, "red")
 }
 
 func (r *renderer) addOperand(n ssa.Node, op ssa.Node) {
-	// TODO: document this somewhere?
 	// Orange as in O-perand
 	r.addEdge(n, op, "orange")
 }

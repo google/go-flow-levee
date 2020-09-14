@@ -39,8 +39,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	// TODO: respect configuration scope
-
 	sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
 	fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
 
@@ -48,7 +46,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	for fn, sources := range sourcesMap {
 		for _, b := range fn.Blocks {
 			if b == fn.Recover {
-				// TODO Handle calls to sinks in a recovery block.
 				continue // skipping Recover since it does not have instructions, rather a single block.
 			}
 

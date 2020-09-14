@@ -35,10 +35,6 @@ var Analyzer = &analysis.Analyzer{
 	ResultType: reflect.TypeOf(new(ResultType)).Elem(),
 }
 
-// When reporting is true, report findings to pass.Report.
-// TODO This should be a flag passable to the common config.
-var reporting bool
-
 func run(pass *analysis.Pass) (interface{}, error) {
 	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	conf, err := config.ReadConfig()
@@ -48,11 +44,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 	sourceMap := identify(conf, ssaInput)
 
-	if reporting {
-		for _, srcs := range sourceMap {
-			for _, s := range srcs {
-				report(pass, s.Pos())
-			}
+	for _, srcs := range sourceMap {
+		for _, s := range srcs {
+			report(pass, s.Pos())
 		}
 	}
 
