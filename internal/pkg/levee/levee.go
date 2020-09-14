@@ -39,8 +39,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	// TODO: respect configuration scope
-
 	sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
 	fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
 
