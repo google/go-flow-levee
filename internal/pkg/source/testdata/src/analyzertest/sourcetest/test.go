@@ -20,6 +20,9 @@ type Source struct {
 	ID   int    // public
 }
 
+// source alias
+type Alias = Source
+
 // This function allows us to consume multiple arguments in a single line so this file can compile
 func noop(args ...interface{}) {}
 
@@ -35,12 +38,14 @@ func TestSourceDeclarations() {
 	var ptr *Source
 	// We do want a "source identified" here.
 	// ptr does not get optimized out because it gets assigned.
-	ptr = &Source{}                                       // want "source identified"
-	newPtr := new(Source)                                 // want "source identified"
-	ptrToDeclZero := &Source{}                            // want "source identified"
-	ptrToDeclPopulataed := &Source{Data: "secret", ID: 1} // want "source identified"
+	ptr = &Source{}                                      // want "source identified"
+	newPtr := new(Source)                                // want "source identified"
+	ptrToDeclZero := &Source{}                           // want "source identified"
+	ptrToDeclPopulated := &Source{Data: "secret", ID: 1} // want "source identified"
 
-	noop(varZeroVal, declZeroVal, populatedVal, constPtr, ptr, newPtr, ptrToDeclZero, ptrToDeclPopulataed)
+	alias := Alias{} // want "source identified"
+
+	noop(varZeroVal, declZeroVal, populatedVal, constPtr, ptr, newPtr, ptrToDeclZero, ptrToDeclPopulated, alias)
 }
 
 // A report should be emitted for each parameter.
