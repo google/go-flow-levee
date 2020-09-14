@@ -51,13 +51,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	if reporting {
 		for _, srcs := range sourceMap {
 			for _, s := range srcs {
-				// Extracts don't have a registered position in the source code,
-				// so we need to use the position of their related Tuple.
-				if e, ok := s.node.(*ssa.Extract); ok {
-					report(pass, e.Tuple.Pos())
-					continue
-				}
-				report(pass, s.node.Pos())
+				report(pass, s.Pos())
 			}
 		}
 	}
@@ -66,5 +60,5 @@ func run(pass *analysis.Pass) (interface{}, error) {
 }
 
 func report(pass *analysis.Pass, pos token.Pos) {
-	pass.Reportf(pos, "source identified")
+	pass.Reportf(pos, "source identified at %s", pass.Fset.Position(pos))
 }

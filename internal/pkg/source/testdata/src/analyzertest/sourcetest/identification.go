@@ -14,12 +14,6 @@
 
 package sourcetest
 
-// source container
-type Source struct {
-	Data string // source field
-	ID   int    // public
-}
-
 // This function allows us to consume multiple arguments in a single line so this file can compile
 func noop(args ...interface{}) {}
 
@@ -56,12 +50,4 @@ func TestSourceExtracts() {
 	chanSource, ok := <-(make(chan Source))      // want "source identified"
 	chanSourcePtr, ok := <-(make(chan *Source))  // want "source identified"
 	_, _, _, _, _, _, _, _ = s, sptr, mapSource, chanSource, mapSourcePtr, chanSourcePtr, err, ok
-}
-
-func CreateSource() (Source, error) {
-	return Source{}, nil // want "source identified"
-}
-
-func NewSource() (*Source, error) {
-	return &Source{}, nil // want "source identified"
 }

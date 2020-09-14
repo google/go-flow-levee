@@ -79,6 +79,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 func report(pass *analysis.Pass, source *source.Source, sink ssa.Node) {
 	var b strings.Builder
 	b.WriteString("a source has reached a sink")
-	fmt.Fprintf(&b, ", source: %v", pass.Fset.Position(source.Node().Pos()))
+	fmt.Fprintf(&b, ", source: %v", pass.Fset.Position(source.Pos()))
 	pass.Reportf(sink.Pos(), b.String())
 }
