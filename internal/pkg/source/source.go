@@ -318,7 +318,6 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 	var sources []*Source
 	for _, b := range fn.Blocks {
 		if b == fn.Recover {
-			// TODO Handle calls to log in a recovery block.
 			continue
 		}
 
