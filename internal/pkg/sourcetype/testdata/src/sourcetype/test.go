@@ -21,10 +21,14 @@ type Source struct { // want Source:"source type"
 	ID           int
 }
 
+type SourceContainingTaggedField struct { // want SourceContainingTaggedField:"source type"
+	Tagged string `levee:"source"` // want Tagged:"source field"
+}
+
 type AliasStruct = Source // want AliasStruct:"source type"
 
-// TODO Consider automatic detection of the following types.
-type NamedType Source
+type NamedType Source // want NamedType:"source type"
+
 type SliceContainer []Source
 type ArrayContainer [5]Source
 type MapKeyContainer map[Source]interface{}
