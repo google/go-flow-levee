@@ -14,28 +14,7 @@
 
 package sourcetest
 
-func TestSourceValueDeclaration() {
-	s := Source{} // want "source identified at .*position.go:18:2"
-	_ = s
-}
-
-func TestSourcePointerDeclaration() {
-	s := &Source{} // want "source identified at .*position.go:23:14"
-	_ = s
-}
-
-func TestSourceValueParameter(val Source) { // want "source identified at .*position.go:27:31"
-}
-
-func TestSourcePointerParameter(ptr *Source) { // want "source identified at .*position.go:30:33"
-}
-
-func TestSourceValueExtract() {
-	s, _ := CreateSource() // want "source identified at .*position.go:34:2"
-	_ = s
-}
-
 func TestSourcePointerExtract() {
-	s, _ := NewSource() // want "source identified at .*position.go:39:19"
+	s, _ := NewSource() // want "source identified at .*position.go:18:19"
 	_ = s
 }

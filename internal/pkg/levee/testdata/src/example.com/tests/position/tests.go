@@ -18,14 +18,9 @@ import (
 	"example.com/core"
 )
 
-func TestSourceValue() {
-	s := core.Source{}
-	core.Sink(s) // want "a source has reached a sink, source: .*tests.go:26:2"
-}
-
 func TestSourcePointerExtract() {
 	s, _ := NewSource()
-	core.Sink(s) // want "a source has reached a sink, source: .*tests.go:31:19"
+	core.Sink(s) // want "a source has reached a sink, source: .*tests.go:22:19"
 }
 
 func NewSource() (*core.Source, error) {
