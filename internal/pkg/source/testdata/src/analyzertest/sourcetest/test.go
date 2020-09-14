@@ -20,8 +20,11 @@ type Source struct {
 	ID   int    // public
 }
 
-// source alias
+// type alias
 type Alias = Source
+
+// type definition where the underlying type is a Source
+type Definition Source
 
 // This function allows us to consume multiple arguments in a single line so this file can compile
 func noop(args ...interface{}) {}
@@ -44,8 +47,9 @@ func TestSourceDeclarations() {
 	ptrToDeclPopulated := &Source{Data: "secret", ID: 1} // want "source identified"
 
 	alias := Alias{} // want "source identified"
+	def := Definition{}
 
-	noop(varZeroVal, declZeroVal, populatedVal, constPtr, ptr, newPtr, ptrToDeclZero, ptrToDeclPopulated, alias)
+	noop(varZeroVal, declZeroVal, populatedVal, constPtr, ptr, newPtr, ptrToDeclZero, ptrToDeclPopulated, alias, def)
 }
 
 // A report should be emitted for each parameter.
