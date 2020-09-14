@@ -49,9 +49,14 @@ type Source struct {
 	lastBlockVisited *ssa.BasicBlock
 }
 
-// Node returns the underlying ssa.Node of the Source.
-func (s *Source) Node() ssa.Node {
-	return s.node
+// Pos returns the token position of the SSA Node associated with the Source.
+func (s *Source) Pos() token.Pos {
+	// Extracts don't have a registered position in the source code,
+	// so we need to use the position of their related Tuple.
+	if e, ok := s.node.(*ssa.Extract); ok {
+		return e.Tuple.Pos()
+	}
+	return s.node.Pos()
 }
 
 // New constructs a Source
