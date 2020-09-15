@@ -115,11 +115,6 @@ func (s *Source) visitReferrers(n ssa.Node) {
 			if s.config.IsSanitizer(v) {
 				s.sanitizers = append(s.sanitizers, &sanitizer.Sanitizer{Call: v})
 			}
-
-		case *ssa.FieldAddr:
-			if !s.config.IsSourceFieldAddr(v) {
-				continue
-			}
 		}
 
 		s.dfs(r.(ssa.Node))
@@ -161,6 +156,11 @@ func (s *Source) referrersToVisit(n ssa.Node) (referrers []ssa.Instruction) {
 				continue
 			}
 		}
+
+		if fa, ok := r.(*ssa.FieldAddr); ok && !s.config.IsSourceFieldAddr(fa) {
+			continue
+		}
+
 		referrers = append(referrers, r)
 	}
 	return referrers
