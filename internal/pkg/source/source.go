@@ -80,6 +80,9 @@ func (s *Source) dfs(n ssa.Node) {
 
 	if instr, ok := n.(ssa.Instruction); ok {
 		s.record(instr)
+		if !s.reachableFromSource(instr) {
+			return
+		}
 	}
 
 	s.visitReferrers(n)
@@ -164,6 +167,31 @@ func (s *Source) referrersToVisit(n ssa.Node) (referrers []ssa.Instruction) {
 		referrers = append(referrers, r)
 	}
 	return referrers
+}
+
+func (s *Source) reachableFromSource(target ssa.Instruction) bool {
+	// If the Source isn't an instruction, be conservative and
+	// assume the target instruction is reachable.
+	sInstr, ok := s.node.(ssa.Instruction)
+	if !ok {
+		return true
+	}
+
+	sIndex, sOk := indexInBlock(sInstr)
+	targetIndex, targetOk := indexInBlock(target)
+	if !sOk || !targetOk {
+		return true
+	}
+
+	if sInstr.Block() == target.Block() && sIndex > targetIndex {
+		return false
+	}
+
+	if !s.canReach(sInstr.Block(), target.Block()) {
+		return false
+	}
+
+	return true
 }
 
 func (s *Source) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
