@@ -170,7 +170,7 @@ func (s *Source) referrersToVisit(n ssa.Node) (referrers []ssa.Instruction) {
 }
 
 func (s *Source) reachableFromSource(target ssa.Instruction) bool {
-	// If the Source isn't an instruction, be conservative and
+	// If the Source isn't produced by an instruction, be conservative and
 	// assume the target instruction is reachable.
 	sInstr, ok := s.node.(ssa.Instruction)
 	if !ok {
