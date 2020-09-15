@@ -28,7 +28,7 @@ func (k *key) Name() string {
 
 func newKey() *key {
 	return &key{
-		name: "source",
+		name: "",
 	}
 }
 
