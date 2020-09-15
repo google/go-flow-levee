@@ -60,3 +60,27 @@ func TestExtractsFromCallWithSourceArgAreTainted(s core.Source) {
 	core.Sink(i)   // want "a source has reached a sink"
 	core.Sink(e)   // want "a source has reached a sink"
 }
+
+func NewSource() (*core.Source, error) {
+	return &core.Source{}, nil
+}
+
+func TestNewSource() {
+	s, err := NewSource()
+	core.Sink(s) // want "a source has reached a sink"
+	core.Sink(err)
+}
+
+func TestCopy() {
+	s := core.Source{}
+	cpy, err := s.Copy()
+	core.Sink(cpy) // want "a source has reached a sink"
+	core.Sink(err)
+}
+
+func TestCopyPointer() {
+	s := core.Source{}
+	cpy, err := s.CopyPointer()
+	core.Sink(cpy) // want "a source has reached a sink"
+	core.Sink(err)
+}

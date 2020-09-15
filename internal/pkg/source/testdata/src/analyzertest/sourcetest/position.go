@@ -12,20 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package source
+package sourcetest
 
-import (
-	"testing"
-
-	"github.com/google/go-flow-levee/internal/pkg/config"
-	"golang.org/x/tools/go/analysis/analysistest"
-)
-
-func TestSourceAnalysis(t *testing.T) {
-	testdata := analysistest.TestData()
-	if err := config.FlagSet.Set("config", testdata+"/src/analyzertest/test-config.json"); err != nil {
-		t.Error(err)
-	}
-
-	analysistest.Run(t, testdata, Analyzer, "analyzertest/sourcetest")
+func TestSourcePointerExtract() {
+	s, _ := NewSource() // want "source identified at .*position.go:18:19"
+	_ = s
 }

@@ -39,18 +39,16 @@ func init() {
 // config contains matchers and analysis scope information
 type Config struct {
 	Sources    []sourceMatcher
-	Sinks      []callMatcher
-	Sanitizers []callMatcher
+	Sinks      []funcMatcher
+	Sanitizers []funcMatcher
 }
 
-func (c Config) IsSink(call *ssa.Call) bool {
-	for _, p := range c.Sinks {
-		if p.Match(call) {
-			return true
-		}
+func (c Config) IsSinkCall(call *ssa.Call) bool {
+	callee := call.Call.StaticCallee()
+	if callee == nil {
+		return false
 	}
-
-	return false
+	return c.IsSinkFunction(callee)
 }
 
 func (c Config) IsSinkFunction(f *ssa.Function) bool {
@@ -60,16 +58,8 @@ func (c Config) IsSinkFunction(f *ssa.Function) bool {
 		return false
 	}
 
-	var recvName string
-	if recv := f.Signature.Recv(); recv != nil {
-		recvName = unqualifiedName(recv)
-	}
-
 	for _, p := range c.Sinks {
-		if !p.PackageRE.MatchString(f.Pkg.Pkg.Path()) || !p.MethodRE.MatchString(f.Name()) {
-			continue
-		}
-		if p.ReceiverRE.MatchString(recvName) {
+		if p.Match(f) {
 			return true
 		}
 	}
@@ -77,12 +67,16 @@ func (c Config) IsSinkFunction(f *ssa.Function) bool {
 }
 
 func (c Config) IsSanitizer(call *ssa.Call) bool {
+	callee := call.Call.StaticCallee()
+	if callee == nil {
+		return false
+	}
+
 	for _, p := range c.Sanitizers {
-		if p.Match(call) {
+		if p.Match(callee) {
 			return true
 		}
 	}
-
 	return false
 }
 
@@ -151,36 +145,30 @@ func (s sourceMatcher) match(n *types.Named) bool {
 	return s.PackageRE.MatchString(n.Obj().Pkg().Path()) && s.TypeRE.MatchString(n.Obj().Name())
 }
 
-type callMatcher struct {
+type funcMatcher struct {
 	PackageRE  regexp.Regexp
 	ReceiverRE regexp.Regexp
 	MethodRE   regexp.Regexp
 }
 
-func (r callMatcher) matchPackage(p *types.Package) bool {
-	return r.PackageRE.MatchString(p.Path())
+func (fm funcMatcher) matchPackage(p *types.Package) bool {
+	return fm.PackageRE.MatchString(p.Path())
 }
 
 // Match matches methods based on package, method, and receiver regexp.
 // To explicitly match a method with no receiver (i.e., a top-level function),
 // provide the ReceiverRE regexp `^$`.
-func (r callMatcher) Match(c *ssa.Call) bool {
-	callee := c.Call.StaticCallee()
-	if callee == nil || callee.Pkg == nil {
+func (fm funcMatcher) Match(f *ssa.Function) bool {
+	if !fm.matchPackage(f.Pkg.Pkg) || !fm.MethodRE.MatchString(f.Name()) {
 		return false
 	}
 
-	if !r.matchPackage(callee.Pkg.Pkg) || !r.MethodRE.MatchString(callee.Name()) {
-		return false
-	}
-
-	recv := c.Call.Signature().Recv()
+	recv := f.Signature.Recv()
 	var recvName string
 	if recv != nil {
 		recvName = unqualifiedName(recv)
 	}
-
-	return r.ReceiverRE.MatchString(recvName)
+	return fm.ReceiverRE.MatchString(recvName)
 }
 
 func unqualifiedName(v *types.Var) string {

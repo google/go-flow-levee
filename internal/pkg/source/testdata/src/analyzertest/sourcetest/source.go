@@ -12,40 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package core
+package sourcetest
 
-// Source will be configured to be detected as a source struct, with Source.Data as the source field.
+// source container
 type Source struct {
-	Data string
-	ID   int
+	Data string // source field
+	ID   int    // public
 }
 
-func (s Source) GetID() int {
-	return s.ID
+func CreateSource() (Source, error) {
+	return Source{}, nil // want "source identified"
 }
 
-func (s Source) GetData() string {
-	return s.Data
-}
-
-func (s Source) Copy() (Source, error) {
-	return s, nil
-}
-
-func (s Source) CopyPointer() (*Source, error) {
-	return &s, nil
-}
-
-// Innocuous will _not_ be configured to be a source, even though underlying types are equal.
-type Innocuous struct {
-	Data string
-	ID   int
-}
-
-func (i Innocuous) GetID() int {
-	return i.ID
-}
-
-func (i Innocuous) GetData() string {
-	return i.Data
+func NewSource() (*Source, error) {
+	return &Source{}, nil // want "source identified"
 }

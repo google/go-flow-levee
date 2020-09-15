@@ -45,7 +45,7 @@ func runTest(pass *analysis.Pass) (interface{}, error) {
 		}
 		for _, b := range f.Blocks {
 			for _, i := range b.Instrs {
-				if c, ok := i.(*ssa.Call); ok && conf.IsSink(c) {
+				if c, ok := i.(*ssa.Call); ok && conf.IsSinkCall(c) {
 					pass.Reportf(i.Pos(), "sink call")
 				}
 			}

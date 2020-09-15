@@ -15,6 +15,7 @@
 package source
 
 import (
+	"go/token"
 	"reflect"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
@@ -34,10 +35,6 @@ var Analyzer = &analysis.Analyzer{
 	ResultType: reflect.TypeOf(new(ResultType)).Elem(),
 }
 
-// When reporting is true, report findings to pass.Report.
-// TODO This should be a flag passable to the common config.
-var reporting bool
-
 func run(pass *analysis.Pass) (interface{}, error) {
 	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	conf, err := config.ReadConfig()
@@ -47,13 +44,15 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 	sourceMap := identify(conf, ssaInput)
 
-	if reporting {
-		for _, srcs := range sourceMap {
-			for _, s := range srcs {
-				pass.Reportf(s.node.Pos(), "source identified")
-			}
+	for _, srcs := range sourceMap {
+		for _, s := range srcs {
+			report(pass, s.Pos())
 		}
 	}
 
 	return sourceMap, nil
+}
+
+func report(pass *analysis.Pass, pos token.Pos) {
+	pass.Reportf(pos, "source identified at %s", pass.Fset.Position(pos))
 }

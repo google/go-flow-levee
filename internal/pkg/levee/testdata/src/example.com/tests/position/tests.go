@@ -12,20 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package source
+package position
 
 import (
-	"testing"
-
-	"github.com/google/go-flow-levee/internal/pkg/config"
-	"golang.org/x/tools/go/analysis/analysistest"
+	"example.com/core"
 )
 
-func TestSourceAnalysis(t *testing.T) {
-	testdata := analysistest.TestData()
-	if err := config.FlagSet.Set("config", testdata+"/src/analyzertest/test-config.json"); err != nil {
-		t.Error(err)
-	}
+func TestSourcePointerExtract() {
+	s, _ := NewSource()
+	core.Sink(s) // want "a source has reached a sink, source: .*tests.go:22:19"
+}
 
-	analysistest.Run(t, testdata, Analyzer, "analyzertest/sourcetest")
+func NewSource() (*core.Source, error) {
+	return &core.Source{}, nil
 }

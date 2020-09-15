@@ -39,8 +39,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	// TODO: respect configuration scope
-
 	sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
 	fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
 
@@ -48,7 +46,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	for fn, sources := range sourcesMap {
 		for _, b := range fn.Blocks {
 			if b == fn.Recover {
-				// TODO Handle calls to sinks in a recovery block.
 				continue // skipping Recover since it does not have instructions, rather a single block.
 			}
 
@@ -61,7 +58,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				case fieldPropagators.IsFieldPropagator(v):
 					sources = append(sources, source.New(v, conf))
 
-				case conf.IsSink(v):
+				case conf.IsSinkCall(v):
 					for _, s := range sources {
 						if s.HasPathTo(instr.(ssa.Node)) && !s.IsSanitizedAt(v) {
 							report(pass, s, v)
@@ -79,6 +76,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 func report(pass *analysis.Pass, source *source.Source, sink ssa.Node) {
 	var b strings.Builder
 	b.WriteString("a source has reached a sink")
-	fmt.Fprintf(&b, ", source: %v", pass.Fset.Position(source.Node().Pos()))
+	fmt.Fprintf(&b, ", source: %v", pass.Fset.Position(source.Pos()))
 	pass.Reportf(sink.Pos(), b.String())
 }

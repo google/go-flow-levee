@@ -14,12 +14,6 @@
 
 package sourcetest
 
-// source container
-type Source struct {
-	Data string // source field
-	ID   int    // public
-}
-
 // type alias
 type Alias = Source
 
@@ -55,4 +49,14 @@ func TestSourceDeclarations() {
 // A report should be emitted for each parameter.
 func TestSourceParameters(val Source, ptr *Source) { // want "source identified" "source identified"
 
+}
+
+func TestSourceExtracts() {
+	s, err := CreateSource()                     // want "source identified"
+	sptr, err := NewSource()                     // want "source identified"
+	mapSource, ok := map[string]Source{}[""]     // want "source identified"
+	mapSourcePtr, ok := map[string]*Source{}[""] // want "source identified"
+	chanSource, ok := <-(make(chan Source))      // want "source identified"
+	chanSourcePtr, ok := <-(make(chan *Source))  // want "source identified"
+	_, _, _, _, _, _, _, _ = s, sptr, mapSource, chanSource, mapSourcePtr, chanSourcePtr, err, ok
 }
