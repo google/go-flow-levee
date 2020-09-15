@@ -177,6 +177,8 @@ func (s *Source) reachableFromSource(target ssa.Instruction) bool {
 		return true
 	}
 
+	// If these calls fail, be conservative and assume the target
+	// instruction is reachable.
 	sIndex, sOk := indexInBlock(sInstr)
 	targetIndex, targetOk := indexInBlock(target)
 	if !sOk || !targetOk {
