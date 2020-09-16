@@ -75,12 +75,14 @@ func New(in ssa.Node, config classifier) *Source {
 // While traversing the graph we also look for potential sanitizers of this Source.
 // If the Source passes through a sanitizer, dfs does not continue through that Node.
 func (s *Source) dfs(n ssa.Node) {
-	s.preOrder = append(s.preOrder, n)
-	s.marked[n.(ssa.Node)] = true
-
 	if instr, ok := n.(ssa.Instruction); ok {
+		if !s.reachableFromSource(instr) {
+			return
+		}
 		s.record(instr)
 	}
+	s.preOrder = append(s.preOrder, n)
+	s.marked[n.(ssa.Node)] = true
 
 	s.visitReferrers(n)
 
@@ -162,6 +164,33 @@ func (s *Source) referrersToVisit(n ssa.Node) (referrers []ssa.Instruction) {
 		referrers = append(referrers, r)
 	}
 	return referrers
+}
+
+func (s *Source) reachableFromSource(target ssa.Instruction) bool {
+	// If the Source isn't produced by an instruction, be conservative and
+	// assume the target instruction is reachable.
+	sInstr, ok := s.node.(ssa.Instruction)
+	if !ok {
+		return true
+	}
+
+	// If these calls fail, be conservative and assume the target
+	// instruction is reachable.
+	sIndex, sOk := indexInBlock(sInstr)
+	targetIndex, targetOk := indexInBlock(target)
+	if !sOk || !targetOk {
+		return true
+	}
+
+	if sInstr.Block() == target.Block() && sIndex > targetIndex {
+		return false
+	}
+
+	if !s.canReach(sInstr.Block(), target.Block()) {
+		return false
+	}
+
+	return true
 }
 
 func (s *Source) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
