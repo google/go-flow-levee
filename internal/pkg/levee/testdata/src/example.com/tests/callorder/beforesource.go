@@ -18,6 +18,7 @@ import (
 	"example.com/core"
 )
 
+// This type should *not* be identified as a Source.
 type key struct {
 	name string
 }
@@ -33,6 +34,7 @@ func newKey() *key {
 }
 
 func TestDoesNotReachSinkAfterSourceThroughValueCreatedBeforeSource() {
+	// Taint should not propagate to this value.
 	k := newKey()
 
 	_ = map[string]core.Source{}[k.name]
@@ -41,6 +43,7 @@ func TestDoesNotReachSinkAfterSourceThroughValueCreatedBeforeSource() {
 }
 
 func TestDoesNotReachSinkInIfBeforeSourceThroughValueCreatedBeforeSource() {
+	// Taint should not propagate to this value.
 	k := newKey()
 
 	if true {
