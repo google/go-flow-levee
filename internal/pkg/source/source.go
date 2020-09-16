@@ -75,12 +75,10 @@ func New(in ssa.Node, config classifier) *Source {
 // While traversing the graph we also look for potential sanitizers of this Source.
 // If the Source passes through a sanitizer, dfs does not continue through that Node.
 func (s *Source) dfs(n ssa.Node) {
-	instr, ok := n.(ssa.Instruction)
-	if ok && !s.reachableFromSource(instr) {
-		return
-	}
-
-	if ok {
+	if instr, ok := n.(ssa.Instruction); ok {
+		if !s.reachableFromSource(instr) {
+			return
+		}
 		s.record(instr)
 	}
 	s.preOrder = append(s.preOrder, n)
