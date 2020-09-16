@@ -115,11 +115,6 @@ func (s *Source) visitReferrers(n ssa.Node) {
 			if s.config.IsSanitizer(v) {
 				s.sanitizers = append(s.sanitizers, &sanitizer.Sanitizer{Call: v})
 			}
-
-		case *ssa.FieldAddr:
-			if !s.config.IsSourceFieldAddr(v) {
-				continue
-			}
 		}
 
 		s.dfs(r.(ssa.Node))
@@ -127,10 +122,8 @@ func (s *Source) visitReferrers(n ssa.Node) {
 }
 
 // referrersToVisit produces a filtered list of Referrers for an ssa.Node.
-// Specifically, we avoid referrers that:
-// - Are in a block that is not reachable from the current instruction
-// - Are calls to a Source method
-// - Are calls that occur earlier in the same block as the value being referred
+// Specifically, we want to avoid referrers that shouldn't be visited, e.g.
+// because they would not be reachable in an actual execution of the program.
 func (s *Source) referrersToVisit(n ssa.Node) (referrers []ssa.Instruction) {
 	if n.Referrers() == nil {
 		return
@@ -161,6 +154,11 @@ func (s *Source) referrersToVisit(n ssa.Node) (referrers []ssa.Instruction) {
 				continue
 			}
 		}
+
+		if fa, ok := r.(*ssa.FieldAddr); ok && !s.config.IsSourceFieldAddr(fa) {
+			continue
+		}
+
 		referrers = append(referrers, r)
 	}
 	return referrers
