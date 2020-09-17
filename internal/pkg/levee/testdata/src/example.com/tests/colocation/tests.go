@@ -24,6 +24,6 @@ func TestTaintIsPropagatedToOperandAfterNonArrayAlloc(s core.Source, ip *core.In
 	core.Sink(ip) // want "a source has reached a sink"
 }
 
-func taintColocated(s core.Source, i *core.Innocuous, c interface{}) interface{} {
+func taintColocated(a interface{}, i *core.Innocuous, c interface{}) interface{} {
 	return nil
 }
