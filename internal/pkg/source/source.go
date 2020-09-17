@@ -72,6 +72,9 @@ func New(in ssa.Node, config classifier) *Source {
 // While traversing the graph we also look for potential sanitizers of this Source.
 // If the Source passes through a sanitizer, dfs does not continue through that Node.
 func (s *Source) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+	if s.marked[n] {
+		return
+	}
 	mirCopy := map[*ssa.BasicBlock]int{}
 	for m, i := range maxInstrReached {
 		mirCopy[m] = i
@@ -91,7 +94,7 @@ func (s *Source) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBl
 		s.record(instr, mirCopy, &lastBlockVisited)
 	}
 	s.preOrder = append(s.preOrder, n)
-	s.marked[n.(ssa.Node)] = true
+	s.marked[n] = true
 
 	s.visitReferrers(n, mirCopy, lastBlockVisited)
 
@@ -117,10 +120,6 @@ func (s *Source) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]
 	referrers := s.referrersToVisit(n, maxInstrReached)
 
 	for _, r := range referrers {
-		if s.marked[r.(ssa.Node)] {
-			continue
-		}
-
 		switch v := r.(type) {
 		case *ssa.Call:
 			if s.config.IsSanitizer(v) {
@@ -222,7 +221,7 @@ func (s *Source) visitOperands(n ssa.Node, operands []*ssa.Value, maxInstrReache
 
 	for _, o := range operands {
 		n, ok := (*o).(ssa.Node)
-		if !ok || s.marked[n] {
+		if !ok {
 			continue
 		}
 
