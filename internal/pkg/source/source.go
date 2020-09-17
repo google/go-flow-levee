@@ -82,7 +82,7 @@ func (s *Source) dfs(n ssa.Node) {
 		s.record(instr)
 	}
 	s.preOrder = append(s.preOrder, n)
-	s.marked[n.(ssa.Node)] = true
+	s.marked[n] = true
 
 	s.visitReferrers(n)
 
