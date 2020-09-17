@@ -36,6 +36,20 @@ func TestTaintedColocatedArgumentReachesSinkThatFollowsColocation() {
 	}
 }
 
+func TestAvoidingIncorrectPropagationFromColocationDoesNotPreventCorrectReport() {
+	source := newSource()
+
+	cp, err := copy(source)
+	if err != nil {
+		core.Sink(err) // want "a source has reached a sink"
+	}
+
+	if true {
+		innoc := newInnocuous()
+		taintColocated(cp, innoc)
+	}
+}
+
 func fail(x interface{}) error {
 	return nil
 }
@@ -45,4 +59,12 @@ func taintColocated(a, b interface{}) {
 
 func newInnocuous() *core.Innocuous {
 	return &core.Innocuous{}
+}
+
+func newSource() *core.Source {
+	return &core.Source{}
+}
+
+func copy(a interface{}) (interface{}, error) {
+	return nil, nil
 }
