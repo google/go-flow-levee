@@ -40,7 +40,7 @@ func fail(x interface{}) error {
 	return nil
 }
 
-func taintColocated(a interface{}, b interface{}) {
+func taintColocated(a, b interface{}) {
 }
 
 func newInnocuous() *core.Innocuous {
