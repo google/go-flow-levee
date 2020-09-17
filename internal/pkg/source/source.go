@@ -79,6 +79,13 @@ func (s *Source) dfs(n ssa.Node) {
 		if !s.reachableFromSource(instr) {
 			return
 		}
+		// If the referrer is in a different block from the one we last visited,
+		// and it can't be reached from the block we are visiting, then stop visiting.
+		if ib := instr.Block(); s.lastBlockVisited != nil &&
+			ib != s.lastBlockVisited &&
+			!s.canReach(s.lastBlockVisited, ib) {
+			return
+		}
 		s.record(instr)
 	}
 	s.preOrder = append(s.preOrder, n)
@@ -131,14 +138,6 @@ func (s *Source) referrersToVisit(n ssa.Node) (referrers []ssa.Instruction) {
 		return
 	}
 	for _, r := range *n.Referrers() {
-		// If the referrer is in a different block from the one we last visited,
-		// and it can't be reached from the block we are visiting, then stop visiting.
-		if rb := r.Block(); s.lastBlockVisited != nil &&
-			rb != s.lastBlockVisited &&
-			!s.canReach(s.lastBlockVisited, rb) {
-			continue
-		}
-
 		if c, ok := r.(*ssa.Call); ok {
 			// This is to avoid attaching calls where the source is the receiver, ex:
 			// core.Sinkf("Source id: %v", wrapper.Source.GetID())
