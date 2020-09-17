@@ -40,13 +40,11 @@ type classifier interface {
 // its referrers.
 // Source.sanitized notes sanitizer calls that sanitize this Source
 type Source struct {
-	node             ssa.Node
-	marked           map[ssa.Node]bool
-	preOrder         []ssa.Node
-	sanitizers       []*sanitizer.Sanitizer
-	config           classifier
-	maxInstrReached  map[*ssa.BasicBlock]int
-	lastBlockVisited *ssa.BasicBlock
+	node       ssa.Node
+	marked     map[ssa.Node]bool
+	preOrder   []ssa.Node
+	sanitizers []*sanitizer.Sanitizer
+	config     classifier
 }
 
 // Pos returns the token position of the SSA Node associated with the Source.
@@ -62,57 +60,61 @@ func (s *Source) Pos() token.Pos {
 // New constructs a Source
 func New(in ssa.Node, config classifier) *Source {
 	s := &Source{
-		node:            in,
-		marked:          make(map[ssa.Node]bool),
-		config:          config,
-		maxInstrReached: map[*ssa.BasicBlock]int{},
+		node:   in,
+		marked: make(map[ssa.Node]bool),
+		config: config,
 	}
-	s.dfs(in)
+	s.dfs(in, map[*ssa.BasicBlock]int{}, nil)
 	return s
 }
 
 // dfs performs Depth-First-Search on the def-use graph of the input Source.
 // While traversing the graph we also look for potential sanitizers of this Source.
 // If the Source passes through a sanitizer, dfs does not continue through that Node.
-func (s *Source) dfs(n ssa.Node) {
+func (s *Source) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+	mirCopy := map[*ssa.BasicBlock]int{}
+	for m, i := range maxInstrReached {
+		mirCopy[m] = i
+	}
+
 	if instr, ok := n.(ssa.Instruction); ok {
 		if !s.reachableFromSource(instr) {
 			return
 		}
 		// If the referrer is in a different block from the one we last visited,
 		// and it can't be reached from the block we are visiting, then stop visiting.
-		if ib := instr.Block(); s.lastBlockVisited != nil &&
-			ib != s.lastBlockVisited &&
-			!s.canReach(s.lastBlockVisited, ib) {
+		if ib := instr.Block(); lastBlockVisited != nil &&
+			ib != lastBlockVisited &&
+			!s.canReach(lastBlockVisited, ib) {
 			return
 		}
-		s.record(instr)
+		s.record(instr, mirCopy, &lastBlockVisited)
 	}
 	s.preOrder = append(s.preOrder, n)
 	s.marked[n.(ssa.Node)] = true
 
-	s.visitReferrers(n)
+	s.visitReferrers(n, mirCopy, lastBlockVisited)
 
 	operands := n.Operands(nil)
 	if operands != nil {
-		s.visitOperands(n, operands)
+		s.visitOperands(n, operands, mirCopy, lastBlockVisited)
 	}
 }
 
-func (s *Source) record(target ssa.Instruction) {
+func (s *Source) record(target ssa.Instruction, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited **ssa.BasicBlock) {
 	b := target.Block()
-	s.lastBlockVisited = b
+	*lastBlockVisited = b
 	i, ok := indexInBlock(target)
 	if !ok {
 		return
 	}
-	if s.maxInstrReached[b] < i {
-		s.maxInstrReached[b] = i
+	if maxInstrReached[b] < i {
+		maxInstrReached[b] = i
 	}
 }
 
-func (s *Source) visitReferrers(n ssa.Node) {
-	referrers := s.referrersToVisit(n)
+func (s *Source) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+	referrers := s.referrersToVisit(n, maxInstrReached)
 
 	for _, r := range referrers {
 		if s.marked[r.(ssa.Node)] {
@@ -126,14 +128,14 @@ func (s *Source) visitReferrers(n ssa.Node) {
 			}
 		}
 
-		s.dfs(r.(ssa.Node))
+		s.dfs(r.(ssa.Node), maxInstrReached, lastBlockVisited)
 	}
 }
 
 // referrersToVisit produces a filtered list of Referrers for an ssa.Node.
 // Specifically, we want to avoid referrers that shouldn't be visited, e.g.
 // because they would not be reachable in an actual execution of the program.
-func (s *Source) referrersToVisit(n ssa.Node) (referrers []ssa.Instruction) {
+func (s *Source) referrersToVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int) (referrers []ssa.Instruction) {
 	if n.Referrers() == nil {
 		return
 	}
@@ -151,7 +153,7 @@ func (s *Source) referrersToVisit(n ssa.Node) (referrers []ssa.Instruction) {
 			if !ok {
 				continue
 			}
-			if i < s.maxInstrReached[r.Block()] {
+			if i < maxInstrReached[r.Block()] {
 				continue
 			}
 		}
@@ -215,7 +217,7 @@ func (s *Source) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
 	return false
 }
 
-func (s *Source) visitOperands(n ssa.Node, operands []*ssa.Value) {
+func (s *Source) visitOperands(n ssa.Node, operands []*ssa.Value, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	_, visitingFromExtract := n.(*ssa.Extract)
 
 	for _, o := range operands {
@@ -245,7 +247,7 @@ func (s *Source) visitOperands(n ssa.Node, operands []*ssa.Value) {
 				return
 			}
 		}
-		s.dfs(n)
+		s.dfs(n, maxInstrReached, lastBlockVisited)
 	}
 }
 
