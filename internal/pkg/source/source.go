@@ -243,7 +243,7 @@ func (s *Source) visitOperands(n ssa.Node, operands []*ssa.Value) {
 		// is being placed into an array, slice or varags, so we do need to keep visiting.
 		if al, isAlloc := (*o).(*ssa.Alloc); isAlloc {
 			if _, isArray := utils.Dereference(al.Type()).(*types.Array); !isArray {
-				return
+				continue
 			}
 		}
 		s.dfs(n)
