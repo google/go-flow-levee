@@ -75,6 +75,10 @@ func New(in ssa.Node, config classifier) *Source {
 // While traversing the graph we also look for potential sanitizers of this Source.
 // If the Source passes through a sanitizer, dfs does not continue through that Node.
 func (s *Source) dfs(n ssa.Node) {
+	if s.marked[n] {
+		return
+	}
+
 	if instr, ok := n.(ssa.Instruction); ok {
 		if !s.reachableFromSource(instr) {
 			return
@@ -108,10 +112,6 @@ func (s *Source) visitReferrers(n ssa.Node) {
 	referrers := s.referrersToVisit(n)
 
 	for _, r := range referrers {
-		if s.marked[r.(ssa.Node)] {
-			continue
-		}
-
 		switch v := r.(type) {
 		case *ssa.Call:
 			if s.config.IsSanitizer(v) {
@@ -221,7 +221,7 @@ func (s *Source) visitOperands(n ssa.Node, operands []*ssa.Value) {
 
 	for _, o := range operands {
 		n, ok := (*o).(ssa.Node)
-		if !ok || s.marked[n] {
+		if !ok {
 			continue
 		}
 
