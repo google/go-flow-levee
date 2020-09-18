@@ -91,7 +91,12 @@ func (s *Source) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBl
 			!s.canReach(lastBlockVisited, ib) {
 			return
 		}
-		s.record(instr, mirCopy, &lastBlockVisited)
+
+		b := instr.Block()
+		if i, ok := indexInBlock(instr); ok && mirCopy[b] < i {
+			mirCopy[b] = i
+		}
+		lastBlockVisited = b
 	}
 	s.preOrder = append(s.preOrder, n)
 	s.marked[n] = true
@@ -101,18 +106,6 @@ func (s *Source) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBl
 	operands := n.Operands(nil)
 	if operands != nil {
 		s.visitOperands(n, operands, mirCopy, lastBlockVisited)
-	}
-}
-
-func (s *Source) record(target ssa.Instruction, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited **ssa.BasicBlock) {
-	b := target.Block()
-	*lastBlockVisited = b
-	i, ok := indexInBlock(target)
-	if !ok {
-		return
-	}
-	if maxInstrReached[b] < i {
-		maxInstrReached[b] = i
 	}
 }
 
