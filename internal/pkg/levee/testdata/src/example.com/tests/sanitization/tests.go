@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package dominance contains test-cases for testing PII sanitization.
-package dominance
+package sanitization
 
 import (
 	"time"
@@ -21,30 +20,40 @@ import (
 	"example.com/core"
 )
 
-func TestSanitizedSourceDoesNotTriggerFinding(c *core.Source) {
-	sanitized := core.Sanitize(c)
+func TestSanitizedSourceDoesNotTriggerFinding(s *core.Source) {
+	sanitized := core.Sanitize(s)[0]
 	core.Sinkf("Sanitized %v", sanitized)
 }
 
-func TestSanitizedSourceDoesNotTriggerFindingWhenTypeAsserted(c *core.Source) {
-	sanitized := core.Sanitize(c)[0].(*core.Source)
+func TestSanitizedSourceDoesNotTriggerFindingWhenTypeAsserted(s *core.Source) {
+	sanitized := core.Sanitize(s)[0].(*core.Source)
 	core.Sinkf("Sanitized %v", sanitized)
 }
 
-func TestSanitizedSourceDoesNotTriggerFindingWithTypedSanitizer(c core.Source) {
-	sanitized := core.SanitizeSource(c)
+func TestSanitizedSourceDoesNotTriggerFindingWithTypedSanitizer(s core.Source) {
+	sanitized := core.SanitizeSource(s)
 	core.Sinkf("Sanitized %v", sanitized)
 }
 
-func TestNotGuaranteedSanitization(c *core.Source) {
-	p := c
+func TestNotGuaranteedSanitization(s *core.Source) {
+	p := s
 	if time.Now().Weekday() == time.Monday {
-		p = core.Sanitize(c)[0].(*core.Source)
+		p = core.Sanitize(s)[0].(*core.Source)
 	}
 	core.Sinkf("Sometimes sanitized: %v", p) // want "a source has reached a sink"
 }
 
-func TestSanitizationByPointer(c core.Source) {
-	core.SanitizePtr(&c)
-	core.Sink(c)
+func TestPointerSanitization(s *core.Source) {
+	core.SanitizePtr(s)
+	core.Sink(s)
+}
+
+func TestSanitizationByReference(s core.Source) {
+	core.SanitizePtr(&s)
+	core.Sink(s)
+}
+
+func TestIncorrectSanitizationByValue(s core.Source) {
+	core.Sanitize(s)
+	core.Sink(s) // want "a source has reached a sink"
 }
