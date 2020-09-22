@@ -15,15 +15,21 @@
 package fieldtags
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/go-flow-levee/internal/pkg/config"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
 func TestFieldTagsAnalysis(t *testing.T) {
 	testdata := analysistest.TestData()
+
+	if err := config.FlagSet.Set("config", filepath.Join(testdata, "test-config.json")); err != nil {
+		t.Error(err)
+	}
 
 	results := analysistest.Run(t, testdata, Analyzer, "tests")
 
@@ -36,6 +42,7 @@ func TestFieldTagsAnalysis(t *testing.T) {
 		"creds",
 		"secret",
 		"another",
+		"hasCustomFieldTag",
 	}
 
 	var got []string

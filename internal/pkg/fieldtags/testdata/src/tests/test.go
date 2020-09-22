@@ -18,6 +18,7 @@ type Person struct {
 	password, creds      string      `levee:"source"`               // want "tagged field: password, creds"
 	secret               string      `json:"secret" levee:"source"` // want "tagged field: secret"
 	another              interface{} "levee:\"source\""             // want "tagged field: another"
+	hasCustomFieldTag    string      `example:"sensitive"`          // want "tagged field: hasCustomFieldTag"
 	name                 string      `some_key:"non_secret"`
 	spaceAfterFinalQuote string      `key:"value" `
 	someNotTaggedField   int

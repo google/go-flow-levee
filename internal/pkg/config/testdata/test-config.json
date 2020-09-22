@@ -9,5 +9,11 @@
       "MethodRE": "^Do$",
       "ReceiverRE": "^Sinker$"
     }
+  ],
+  "FieldTags": [
+  	{
+  		"Key": "^example$",
+  		"Val": "^sensitive$"
+  	}
   ]
 }

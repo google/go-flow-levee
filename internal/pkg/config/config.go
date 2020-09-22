@@ -41,6 +41,32 @@ type Config struct {
 	Sources    []sourceMatcher
 	Sinks      []funcMatcher
 	Sanitizers []funcMatcher
+	FieldTags  []fieldTagMatcher
+}
+
+type fieldTagMatcher struct {
+	Key regexp.Regexp
+	Val regexp.Regexp
+}
+
+// IsSourceFieldTag determines whether a field tag made up of a key and value
+// is a Source.
+func (c Config) IsSourceFieldTag(key, val string) bool {
+	// built in
+	if key == "levee" && val == "source" {
+		return true
+	}
+	// configured
+	for _, ft := range c.FieldTags {
+		if ft.matches(key, val) {
+			return true
+		}
+	}
+	return false
+}
+
+func (ftm fieldTagMatcher) matches(key, val string) bool {
+	return ftm.Key.MatchString(key) && ftm.Val.MatchString(val)
 }
 
 func (c Config) IsSinkCall(call *ssa.Call) bool {
