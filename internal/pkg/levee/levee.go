@@ -19,11 +19,8 @@ import (
 	"strings"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
-	"github.com/google/go-flow-levee/internal/pkg/fieldpropagator"
+	"github.com/google/go-flow-levee/internal/pkg/interp"
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/ssa"
-
-	"github.com/google/go-flow-levee/internal/pkg/source"
 )
 
 var Analyzer = &analysis.Analyzer{
@@ -31,51 +28,22 @@ var Analyzer = &analysis.Analyzer{
 	Run:      run,
 	Flags:    config.FlagSet,
 	Doc:      "reports attempts to source data to sinks",
-	Requires: []*analysis.Analyzer{source.Analyzer, fieldpropagator.Analyzer},
+	Requires: []*analysis.Analyzer{interp.Analyzer},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	conf, err := config.ReadConfig()
-	if err != nil {
-		return nil, err
-	}
-	sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
-	fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
+	interpResults := pass.ResultOf[interp.Analyzer].(interp.ResultType)
 
-	// Only examine functions that have sources
-	for fn, sources := range sourcesMap {
-		for _, b := range fn.Blocks {
-			if b == fn.Recover {
-				continue // skipping Recover since it does not have instructions, rather a single block.
-			}
-
-			for _, instr := range b.Instrs {
-				v, ok := instr.(*ssa.Call)
-				if !ok {
-					continue
-				}
-				switch {
-				case fieldPropagators.IsFieldPropagator(v):
-					sources = append(sources, source.New(v, conf))
-
-				case conf.IsSinkCall(v):
-					for _, s := range sources {
-						if s.HasPathTo(instr.(ssa.Node)) && !s.IsSanitizedAt(v) {
-							report(pass, s, v)
-							break
-						}
-					}
-				}
-			}
-		}
+	for _, r := range interpResults {
+		report(pass, r)
 	}
 
 	return nil, nil
 }
 
-func report(pass *analysis.Pass, source *source.Source, sink ssa.Node) {
+func report(pass *analysis.Pass, r interp.Result) {
 	var b strings.Builder
 	b.WriteString("a source has reached a sink")
-	fmt.Fprintf(&b, ", source: %v", pass.Fset.Position(source.Pos()))
-	pass.Reportf(sink.Pos(), b.String())
+	fmt.Fprintf(&b, ", source: %v", pass.Fset.Position(r.SourcePos))
+	pass.Reportf(r.SinkPos, b.String())
 }
