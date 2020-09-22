@@ -12,17 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package declarations contains test-cases for testing PII leak detection when sources are introduced via declarations.
-package declarations
+package closures
 
 import (
 	"example.com/core"
 )
 
-func TestSourceDeclaredInBody() {
+func TesCapturedSourceReachesSinkInClosure() func() {
 	s := &core.Source{}
-	core.Sinkf("%v", s) // want "a source has reached a sink"
+	return func() {
+		core.Sinkf("%v", s) // want "a source has reached a sink"
+	}
+}
 
-	i := &core.Innocuous{}
-	core.Sinkf("%v", i)
+func TestSourceReachesSinkInClosure() func() {
+	return func() {
+		s := &core.Source{}
+		core.Sinkf("%v", s) // want "a source has reached a sink"
+	}
 }
