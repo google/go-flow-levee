@@ -55,5 +55,5 @@ func TestSanitizationByReference(s core.Source) {
 
 func TestIncorrectSanitizationByValue(s core.Source) {
 	core.Sanitize(s)
-	core.Sink(s) // TODO want "a source has reached a sink"
+	core.Sink(s) // want "a source has reached a sink"
 }
