@@ -31,7 +31,7 @@
   "Sanitizers": [],
   "Exclude": [
     {
-      "PathRE": "^test/"
+      "PathRE": "^test"
     }
   ]
 }

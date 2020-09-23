@@ -23,7 +23,7 @@
       "PathRE": "^example.com/tests/excludedpackage"
     },
     {
-      "PathRE": "^example.com/tests/includedpackage/Oops$"
+      "PathRE": "^example.com/tests/includedpackage.Oops$"
     }
   ]
 }

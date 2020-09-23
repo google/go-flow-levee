@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"go/types"
 	"io/ioutil"
-	"path/filepath"
 	"strings"
 	"sync"
 
@@ -52,7 +51,7 @@ type pathMatcher struct {
 // IsExcluded determines if a function's fully qualified name (package path + name)
 // matches one of the exclusion patterns in the Config.
 func (c Config) IsExcluded(fn *ssa.Function) bool {
-	path := filepath.Join(fn.Pkg.Pkg.Path(), fn.Name())
+	path := fmt.Sprintf("%s.%s", fn.Pkg.Pkg.Path(), fn.Name())
 	for _, pm := range c.Exclude {
 		if pm.PathRE.MatchString(path) {
 			return true

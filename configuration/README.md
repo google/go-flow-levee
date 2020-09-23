@@ -61,13 +61,13 @@ Functions can be explicitly excluded from analysis using regexps:
 {
   "Exclude": [
     {
-      "PathRE": "^mypackage/myfunction$"
+      "PathRE": "^myproject/mypackage.myfunction$"
     }
   ]
 }
 ```
 
-The above will match the function `myfunction` from the `mypackage` package. It will also match a method named `myfunction` in the same package.
+The above will match the function `myfunction` from the `myproject/mypackage` package. It will also match a method named `myfunction` in the same package.
 
 As just two examples, this may be used to avoid analyzing test code, or to suppress "false positive" reports.
 

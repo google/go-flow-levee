@@ -12,7 +12,7 @@
   ],
     "Exclude": [
     {
-      "PathRE": "^example.com/exclusion/Foo$"
+      "PathRE": "^example.com/exclusion.Foo$"
     },
     {
       "PathRE": "^notexample.com/exclusion"
