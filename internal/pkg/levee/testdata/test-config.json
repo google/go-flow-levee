@@ -17,5 +17,13 @@
       "PackageRE": "^example.com/core$",
       "MethodRE": "^Sanitize"
     }
+  ],
+  "Exclude": [
+    {
+      "PathRE": "^example.com/tests/excludedpackage"
+    },
+    {
+      "PathRE": "^example.com/tests/includedpackage/Oops$"
+    }
   ]
 }

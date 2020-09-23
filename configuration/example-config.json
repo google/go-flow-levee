@@ -28,5 +28,10 @@
       "MethodRE": "Info|Warning|Error|Fatal|Exit"
     }
   ],
-  "Sanitizers": []
+  "Sanitizers": [],
+  "Exclude": [
+    {
+      "PathRE": "^test/"
+    }
+  ]
 }

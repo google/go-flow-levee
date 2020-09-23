@@ -9,5 +9,13 @@
       "MethodRE": "^Do$",
       "ReceiverRE": "^Sinker$"
     }
+  ],
+    "Exclude": [
+    {
+      "PathRE": "^example.com/exclusion/Foo$"
+    },
+    {
+      "PathRE": "^notexample.com/exclusion"
+    }
   ]
 }

@@ -54,6 +54,23 @@ Taint propagation is performed automatically and does not need to be explicitly 
 For matchers that accept a `ReceiverRE` regexp matcher, an unspecified string will match any (or no) receiver.
 To match only methods without any receiver (i.e., a top-level function), use the matcher `^$` to match an empty-string receiver name.
 
+### Restricting analysis scope
+
+Functions can be explicitly excluded from analysis using regexps:
+```json
+{
+  "Exclude": [
+    {
+      "PathRE": "^mypackage/myfunction$"
+    }
+  ]
+}
+```
+
+The above will match the function `myfunction` from the `mypackage` package. It will also match a method named `myfunction` in the same package.
+
+As just two examples, this may be used to avoid analyzing test code, or to suppress "false positive" reports.
+
 ### Example configuration
 
 The following configuration could be used to identify possible instances of credential logging in Kubernetes.

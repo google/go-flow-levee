@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"go/types"
 	"io/ioutil"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -41,6 +42,23 @@ type Config struct {
 	Sources    []sourceMatcher
 	Sinks      []funcMatcher
 	Sanitizers []funcMatcher
+	Exclude    []pathMatcher
+}
+
+type pathMatcher struct {
+	PathRE regexp.Regexp
+}
+
+// IsExcluded determines if a function's fully qualified path (package path + name)
+// matches one of the exclusion patterns in the Config.
+func (c Config) IsExcluded(fn *ssa.Function) bool {
+	path := filepath.Join(fn.Pkg.Pkg.Path(), fn.Name())
+	for _, pm := range c.Exclude {
+		if pm.PathRE.MatchString(path) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c Config) IsSinkCall(call *ssa.Call) bool {
