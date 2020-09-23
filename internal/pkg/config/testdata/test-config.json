@@ -12,8 +12,8 @@
   ],
   "FieldTags": [
   	{
-  		"Key": "^example$",
-  		"Val": "^sensitive$"
+  		"KeyRE": "^example$",
+  		"ValRE": "^sensitive$"
   	}
   ]
 }
