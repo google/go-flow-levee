@@ -19,7 +19,7 @@ import (
 )
 
 func Oops(s core.Source) {
-	core.Sink(s) // we do not expect a report here, because this specific function is allowlisted
+	core.Sink(s) // we do not expect a report here, because this specific function is excluded from analysis
 }
 
 func OopsIDidItAgain(s core.Source) {
