@@ -43,6 +43,7 @@ func TestFieldTagsAnalysis(t *testing.T) {
 		"secret",
 		"another",
 		"hasCustomFieldTag",
+		"hasTagWithMultipleValues",
 	}
 
 	var got []string

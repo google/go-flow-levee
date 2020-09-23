@@ -15,11 +15,12 @@
 package fieldtags
 
 type Person struct {
-	password, creds      string      `levee:"source"`               // want "tagged field: password, creds"
-	secret               string      `json:"secret" levee:"source"` // want "tagged field: secret"
-	another              interface{} "levee:\"source\""             // want "tagged field: another"
-	hasCustomFieldTag    string      `example:"sensitive"`          // want "tagged field: hasCustomFieldTag"
-	name                 string      `some_key:"non_secret"`
-	spaceAfterFinalQuote string      `key:"value" `
-	someNotTaggedField   int
+	password, creds          string      `levee:"source"`               // want "tagged field: password, creds"
+	secret                   string      `json:"secret" levee:"source"` // want "tagged field: secret"
+	another                  interface{} "levee:\"source\""             // want "tagged field: another"
+	hasCustomFieldTag        string      `example:"sensitive"`          // want "tagged field: hasCustomFieldTag"
+	hasTagWithMultipleValues string      `levee:"value0,source,value2"` // want "tagged field: hasTagWithMultipleValues"
+	name                     string      `some_key:"non_secret"`
+	spaceAfterFinalQuote     string      `key:"value" `
+	someNotTaggedField       int
 }
