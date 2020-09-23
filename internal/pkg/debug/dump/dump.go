@@ -37,6 +37,11 @@ func DOT(fileName string, f *ssa.Function) {
 	save(fileName, f.Name(), render.DOT(f), "dot")
 }
 
+// CFG dumps DOT source representing the function's control flow graph (CFG) to a file.
+func CFG(fileName string, f *ssa.Function) {
+	save(fileName, f.Name()+"-cfg", render.CFG(f), "dot")
+}
+
 func save(fileName, funcName, s, ending string) {
 	baseName := strings.TrimSuffix(fileName, ".go")
 	outFile := fmt.Sprintf("%s_%s.%s", baseName, funcName, ending)
