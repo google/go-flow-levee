@@ -49,7 +49,7 @@ type pathMatcher struct {
 	PathRE regexp.Regexp
 }
 
-// IsExcluded determines if a function's fully qualified path (package path + name)
+// IsExcluded determines if a function's fully qualified name (package path + name)
 // matches one of the exclusion patterns in the Config.
 func (c Config) IsExcluded(fn *ssa.Function) bool {
 	path := filepath.Join(fn.Pkg.Pkg.Path(), fn.Name())
