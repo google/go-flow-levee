@@ -34,6 +34,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		pkgName := f.Pkg.Pkg.Name()
 		dump.SSA(pkgName, f)
 		dump.DOT(pkgName, f)
+		dump.CFG(pkgName, f)
 	}
 
 	return nil, nil
