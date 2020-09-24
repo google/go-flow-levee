@@ -28,6 +28,25 @@ Sources are identified via regexp according to package, type, and field names.
 }
 ```
 
+Sources may also be identified via field tags:
+```go
+type Example struct {
+	fieldName fieldType `levee:"source"` // this field will be considered a Source
+}
+```
+
+The tag `levee:"source"` is built-in. Additional tags may be identified via explicit string literals (not regexps). The following example shows how the `levee:"source"` tag could be defined if it weren't built-in:
+```json
+{
+	"FieldTags": [
+		{
+			"Key": "levee",
+			"Val": "source"
+		}
+	]
+}
+```
+
 Sinks and sanitizers are identified via regexp according to package, method, and (optional) receiver name.
 
 ```json
