@@ -12,17 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package declarations contains test-cases for testing PII leak detection when sources are introduced via declarations.
-package declarations
+package pointers
 
 import (
 	"example.com/core"
 )
 
-func TestSourceDeclaredInBody() {
-	s := &core.Source{}
-	core.Sinkf("%v", s) // want "a source has reached a sink"
+func TestNew() {
+	s := new(core.Source)
+	core.Sink(s) // want "a source has reached a sink"
+}
 
-	i := &core.Innocuous{}
-	core.Sinkf("%v", i)
+func TestDoublePointer(s **core.Source) {
+	core.Sink(s)   // TODO want "a source has reached a sink"
+	core.Sink(*s)  // TODO want "a source has reached a sink"
+	core.Sink(**s) // TODO want "a source has reached a sink"
+}
+
+func TestDoubleReference(s core.Source) {
+	ref := &s
+	core.Sink(ref) // want "a source has reached a sink"
+	refRef := &ref
+	core.Sink(refRef) // want "a source has reached a sink"
 }
