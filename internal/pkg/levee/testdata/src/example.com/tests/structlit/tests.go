@@ -69,7 +69,7 @@ func TestAnonymousStructHoldingSourceAndInnocIsTainted(s core.Source, i core.Inn
 		i: i,
 		s: s,
 	}
-	core.Sink(h) // TODO want "a source has reached a sink"
+	core.Sink(h) // want "a source has reached a sink"
 }
 
 func TestAnonymousStructHoldingSourceAndInnocPointersIsTainted(s *core.Source, i *core.Innocuous) {
@@ -80,5 +80,5 @@ func TestAnonymousStructHoldingSourceAndInnocPointersIsTainted(s *core.Source, i
 		i: i,
 		s: s,
 	}
-	core.Sink(h) // TODO want "a source has reached a sink"
+	core.Sink(h) // want "a source has reached a sink"
 }

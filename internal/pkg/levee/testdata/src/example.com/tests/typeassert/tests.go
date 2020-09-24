@@ -30,7 +30,7 @@ func TestSourcePointerAssertedFromTaintedEface(s *core.Source) {
 
 func TestSourcePointerAssertedFromParameterEface(e interface{}) {
 	s := e.(*core.Source)
-	core.Sink(s) // TODO want "a source has reached a sink"
+	core.Sink(s) // want "a source has reached a sink"
 }
 
 func TestSourcePointerAssertedFromParameterEfaceCommaOk(e interface{}) {

@@ -45,7 +45,8 @@ type blocksKey struct {
 
 // A val represents a Value that is tainted by a source.
 type val struct {
-	source ssa.Value
+	source    ssa.Value
+	sanitized bool
 }
 
 // A ptr represents a Value that points to another Value. This implies that
@@ -246,7 +247,18 @@ func (in *interpreter) analyzeInstructions(block, pred *ssa.BasicBlock, state in
 			}
 
 		case *ssa.TypeAssert:
-			state[t] = state[t.X]
+			v, ok := state[t.X].(val)
+			if ok && v.sanitized {
+				continue
+			}
+			// creating a source from the typeassert
+			if in.conf.IsSource(utils.Dereference(t.Type())) {
+				state[t] = val{source: t}
+			}
+			// the value that is being asserted is already tainted
+			if ok && v.source != nil {
+				state[t] = state[t.X]
+			}
 
 		case *ssa.UnOp:
 			switch t.Op {
@@ -350,7 +362,8 @@ func (in *interpreter) handleSinkCall(state map[ssa.Value]interface{}, c *ssa.Ca
 
 func (in *interpreter) handleSanitizerCall(state map[ssa.Value]interface{}, c *ssa.Call) {
 	// sanitize the return value
-	state[c] = val{}
+	sanval := val{sanitized: true}
+	state[c] = sanval
 
 	// sanitize values passed by pointer
 	for _, o := range c.Operands(nil) {
@@ -363,9 +376,9 @@ func (in *interpreter) handleSanitizerCall(state map[ssa.Value]interface{}, c *s
 		if pointer.CanPoint((*o).Type()) {
 			switch so := state[*o].(type) {
 			case val:
-				state[*o] = val{}
+				state[*o] = sanval
 			case ptr:
-				state[so.pointsTo] = val{}
+				state[so.pointsTo] = sanval
 			}
 		}
 	}
