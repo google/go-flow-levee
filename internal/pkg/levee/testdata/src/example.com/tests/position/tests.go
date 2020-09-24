@@ -23,6 +23,29 @@ func TestSourcePointerExtract() {
 	core.Sink(s) // want "a source has reached a sink, source: .*tests.go:22:19"
 }
 
+// In order for the SSA to contain a FieldAddr, the EmbedsSource instance's fields have to be addressable.
+// We use a local variable here so that the fields will be addressable.
+// The field is extracted on its own line so we can differentiate between the struct's position
+// and the field's position.
+// The Source in this function is created by a FieldAddr that is not represented explicitly in the code.
+// Indeed, es.Data is actually es.Source.Data.
+// Because of this, we expect the report to be produced at the struct's position.
+func TestEmbeddedSourceFieldAddr() {
+	es := EmbedsSource{}
+	d := es.Data
+	core.Sink(d) // want "a source has reached a sink, source: .*tests.go:34:2"
+}
+
+// In order for the SSA to contain a Field, the EmbedsSource instance's fields must not be addressable.
+// One way to do this is to create a literal and to access the field directly, as part of the same expression.
+func TestEmbeddedSourceField() {
+	core.Sink(EmbedsSource{}.Data) // want "a source has reached a sink, source: .*tests.go:42:24"
+}
+
+type EmbedsSource struct {
+	core.Source
+}
+
 func NewSource() (*core.Source, error) {
 	return &core.Source{}, nil
 }
