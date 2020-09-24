@@ -34,6 +34,14 @@ func TestStructThatEmbedsSourcePointerIsSource() {
 	core.Sink(EmbedsSourcePointer{}) // TODO want "a source has reached a sink"
 }
 
+func TestEmbeddedSourceIsSource() {
+	core.Sink(EmbedsSource{}.Source) // want "a source has reached a sink"
+}
+
+func TestEmbeddedSourcePointerIsSource() {
+	core.Sink(EmbedsSource{}.Source) // want "a source has reached a sink"
+}
+
 func TestEmbeddedSourceFieldIsSourceField() {
 	core.Sink(EmbedsSource{}.Data) // want "a source has reached a sink"
 }
