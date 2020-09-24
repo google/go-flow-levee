@@ -35,13 +35,13 @@ type Example struct {
 }
 ```
 
-The tag `levee:"source"` is built-in. Additional tags may be identified via regexp:
+The tag `levee:"source"` is built-in. Additional tags may be identified via explicit string literals (not regexps). The following example shows how the `levee:"source"` tag could be defined if it weren't built-in:
 ```json
 {
 	"FieldTags": [
 		{
-			"Key": "<key regexp>",
-			"Val": "<value regexp>"
+			"Key": "levee",
+			"Val": "source"
 		}
 	]
 }

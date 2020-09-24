@@ -45,8 +45,8 @@ type Config struct {
 }
 
 type fieldTagMatcher struct {
-	KeyRE regexp.Regexp
-	ValRE regexp.Regexp
+	Key string
+	Val string
 }
 
 // IsSourceFieldTag determines whether a field tag made up of a key and value
@@ -66,7 +66,7 @@ func (c Config) IsSourceFieldTag(key, val string) bool {
 }
 
 func (ftm fieldTagMatcher) matches(key, val string) bool {
-	return ftm.KeyRE.MatchString(key) && ftm.ValRE.MatchString(val)
+	return ftm.Key == key && ftm.Val == val
 }
 
 func (c Config) IsSinkCall(call *ssa.Call) bool {
