@@ -43,6 +43,9 @@ func runTest(pass *analysis.Pass) (interface{}, error) {
 		if conf.IsSinkFunction(f) {
 			pass.Reportf(f.Pos(), "sink")
 		}
+		if conf.IsExcluded(f) {
+			pass.Reportf(f.Pos(), "excluded")
+		}
 		for _, b := range f.Blocks {
 			for _, i := range b.Instrs {
 				if c, ok := i.(*ssa.Call); ok && conf.IsSinkCall(c) {
@@ -60,8 +63,10 @@ func TestConfig(t *testing.T) {
 	if err := FlagSet.Set("config", filepath.Join(testdata, "test-config.json")); err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range []string{"core", "notcore", "crosspkg"} {
+	for _, p := range []string{"core", "crosspkg", "exclusion", "notcore"} {
 		analysistest.Run(t, testdata, testAnalyzer, filepath.Join(testdata, "src/example.com", p))
 	}
-	analysistest.Run(t, testdata, testAnalyzer, filepath.Join(testdata, "src/notexample.com/core"))
+	for _, p := range []string{"core", "exclusion"} {
+		analysistest.Run(t, testdata, testAnalyzer, filepath.Join(testdata, "src/notexample.com", p))
+	}
 }

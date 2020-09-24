@@ -60,6 +60,10 @@ func (c *testConfig) IsSinkFunction(f *ssa.Function) bool {
 	return match
 }
 
+func (c *testConfig) IsExcluded(f *ssa.Function) bool {
+	return false
+}
+
 var testAnalyzer = &analysis.Analyzer{
 	Name:     "source",
 	Run:      runTest,
