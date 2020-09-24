@@ -61,7 +61,7 @@ Functions can be explicitly excluded from analysis using regexps:
 {
   "Exclude": [
     {
-      "PathRE": "^myproject/mypackage.myfunction$"
+      "PathRE": "^myproject/mypackage\.myfunction$"
     }
   ]
 }
