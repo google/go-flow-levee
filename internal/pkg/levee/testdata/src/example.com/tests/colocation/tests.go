@@ -18,16 +18,14 @@ import (
 	"example.com/core"
 )
 
-func TestTaintIsPropagatedToColocatedPointerArguments(s core.Source, ip *core.Innocuous) {
-	i := core.Innocuous{}
+func TestTaintIsPropagatedToColocatedPointerArguments(s core.Source, i core.Innocuous, ip *core.Innocuous) {
 	taintColocated(s, &i, ip)
 	core.Sink(s)  // want "a source has reached a sink"
 	core.Sink(i)  // TODO want "a source has reached a sink"
 	core.Sink(ip) // want "a source has reached a sink"
 }
 
-func TestTaintIsPropagatedToColocatedPointerArgumentsThroughEface(s core.Source, ip *core.Innocuous) {
-	i := core.Innocuous{}
+func TestTaintIsPropagatedToColocatedPointerArgumentsThroughEface(s core.Source, i core.Innocuous, ip *core.Innocuous) {
 	taintColocatedEface(s, &i, ip)
 	core.Sink(s)  // want "a source has reached a sink"
 	core.Sink(i)  // TODO want "a source has reached a sink"

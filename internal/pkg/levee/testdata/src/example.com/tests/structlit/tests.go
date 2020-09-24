@@ -60,3 +60,25 @@ func TestStructHoldingSourceAndInnocPointersIsTaintedReverseFieldOrder(s *core.S
 	}
 	core.Sink(h) // TODO want "a source has reached a sink"
 }
+
+func TestAnonymousStructHoldingSourceAndInnocIsTainted(s core.Source, i core.Innocuous) {
+	h := struct {
+		s core.Source
+		i core.Innocuous
+	}{
+		i: i,
+		s: s,
+	}
+	core.Sink(h) // TODO want "a source has reached a sink"
+}
+
+func TestAnonymousStructHoldingSourceAndInnocPointersIsTainted(s *core.Source, i *core.Innocuous) {
+	h := struct {
+		s *core.Source
+		i *core.Innocuous
+	}{
+		i: i,
+		s: s,
+	}
+	core.Sink(h) // TODO want "a source has reached a sink"
+}

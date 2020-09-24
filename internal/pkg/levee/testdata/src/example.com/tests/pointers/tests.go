@@ -28,3 +28,10 @@ func TestDoublePointer(s **core.Source) {
 	core.Sink(*s)  // TODO want "a source has reached a sink"
 	core.Sink(**s) // TODO want "a source has reached a sink"
 }
+
+func TestDoubleReference(s core.Source) {
+	ref := &s
+	core.Sink(ref) // want "a source has reached a sink"
+	refRef := &ref
+	core.Sink(refRef) // want "a source has reached a sink"
+}
