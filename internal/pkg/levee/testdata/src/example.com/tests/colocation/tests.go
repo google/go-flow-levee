@@ -18,12 +18,22 @@ import (
 	"example.com/core"
 )
 
-func TestTaintIsPropagatedToOperandAfterNonArrayAlloc(s core.Source, ip *core.Innocuous) {
-	i := core.Innocuous{}
+func TestTaintIsPropagatedToColocatedPointerArguments(s core.Source, i core.Innocuous, ip *core.Innocuous) {
 	taintColocated(s, &i, ip)
+	core.Sink(s)  // want "a source has reached a sink"
+	core.Sink(i)  // TODO want "a source has reached a sink"
 	core.Sink(ip) // want "a source has reached a sink"
 }
 
-func taintColocated(a interface{}, i *core.Innocuous, c interface{}) interface{} {
-	return nil
+func TestTaintIsPropagatedToColocatedPointerArgumentsThroughEface(s core.Source, i core.Innocuous, ip *core.Innocuous) {
+	taintColocatedEface(s, &i, ip)
+	core.Sink(s)  // want "a source has reached a sink"
+	core.Sink(i)  // TODO want "a source has reached a sink"
+	core.Sink(ip) // want "a source has reached a sink"
+}
+
+func taintColocated(s core.Source, i *core.Innocuous, ip *core.Innocuous) {
+}
+
+func taintColocatedEface(a, b, c interface{}) {
 }

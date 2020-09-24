@@ -42,11 +42,16 @@ type Config struct {
 	Sinks      []funcMatcher
 	Sanitizers []funcMatcher
 	FieldTags  []fieldTagMatcher
+	Exclude    []pathMatcher
 }
 
 type fieldTagMatcher struct {
 	Key string
 	Val string
+}
+
+func (ftm fieldTagMatcher) matches(key, val string) bool {
+	return ftm.Key == key && ftm.Val == val
 }
 
 // IsSourceFieldTag determines whether a field tag made up of a key and value
@@ -65,8 +70,20 @@ func (c Config) IsSourceFieldTag(key, val string) bool {
 	return false
 }
 
-func (ftm fieldTagMatcher) matches(key, val string) bool {
-	return ftm.Key == key && ftm.Val == val
+type pathMatcher struct {
+	PathRE regexp.Regexp
+}
+
+// IsExcluded determines if a function's fully qualified name (package path + name)
+// matches one of the exclusion patterns in the Config.
+func (c Config) IsExcluded(fn *ssa.Function) bool {
+	path := fmt.Sprintf("%s.%s", fn.Pkg.Pkg.Path(), fn.Name())
+	for _, pm := range c.Exclude {
+		if pm.PathRE.MatchString(path) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c Config) IsSinkCall(call *ssa.Call) bool {

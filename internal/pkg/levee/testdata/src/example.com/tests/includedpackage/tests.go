@@ -12,17 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package declarations contains test-cases for testing PII leak detection when sources are introduced via declarations.
-package declarations
+package includedpackage
 
 import (
 	"example.com/core"
 )
 
-func TestSourceDeclaredInBody() {
-	s := &core.Source{}
-	core.Sinkf("%v", s) // want "a source has reached a sink"
+func Oops(s core.Source) {
+	core.Sink(s) // we do not expect a report here, because this specific function is excluded from analysis
+}
 
-	i := &core.Innocuous{}
-	core.Sinkf("%v", i)
+func OopsIDidItAgain(s core.Source) {
+	core.Sink(s) // want "a source has reached a sink"
 }

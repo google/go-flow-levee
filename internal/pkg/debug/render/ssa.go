@@ -27,15 +27,26 @@ import (
 func SSA(f *ssa.Function) string {
 	var b strings.Builder
 	for i, blk := range f.Blocks {
-		b.WriteString(fmt.Sprintf("%d: %s\n", i, blk.Comment))
-		for j, instr := range blk.Instrs {
-			s := node.CanonicalName(instr.(ssa.Node))
-			_ = b.WriteByte('\t')
-			_, _ = b.WriteString(strconv.Itoa(j))
-			_, _ = b.WriteString(fmt.Sprintf("(%-20T): ", instr))
-			_, _ = b.WriteString(s)
-			_ = b.WriteByte('\n')
+		renderBlock(&b, i, blk)
+	}
+	for _, af := range f.AnonFuncs {
+		b.WriteString(af.Name())
+		b.WriteByte('\n')
+		for i, blk := range af.Blocks {
+			renderBlock(&b, i, blk)
 		}
 	}
 	return b.String()
+}
+
+func renderBlock(b *strings.Builder, i int, blk *ssa.BasicBlock) {
+	b.WriteString(fmt.Sprintf("%d: %s\n", i, blk.Comment))
+	for j, instr := range blk.Instrs {
+		s := node.CanonicalName(instr.(ssa.Node))
+		b.WriteByte('\t')
+		b.WriteString(strconv.Itoa(j))
+		b.WriteString(fmt.Sprintf("(%-20T): %-20d", instr, instr.Pos()))
+		b.WriteString(s)
+		b.WriteByte('\n')
+	}
 }

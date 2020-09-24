@@ -54,6 +54,8 @@ In the `dot` output:
 * **Diamond**-shaped nodes represent `ssa.Node`s that are only `ssa.Instruction`s
 * **Ellipse**-shaped nodes represent `ssa.Node`s that are either only `ssa.Value`s, or are `ssa.Member`s.
 
+The function's control-flow graph (CFG) is also produced and written in a file named `<function-name>-cfg.dot`.
+
 ## Source Code Headers
 
 Every file containing source code must include copyright and license

@@ -33,6 +33,7 @@ type classifier interface {
 	IsSanitizer(*ssa.Call) bool
 	IsSourceFieldAddr(*ssa.FieldAddr) bool
 	IsSinkFunction(fn *ssa.Function) bool
+	IsExcluded(fn *ssa.Function) bool
 }
 
 // Source represents a Source in an SSA call tree.
@@ -293,8 +294,8 @@ func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Sour
 	sourceMap := make(map[*ssa.Function][]*Source)
 
 	for _, fn := range ssaInput.SrcFuncs {
-		// no need to analyze the body of sinks
-		if conf.IsSinkFunction(fn) {
+		// no need to analyze the body of sinks, nor of excluded functions
+		if conf.IsSinkFunction(fn) || conf.IsExcluded(fn) {
 			continue
 		}
 
