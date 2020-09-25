@@ -30,41 +30,36 @@ func TestFieldTagsIdentification(t *testing.T) {
 
 	cases := []struct {
 		desc string
-		key  string
-		val  string
+		tag  string
 		want bool
 	}{
 		{
 			"built-in field tag",
-			"levee",
-			"source",
+			"`levee:\"source\"`",
 			true,
 		},
 		{
 			"custom field tag",
-			"example",
-			"sensitive",
+			"`example:\"sensitive\"`",
 			true,
 		},
 		{
 			"different tag key",
-			"notexample",
-			"sensitive",
+			"`notexample:\"sensitive\"`",
 			false,
 		},
 		{
 			"different tag value",
-			"example",
-			"notsensitive",
+			"`example:\"notsensitive\"`",
 			false,
 		},
 	}
 
 	for _, tt := range cases {
 		t.Run(tt.desc, func(t *testing.T) {
-			got := config.IsSourceFieldTag(tt.key, tt.val)
+			got := config.IsSourceFieldTag(tt.tag)
 			if got != tt.want {
-				t.Errorf("config.IsSourceFieldTag(%q, %q) == %v, want %v", tt.key, tt.val, got, tt.want)
+				t.Errorf("config.IsSourceFieldTag(%q) == %v, want %v", tt.tag, got, tt.want)
 			}
 		})
 	}

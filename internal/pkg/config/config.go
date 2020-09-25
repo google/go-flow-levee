@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"go/types"
 	"io/ioutil"
+	"reflect"
 	"strings"
 	"sync"
 
@@ -50,21 +51,28 @@ type fieldTagMatcher struct {
 	Val string
 }
 
-func (ftm fieldTagMatcher) matches(key, val string) bool {
-	return ftm.Key == key && ftm.Val == val
-}
-
 // IsSourceFieldTag determines whether a field tag made up of a key and value
 // is a Source.
-func (c Config) IsSourceFieldTag(key, val string) bool {
+func (c Config) IsSourceFieldTag(tag string) bool {
+	// tag is the entire, quote-wrapped string, e.g. "`levee:...`"
+	// Trim for use by reflect.StructTag
+	if len(tag) < 2 {
+		return false
+	}
+
+	st := reflect.StructTag(tag[1 : len(tag)-1])
+
 	// built in
-	if key == "levee" && val == "source" {
+	if st.Get("levee") == "source" {
 		return true
 	}
 	// configured
 	for _, ft := range c.FieldTags {
-		if ft.matches(key, val) {
-			return true
+		val := st.Get(ft.Key)
+		for _, v := range strings.Split(val, ",") {
+			if v == ft.Val {
+				return true
+			}
 		}
 	}
 	return false

@@ -41,7 +41,6 @@ func TestFieldTagsAnalysis(t *testing.T) {
 		"password",
 		"creds",
 		"secret",
-		"another",
 		"hasCustomFieldTag",
 		"hasTagWithMultipleValues",
 	}
