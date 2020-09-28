@@ -381,7 +381,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 				}
 
 			// source obtained through a field or an index operation
-			case *ssa.FieldAddr, *ssa.IndexAddr, *ssa.Lookup:
+			case *ssa.Field, *ssa.FieldAddr, *ssa.IndexAddr, *ssa.Lookup:
 			}
 
 			// all of the instructions that the switch lets through are values as per ssa/doc.go
