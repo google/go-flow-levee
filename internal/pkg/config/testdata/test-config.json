@@ -9,5 +9,19 @@
       "MethodRE": "^Do$",
       "ReceiverRE": "^Sinker$"
     }
+  ],
+  "FieldTags": [
+  	{
+  		"Key": "example",
+  		"Val": "sensitive"
+  	}
+  ],
+  "Exclude": [
+    {
+      "PathRE": "^example.com/exclusion.Foo$"
+    },
+    {
+      "PathRE": "^notexample.com/exclusion"
+    }
   ]
 }

@@ -28,6 +28,25 @@ Sources are identified via regexp according to package, type, and field names.
 }
 ```
 
+Sources may also be identified via field tags:
+```go
+type Example struct {
+	fieldName fieldType `levee:"source"` // this field will be considered a Source
+}
+```
+
+The tag `levee:"source"` is built-in. Additional tags may be identified via explicit string literals (not regexps). The following example shows how the `levee:"source"` tag could be defined if it weren't built-in:
+```json
+{
+	"FieldTags": [
+		{
+			"Key": "levee",
+			"Val": "source"
+		}
+	]
+}
+```
+
 Sinks and sanitizers are identified via regexp according to package, method, and (optional) receiver name.
 
 ```json
@@ -53,6 +72,23 @@ Taint propagation is performed automatically and does not need to be explicitly 
 
 For matchers that accept a `ReceiverRE` regexp matcher, an unspecified string will match any (or no) receiver.
 To match only methods without any receiver (i.e., a top-level function), use the matcher `^$` to match an empty-string receiver name.
+
+### Restricting analysis scope
+
+Functions can be explicitly excluded from analysis using regexps:
+```json
+{
+  "Exclude": [
+    {
+      "PathRE": "^myproject/mypackage\.myfunction$"
+    }
+  ]
+}
+```
+
+The above will match the function `myfunction` from the `myproject/mypackage` package. It will also match a method named `myfunction` in the same package.
+
+As just two examples, this may be used to avoid analyzing test code, or to suppress "false positive" reports.
 
 ### Example configuration
 
