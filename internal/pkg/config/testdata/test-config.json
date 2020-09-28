@@ -10,7 +10,13 @@
       "ReceiverRE": "^Sinker$"
     }
   ],
-    "Exclude": [
+  "FieldTags": [
+  	{
+  		"Key": "example",
+  		"Val": "sensitive"
+  	}
+  ],
+  "Exclude": [
     {
       "PathRE": "^example.com/exclusion.Foo$"
     },

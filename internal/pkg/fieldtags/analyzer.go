@@ -22,22 +22,12 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/google/go-flow-levee/internal/pkg/config"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
 	"golang.org/x/tools/go/ssa"
 )
-
-type keyValue struct {
-	key   string
-	value string
-}
-
-type sourcePatterns []keyValue
-
-var patterns sourcePatterns = []keyValue{
-	{"levee", "source"},
-}
 
 // ResultType is a map from types.Object to bool.
 // It can be used to determine whether a field is a tagged Source field.
@@ -53,7 +43,17 @@ var Analyzer = &analysis.Analyzer{
 	ResultType: reflect.TypeOf(new(ResultType)).Elem(),
 }
 
+type fieldTag struct {
+	key string
+	val string
+}
+
 func run(pass *analysis.Pass) (interface{}, error) {
+	conf, err := config.ReadConfig()
+	if err != nil {
+		return nil, err
+	}
+
 	inspectResult := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 	taggedFields := map[types.Object]bool{}
 
@@ -71,73 +71,81 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 		for _, f := range (*s).Fields.List {
-			if patterns.isSource(f) && len(f.Names) > 0 {
-				fNames := make([]string, len(f.Names))
-				for i, ident := range f.Names {
-					fNames[i] = ident.Name
-					taggedFields[pass.TypesInfo.ObjectOf(ident)] = true
+			tags := extractTags(f)
+			isTaggedField := false
+			for _, ft := range tags {
+				if conf.IsSourceFieldTag(ft.key, ft.val) {
+					isTaggedField = true
 				}
-				pass.Reportf(f.Pos(), "tagged field: %s", strings.Join(fNames, ", "))
 			}
+			if !isTaggedField || len(f.Names) == 0 {
+				continue
+			}
+			fNames := make([]string, len(f.Names))
+			for i, ident := range f.Names {
+				fNames[i] = ident.Name
+				taggedFields[pass.TypesInfo.ObjectOf(ident)] = true
+			}
+			pass.Reportf(f.Pos(), "tagged field: %s", strings.Join(fNames, ", "))
 		}
 	})
 
 	return ResultType(taggedFields), nil
 }
 
-func (sp *sourcePatterns) isSource(field *ast.Field) bool {
+func extractTags(field *ast.Field) (tags []fieldTag) {
 	if field.Tag == nil {
-		return false
+		return
 	}
 
-	tag := field.Tag.Value
+	wholeTag := field.Tag.Value
 
 	// TODO: consider refactoring this logic into a regex matcher
 	i := 1 // skip initial quote
 	j := 1
-	for j < len(tag) {
-		for j < len(tag) && tag[j] != ':' {
+	for j < len(wholeTag) {
+		for j < len(wholeTag) && wholeTag[j] != ':' {
 			j++
 		}
-		key := tag[i:j]
+		key := wholeTag[i:j]
 		if key == "" {
-			return false
+			return
 		}
 
 		i = j + 1 // skip colon
-		if i >= len(tag) {
-			return false
+		if i >= len(wholeTag) {
+			return
 		}
-		if tag[i] == '\\' {
+		if wholeTag[i] == '\\' {
 			i++
 		}
 		i++ // skip quote
 
 		j = i
-		for j < len(tag) && tag[j] != '"' {
+		for j < len(wholeTag) && wholeTag[j] != '"' {
 			// skip escape character
-			if tag[j] == '\\' {
+			if wholeTag[j] == '\\' {
 				j++
 			}
 			j++
 		}
-		value := tag[i:j]
+		value := wholeTag[i:j]
+		// remove trailing escaped quote if present
+		value = strings.TrimSuffix(value, `\"`)
 		if value == "" {
-			return false
+			return
 		}
 
-		for _, p := range *sp {
-			// value may be a list of comma separated values
-			if p.key == key && strings.Contains(value, p.value) {
-				return true
-			}
+		// value may be a list of comma separated values
+		for _, v := range strings.Split(value, ",") {
+			tags = append(tags, fieldTag{key: key, val: v})
 		}
 
 		i = j + 2 // skip closing quote and space
 		j = i
 	}
 
-	return false
+	return tags
 }
 
 // IsSourceFieldAddr determines whether a ssa.FieldAddr is a source, that is whether it refers to a field previously identified as a source.
