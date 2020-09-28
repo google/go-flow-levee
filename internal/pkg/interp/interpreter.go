@@ -379,6 +379,7 @@ func (in *interpreter) handleSanitizerCall(state map[ssa.Value]interface{}, c *s
 				state[*o] = sanval
 			case ptr:
 				state[so.pointsTo] = sanval
+				state[*o] = val{}
 			}
 		}
 	}
