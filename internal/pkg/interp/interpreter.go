@@ -92,6 +92,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 	results := []Result{}
 	for _, f := range ssaInput.SrcFuncs {
+		if conf.IsExcluded(f) {
+			continue
+		}
+
 		results = append(results, analyzeFunction(conf, fieldPropagators, f)...)
 	}
 
