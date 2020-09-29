@@ -38,7 +38,7 @@ func TestSSA(t *testing.T) {
 	testfile := filepath.Join(testdata, "tests.go")
 	ssaFuncs := extractSSAFuncs(t, testfile)
 	for _, f := range ssaFuncs {
-		bytes, err := ioutil.ReadFile(filepath.Join(testdata, f.Name()))
+		bytes, err := ioutil.ReadFile(filepath.Join(testdata, f.Name()) + ".ssa")
 		if err != nil {
 			t.Fatal(err)
 		}
