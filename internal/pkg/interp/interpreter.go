@@ -405,6 +405,9 @@ func createResult(source, sink ssa.Value) Result {
 	if e, ok := source.(*ssa.Extract); ok {
 		sourcePos = e.Tuple.Pos()
 	}
+	if fa, ok := source.(*ssa.Field); ok && sourcePos == token.NoPos {
+		sourcePos = fa.X.Pos()
+	}
 	if fa, ok := source.(*ssa.FieldAddr); ok && sourcePos == token.NoPos {
 		sourcePos = fa.X.Pos()
 	}
