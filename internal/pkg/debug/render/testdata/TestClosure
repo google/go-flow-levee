@@ -1,0 +1,13 @@
+func TestClosure()
+0: entry
+	0(*ssa.Call           ): t0 = TestClosure$1(0:int)
+	1(*ssa.Return         ): return
+func TestClosure$1(x int)
+0: entry
+	0(*ssa.Alloc          ): t0 = new [1]interface{} (varargs)
+	1(*ssa.IndexAddr      ): t1 = &t0[0:int]
+	2(*ssa.MakeInterface  ): t2 = make interface{} <- int (x)
+	3(*ssa.Store          ): *t1 = t2
+	4(*ssa.Slice          ): t3 = slice t0[:]
+	5(*ssa.Call           ): t4 = fmt.Println(t3...)
+	6(*ssa.Return         ): return

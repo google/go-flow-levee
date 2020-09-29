@@ -26,26 +26,38 @@ import (
 // SSA produces a human-readable representation of the SSA code for a function.
 func SSA(f *ssa.Function) string {
 	var b strings.Builder
-	for i, blk := range f.Blocks {
-		renderBlock(&b, i, blk)
-	}
-	for _, af := range f.AnonFuncs {
-		b.WriteString(af.Name())
-		b.WriteByte('\n')
-		for i, blk := range af.Blocks {
-			renderBlock(&b, i, blk)
+
+	b.WriteString("func ")
+	b.WriteString(f.Name())
+	b.WriteString(strings.TrimPrefix(f.Signature.String(), "func"))
+	b.WriteByte('\n')
+
+	maxBlockLength := 1
+	for _, blk := range f.Blocks {
+		length := len(strconv.Itoa(len(blk.Instrs)))
+		if length > maxBlockLength {
+			maxBlockLength = length
 		}
 	}
+
+	for i, blk := range f.Blocks {
+		renderBlock(&b, i, blk, maxBlockLength)
+	}
+
+	for _, af := range f.AnonFuncs {
+		b.WriteString(SSA(af))
+	}
+
 	return b.String()
 }
 
-func renderBlock(b *strings.Builder, i int, blk *ssa.BasicBlock) {
+func renderBlock(b *strings.Builder, i int, blk *ssa.BasicBlock, instructionIndexWidth int) {
 	b.WriteString(fmt.Sprintf("%d: %s\n", i, blk.Comment))
 	for j, instr := range blk.Instrs {
 		s := node.CanonicalName(instr.(ssa.Node))
 		b.WriteByte('\t')
-		b.WriteString(strconv.Itoa(j))
-		b.WriteString(fmt.Sprintf("(%-20T): %-20d", instr, instr.Pos()))
+		b.WriteString(fmt.Sprintf("%"+strconv.Itoa(instructionIndexWidth)+"d", j))
+		b.WriteString(fmt.Sprintf("(%-20T): ", instr))
 		b.WriteString(s)
 		b.WriteByte('\n')
 	}
