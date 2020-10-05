@@ -380,7 +380,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 			// source obtained through a field or an index operation
 			case *ssa.Field, *ssa.FieldAddr, *ssa.IndexAddr, *ssa.Lookup:
 
-			// source map (arrays and slices have regular Allocs)
+			// source chan or map (arrays and slices have regular Allocs)
 			case *ssa.MakeMap, *ssa.MakeChan:
 			}
 
