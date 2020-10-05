@@ -37,7 +37,7 @@ func TestOnlySourceExtractIsTaintedFromCall() {
 }
 
 func TestOnlySourceExtractIsTaintedFromLookup() {
-	s, ok := map[string]*core.Source{}[""]
+	s, ok := map[string]core.Source{}[""]
 	core.Sink(s) // want "a source has reached a sink"
 	core.Sink(ok)
 }
