@@ -16,5 +16,6 @@ func NothingWrongHere() {
     Sink(nil) // we don't want a report here, since the value that reached the sink is not sensitive
 }
 ```
+(We are assuming that `Sink` has been configured as a sink.)
 
-Please make it as easy as possible for us to reproduce what you observed. If possible, provide the exact configuration and code on which the analyzer produced a report. If you cannot do that (e.g., the code is closed source), please provide a simplified example and confirm that it also yields the false positive report.
+Please make it as easy as possible for us to reproduce what you observed. If possible, provide the exact configuration and code on which the analyzer produced a report. If the code cannot be shared, please provide a simplified example and confirm that it also yields the false positive report.
