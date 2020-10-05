@@ -406,9 +406,10 @@ func isSourceType(c classifier, t types.Type) bool {
 		key := isSourceType(c, tt.Key())
 		elem := isSourceType(c, tt.Elem())
 		return key || elem
+	case *types.Basic, *types.Interface, *types.Tuple, *types.Struct:
+		return false
 	default:
-		u := tt.Underlying()
-		return c.IsSource(tt) || (u != tt && isSourceType(c, u))
+		return c.IsSource(tt) || isSourceType(c, tt.Underlying())
 	}
 }
 
