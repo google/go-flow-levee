@@ -217,7 +217,7 @@ func (s *Source) visitOperands(n ssa.Node, operands []*ssa.Value, maxInstrReache
 	// produces, e.g. a call to a function with a signature like:
 	// func NewSource() (*core.Source, error)
 	// Which leads to a flow like:
-	// Extract (core.Source) --> Call (NewSource) --> error
+	// Extract (*core.Source) --> Call (NewSource) --> error
 	if _, ok := n.(*ssa.Extract); ok {
 		return
 	}
