@@ -32,6 +32,13 @@ See [design/](design/README.md).
 
 See [configuration/](configuration/README.md) for configuration details.
 
+### False positives
+
+Static taint propagation analysis is a hard problem. In fact, it is [undecidable](https://en.wikipedia.org/wiki/Rice%27s_theorem). Concretely, this means two things:
+* False negatives: the analyzer may fail to recognize that a piece of code is unsafe.
+* False positives: the analyzer may incorrectly claim that a safe piece of code is unsafe. 
+Since our aim is to avoid credentials leaks, we care more deeply about false negatives. If you discover unsafe code that the analyzer is not recognizing as unsafe, please file a bug [here](http://www.google.com). We still care about false positives though, since in general they will waste someone's time. If the analyzer
+
 ### Debugging
 
 The main analyzer depends heavily on the SSA package. Being able to read the SSA code and visualize its graph can be very useful for debugging. In order to generate the SSA code and DOT (graphviz) source for every function in a test, run `go test levee_test.go -debug`. Results are written to the `output` directory. You can generate a PDF from the DOT source using `dot -Tpdf <file> -o "$(basename <file> .dot).pdf"`.
