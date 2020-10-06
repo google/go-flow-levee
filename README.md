@@ -1,5 +1,7 @@
 # Go Flow Levee
 
+![CI](https://github.com/google/go-flow-levee/workflows/CI/badge.svg)
+
 This static analysis tool works to ensure your program's data flow does not spill beyond its banks.
 
 An input program's data flow is explored using a combination of pointer analysis,
