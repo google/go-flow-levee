@@ -1,0 +1,23 @@
+func TestSingleBlock()
+0: entry
+	 0(*ssa.Alloc          ): t0 = local image.Point (p)
+	 1(*ssa.FieldAddr      ): t1 = &t0.X [#0]
+	 2(*ssa.FieldAddr      ): t2 = &t0.Y [#1]
+	 3(*ssa.Store          ): *t1 = 1:int
+	 4(*ssa.Store          ): *t2 = 2:int
+	 5(*ssa.FieldAddr      ): t3 = &t0.X [#0]
+	 6(*ssa.Store          ): *t3 = 3:int
+	 7(*ssa.FieldAddr      ): t4 = &t0.Y [#1]
+	 8(*ssa.Store          ): *t4 = 4:int
+	 9(*ssa.FieldAddr      ): t5 = &t0.X [#0]
+	10(*ssa.UnOp           ): t6 = *t5
+	11(*ssa.FieldAddr      ): t7 = &t0.Y [#1]
+	12(*ssa.UnOp           ): t8 = *t7
+	13(*ssa.BinOp          ): t9 = t6 + t8
+	14(*ssa.Alloc          ): t10 = new [1]interface{} (varargs)
+	15(*ssa.IndexAddr      ): t11 = &t10[0:int]
+	16(*ssa.MakeInterface  ): t12 = make interface{} <- int (t9)
+	17(*ssa.Store          ): *t11 = t12
+	18(*ssa.Slice          ): t13 = slice t10[:]
+	19(*ssa.Call           ): t14 = fmt.Println(t13...)
+	20(*ssa.Return         ): return
