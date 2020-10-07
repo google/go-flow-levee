@@ -114,10 +114,7 @@ func (s *Source) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBl
 
 	s.visitReferrers(n, mirCopy, lastBlockVisited)
 
-	operands := n.Operands(nil)
-	if operands != nil {
-		s.visitOperands(n, operands, mirCopy, lastBlockVisited)
-	}
+	s.visitOperands(n, n.Operands(nil), mirCopy, lastBlockVisited)
 }
 
 func (s *Source) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
