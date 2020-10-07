@@ -136,6 +136,8 @@ func (s *Source) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]
 // Specifically, we want to avoid referrers that shouldn't be visited, e.g.
 // because they would not be reachable in an actual execution of the program.
 func (s *Source) referrersToVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int) (referrers []ssa.Instruction) {
+	_, visitingFromLookup := n.(*ssa.Lookup)
+
 	if n.Referrers() == nil {
 		return
 	}
@@ -156,6 +158,11 @@ func (s *Source) referrersToVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBloc
 			if i < maxInstrReached[r.Block()] {
 				continue
 			}
+		}
+
+		// do not taint the boolean produced by a comma-ok map lookup
+		if ex, ok := r.(*ssa.Extract); ok && ex.Index == 1 && visitingFromLookup {
+			continue
 		}
 
 		if fa, ok := r.(*ssa.FieldAddr); ok && !s.config.IsSourceFieldAddr(fa) {
