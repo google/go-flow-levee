@@ -55,6 +55,16 @@ func (s *Source) Pos() token.Pos {
 	if e, ok := s.node.(*ssa.Extract); ok {
 		return e.Tuple.Pos()
 	}
+	// Fields don't *always* have a registered position in the source code,
+	// e.g. when accessing an embedded field.
+	if f, ok := s.node.(*ssa.Field); ok && f.Pos() == token.NoPos {
+		return f.X.Pos()
+	}
+	// FieldAddrs don't *always* have a registered position in the source code,
+	// e.g. when accessing an embedded field.
+	if f, ok := s.node.(*ssa.FieldAddr); ok && f.Pos() == token.NoPos {
+		return f.X.Pos()
+	}
 	return s.node.Pos()
 }
 
