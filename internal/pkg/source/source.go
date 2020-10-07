@@ -136,6 +136,8 @@ func (s *Source) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]
 // Specifically, we want to avoid referrers that shouldn't be visited, e.g.
 // because they would not be reachable in an actual execution of the program.
 func (s *Source) referrersToVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int) (referrers []ssa.Instruction) {
+	_, visitingFromLookup := n.(*ssa.Lookup)
+
 	if n.Referrers() == nil {
 		return
 	}
@@ -156,6 +158,13 @@ func (s *Source) referrersToVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBloc
 			if i < maxInstrReached[r.Block()] {
 				continue
 			}
+		}
+
+		// ex.Index == 1 indicates that the Extract is extracting the boolean from
+		// a comma-ok Lookup, e.g. maybeValue, ok := myMap[myKey]
+		// We don't want to taint the boolean.
+		if ex, ok := r.(*ssa.Extract); ok && ex.Index == 1 && visitingFromLookup {
+			continue
 		}
 
 		if fa, ok := r.(*ssa.FieldAddr); ok && !s.config.IsSourceFieldAddr(fa) {
@@ -218,20 +227,20 @@ func (s *Source) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
 }
 
 func (s *Source) visitOperands(n ssa.Node, operands []*ssa.Value, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
-	_, visitingFromExtract := n.(*ssa.Extract)
+	// Do not visit Operands if the current node is an Extract.
+	// This is to avoid incorrectly tainting non-Source values that are
+	// produced by an Instruction that has a Source among the values it
+	// produces, e.g. a call to a function with a signature like:
+	// func NewSource() (*core.Source, error)
+	// Which leads to a flow like:
+	// Extract (*core.Source) --> Call (NewSource) --> error
+	if _, ok := n.(*ssa.Extract); ok {
+		return
+	}
 
 	for _, o := range operands {
 		n, ok := (*o).(ssa.Node)
 		if !ok {
-			continue
-		}
-
-		// Do not visit a Call if the current node is an Extract.
-		// This is to avoid incorrectly tainting non-Source values that are
-		// returned from a call that has a Source among its return values,
-		// e.g. a call to a function with a signature like:
-		// func CreateSource() (core.Source, error)
-		if _, ok := (*o).(*ssa.Call); visitingFromExtract && ok {
 			continue
 		}
 
