@@ -162,9 +162,33 @@ func (s *Source) referrersToVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBloc
 			continue
 		}
 
+		if e, ok := r.(*ssa.Extract); ok && shouldNotVisitExtract(n, e) {
+			continue
+		}
+
 		referrers = append(referrers, r)
 	}
 	return referrers
+}
+
+// shouldNotVisitExtract determines if the extract is extracting a boolean from
+// a comma-ok map lookup or chan recv, in which case we should not visit it,
+// because a boolean cannot meaningfully be tainted.
+func shouldNotVisitExtract(n ssa.Node, e *ssa.Extract) bool {
+	// the boolean in a comma-ok extract is always at the 1st index
+	if e.Index != 1 {
+		return false
+	}
+	switch n.(type) {
+	// Lookup is for a map lookup, e.g.
+	// maybeValue, ok := myMap[myKey]
+	// UnOp is for a chan recv, e.g.
+	// maybeValue, ok := <-myChan
+	case *ssa.Lookup, *ssa.UnOp:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Source) reachableFromSource(target ssa.Instruction) bool {

@@ -42,6 +42,18 @@ func TestOnlySourceExtractIsTaintedFromTypeAssert(p interface{}) {
 	core.Sink(ok)
 }
 
+func TestOnlySourceExtractIsTaintedFromLookup() {
+	s, ok := map[string]core.Source{}[""]
+	core.Sink(s) // want "a source has reached a sink"
+	core.Sink(ok)
+}
+
+func TestOnlySourceExtractIsTaintedFromChanRecv() {
+	s, ok := <-make(chan core.Source)
+	core.Sink(s) // want "a source has reached a sink"
+	core.Sink(ok)
+}
+
 func TestOnlySourceExtractIsTaintedInstructionOrder() {
 	s, err := CreateSource()
 	core.Sink(err)
