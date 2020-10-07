@@ -30,16 +30,10 @@ func TakeSource(s core.Source) (string, int, interface{}) {
 	return "", 0, nil
 }
 
-func TestOnlySourceExtractIsTaintedFromCall() {
+func TestOnlySourceExtractIsTainted() {
 	s, err := CreateSource()
 	core.Sink(s) // want "a source has reached a sink"
 	core.Sink(err)
-}
-
-func TestOnlySourceExtractIsTaintedFromLookup() {
-	s, ok := map[string]core.Source{}[""]
-	core.Sink(s) // want "a source has reached a sink"
-	core.Sink(ok)
 }
 
 func TestOnlySourceExtractIsTaintedInstructionOrder() {
