@@ -58,6 +58,36 @@ func TestFieldTagsIdentification(t *testing.T) {
 			`"levee:\"source\""`,
 			true,
 		},
+		{
+			"multiple values, no target",
+			"`example:\"foo,bar,baz\"`",
+			false,
+		},
+		{
+			"multiple values, with target",
+			"`example:\"foo,sensitive,bar\"`",
+			true,
+		},
+		{
+			"multiple key value sets, no target",
+			"`foo:\"bar,baz\" example:\"foo,sensitive,bar\" fizz:\"bang\"`",
+			true,
+		},
+		{
+			"multiple, no target",
+			"`foo:\"bar,baz\" example:\"foo,sensitive,bar\"` fizz:\"bang\"",
+			true,
+		},
+		{
+			"empty",
+			"",
+			false,
+		},
+		{
+			"malformed",
+			"`noEndQuote:\"malform",
+			false,
+		},
 	}
 
 	for _, tt := range cases {
