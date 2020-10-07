@@ -39,6 +39,7 @@ func TestFieldTagsAnalysis(t *testing.T) {
 
 	want := []string{
 		"password",
+		"another",
 		"creds",
 		"secret",
 		"hasCustomFieldTag",

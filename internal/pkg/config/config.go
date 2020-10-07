@@ -21,6 +21,7 @@ import (
 	"go/types"
 	"io/ioutil"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -54,13 +55,10 @@ type fieldTagMatcher struct {
 // IsSourceFieldTag determines whether a field tag made up of a key and value
 // is a Source.
 func (c Config) IsSourceFieldTag(tag string) bool {
-	// tag is the entire, quote-wrapped string, e.g. "`levee:...`"
-	// Trim for use by reflect.StructTag
-	if len(tag) < 2 {
-		return false
+	if unq, err := strconv.Unquote(tag); err == nil {
+		tag = unq
 	}
-
-	st := reflect.StructTag(tag[1 : len(tag)-1])
+	st := reflect.StructTag(tag)
 
 	// built in
 	if st.Get("levee") == "source" {

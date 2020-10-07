@@ -53,6 +53,11 @@ func TestFieldTagsIdentification(t *testing.T) {
 			"`example:\"notsensitive\"`",
 			false,
 		},
+		{
+			"escaped tag accepted",
+			`"levee:\"source\""`,
+			true,
+		},
 	}
 
 	for _, tt := range cases {
