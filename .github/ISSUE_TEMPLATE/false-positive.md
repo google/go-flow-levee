@@ -13,9 +13,16 @@ Use this issue template to describe a false positive report produced by the anal
 
 ```go
 func NothingWrongHere() {
-    Sink(nil) // we don't want a report here, since the value that reached the sink is not sensitive
+    Sink(Safe{"not a secret"}) // we don't want a report here, since the value that reached the sink is not sensitive
 }
 ```
-(We are assuming that `Sink` has been configured as a sink.)
+(We are assuming that `Sink` has been configured as a sink and that `Safe` has *not* been configured as a source.)
 
-Please make it as easy as possible for us to reproduce what you observed. If possible, provide the exact configuration and code on which the analyzer produced a report. If the code cannot be shared, please provide a simplified example and confirm that it also yields the false positive report.
+**Describe the issue**
+Please include a clear and concise description of what happened and why you think it is a false positive.
+
+**To Reproduce**
+Please make it as easy as possible for us to reproduce what you observed. If possible, provide the exact configuration and code on which the analyzer failed to produce a report. If the code cannot be shared, please provide a simplified example and confirm that it also yields the false positive report.
+
+**Additional context**
+Add any other context about the problem here.
