@@ -1,9 +1,8 @@
 ---
 name: False negative
-about: This template is used to describe false negatives. False negatives are considered
-  to be bugs.
-title: "[BUG]: False Negative"
-labels: bug
+about: This template is used to describe false negative reports.
+title: "[FALSE NEGATIVE]: "
+labels: false negative
 assignees: ''
 
 ---
