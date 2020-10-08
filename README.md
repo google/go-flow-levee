@@ -32,12 +32,14 @@ See [design/](design/README.md).
 
 See [configuration/](configuration/README.md) for configuration details.
 
-### False positives
+## Reporting bugs
 
 Static taint propagation analysis is a hard problem. In fact, it is [undecidable](https://en.wikipedia.org/wiki/Rice%27s_theorem). Concretely, this means two things:
 * False negatives: the analyzer may fail to recognize that a piece of code is unsafe.
 * False positives: the analyzer may incorrectly claim that a safe piece of code is unsafe. 
-Since our aim is to avoid credentials leaks, we care more deeply about false negatives. If you discover unsafe code that the analyzer is not recognizing as unsafe, please file a bug [here](http://www.google.com). We still care about false positives though, since in general they will waste someone's time. If the analyzer
+Since our aim is to avoid credentials leaks, we care more deeply about false negatives. If you discover unsafe code that the analyzer is not recognizing as unsafe, please open an issue [here](https://github.com/google/go-flow-levee/issues?template=false-negatives). We still care about false positives though, since in general they will waste someone's time. If the analyzer produces a report for code that you consider to be safe, please open an issue [here](https://github.com/google/go-flow-levee/issues?template=false-positives).
+
+For general bug reports (e.g. crashes), please open an issue [here](https://github.com/google/go-flow-levee/issues?template=bug-report).
 
 ### Debugging
 
