@@ -70,11 +70,11 @@ func TestFieldTagsIdentification(t *testing.T) {
 		},
 		{
 			"multiple key value sets, no target",
-			"`foo:\"bar,baz\" example:\"foo,sensitive,bar\" fizz:\"bang\"`",
-			true,
+			"`foo:\"bar,baz\" example:\"foo,bar,baz\" fizz:\"bang\"`",
+			false,
 		},
 		{
-			"multiple, no target",
+			"multiple key value sets, with target",
 			"`foo:\"bar,baz\" example:\"foo,sensitive,bar\"` fizz:\"bang\"",
 			true,
 		},
