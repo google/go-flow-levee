@@ -1,6 +1,6 @@
 ---
 name: False negative
-about: This template is used to describe false negative reports.
+about: Report a false negative.
 title: "[FALSE NEGATIVE]: "
 labels: false negative
 assignees: ''
