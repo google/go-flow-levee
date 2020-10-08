@@ -1,0 +1,15 @@
+func TestParams(a int, b int, c string)
+0: entry
+	 0(*ssa.Alloc          ): t0 = new [3]interface{} (varargs)
+	 1(*ssa.IndexAddr      ): t1 = &t0[0:int]
+	 2(*ssa.MakeInterface  ): t2 = make interface{} <- int (a)
+	 3(*ssa.Store          ): *t1 = t2
+	 4(*ssa.IndexAddr      ): t3 = &t0[1:int]
+	 5(*ssa.MakeInterface  ): t4 = make interface{} <- int (b)
+	 6(*ssa.Store          ): *t3 = t4
+	 7(*ssa.IndexAddr      ): t5 = &t0[2:int]
+	 8(*ssa.MakeInterface  ): t6 = make interface{} <- string (c)
+	 9(*ssa.Store          ): *t5 = t6
+	10(*ssa.Slice          ): t7 = slice t0[:]
+	11(*ssa.Call           ): t8 = fmt.Println(t7...)
+	12(*ssa.Return         ): return

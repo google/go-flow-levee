@@ -55,6 +55,16 @@ func (s *Source) Pos() token.Pos {
 	if e, ok := s.node.(*ssa.Extract); ok {
 		return e.Tuple.Pos()
 	}
+	// Fields don't *always* have a registered position in the source code,
+	// e.g. when accessing an embedded field.
+	if f, ok := s.node.(*ssa.Field); ok && f.Pos() == token.NoPos {
+		return f.X.Pos()
+	}
+	// FieldAddrs don't *always* have a registered position in the source code,
+	// e.g. when accessing an embedded field.
+	if f, ok := s.node.(*ssa.FieldAddr); ok && f.Pos() == token.NoPos {
+		return f.X.Pos()
+	}
 	return s.node.Pos()
 }
 
@@ -104,10 +114,7 @@ func (s *Source) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBl
 
 	s.visitReferrers(n, mirCopy, lastBlockVisited)
 
-	operands := n.Operands(nil)
-	if operands != nil {
-		s.visitOperands(n, operands, mirCopy, lastBlockVisited)
-	}
+	s.visitOperands(n, n.Operands(nil), mirCopy, lastBlockVisited)
 }
 
 func (s *Source) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
@@ -314,11 +321,8 @@ func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Sour
 func sourcesFromParams(fn *ssa.Function, conf classifier) []*Source {
 	var sources []*Source
 	for _, p := range fn.Params {
-		switch t := p.Type().(type) {
-		case *types.Pointer:
-			if n, ok := t.Elem().(*types.Named); ok && conf.IsSource(n) {
-				sources = append(sources, New(p, conf))
-			}
+		if isSourceType(conf, p.Type()) {
+			sources = append(sources, New(p, conf))
 		}
 	}
 	return sources
@@ -382,15 +386,38 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 
 			// source obtained through a field or an index operation
 			case *ssa.Field, *ssa.FieldAddr, *ssa.IndexAddr, *ssa.Lookup:
+
+			// source chan or map (arrays and slices have regular Allocs)
+			case *ssa.MakeMap, *ssa.MakeChan:
 			}
 
 			// all of the instructions that the switch lets through are values as per ssa/doc.go
-			if v := instr.(ssa.Value); conf.IsSource(utils.Dereference(v.Type())) {
+			if v := instr.(ssa.Value); isSourceType(conf, v.Type()) {
 				sources = append(sources, New(v.(ssa.Node), conf))
 			}
 		}
 	}
 	return sources
+}
+
+func isSourceType(c classifier, t types.Type) bool {
+	deref := utils.Dereference(t)
+	switch tt := deref.(type) {
+	case *types.Array:
+		return isSourceType(c, tt.Elem())
+	case *types.Slice:
+		return isSourceType(c, tt.Elem())
+	case *types.Chan:
+		return isSourceType(c, tt.Elem())
+	case *types.Map:
+		key := isSourceType(c, tt.Key())
+		elem := isSourceType(c, tt.Elem())
+		return key || elem
+	case *types.Basic, *types.Interface, *types.Tuple, *types.Struct:
+		return false
+	default:
+		return c.IsSource(tt) || isSourceType(c, tt.Underlying())
+	}
 }
 
 func isProducedBySanitizer(v ssa.Value, conf classifier) bool {

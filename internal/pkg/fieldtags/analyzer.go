@@ -71,14 +71,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 		for _, f := range (*s).Fields.List {
-			tags := extractTags(f)
-			isTaggedField := false
-			for _, ft := range tags {
-				if conf.IsSourceFieldTag(ft.key, ft.val) {
-					isTaggedField = true
-				}
-			}
-			if !isTaggedField || len(f.Names) == 0 {
+			if f.Tag == nil || len(f.Names) == 0 || !conf.IsSourceFieldTag(f.Tag.Value) {
 				continue
 			}
 			fNames := make([]string, len(f.Names))

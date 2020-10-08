@@ -1,4 +1,4 @@
-// Copyright 2020 Google LLC
+// Copyright 2019 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,26 +12,39 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package pointers
+package main
 
 import (
-	"example.com/core"
+	"fmt"
+	"image"
 )
 
-func TestNew() {
-	s := new(core.Source)
-	core.Sink(s) // want "a source has reached a sink"
+func TestSingleBlock() {
+	p := image.Point{1, 2}
+	p.X = 3
+	p.Y = 4
+	fmt.Println(p.X + p.Y)
 }
 
-func TestDoublePointer(s **core.Source) {
-	core.Sink(s)   // want "a source has reached a sink"
-	core.Sink(*s)  // want "a source has reached a sink"
-	core.Sink(**s) // want "a source has reached a sink"
+func TestMultiBlock() {
+	p := image.Point{1, 2}
+	if p.X > 0 {
+		if p.Y > 0 {
+			fmt.Printf("in top right quadrant, at (%d, %d)\n", p.X, p.Y)
+		}
+	} else {
+		fmt.Println("somewhere")
+	}
 }
 
-func TestDoubleReference(s core.Source) {
-	ref := &s
-	core.Sink(ref) // want "a source has reached a sink"
-	refRef := &ref
-	core.Sink(refRef) // want "a source has reached a sink"
+func TestParams(a, b int, c string) {
+	fmt.Println(a, b, c)
+}
+
+func TestClosure() {
+	x := 0
+	f := func(x int) {
+		fmt.Println(x)
+	}
+	f(x)
 }

@@ -46,17 +46,37 @@ func TestSourceDeclarations() {
 	noop(varZeroVal, declZeroVal, populatedVal, constPtr, ptr, newPtr, ptrToDeclZero, ptrToDeclPopulataed, alias, def)
 }
 
-// A report should be emitted for each parameter.
-func TestSourceParameters(val Source, ptr *Source) { // want "source identified" "source identified"
+// A report should be emitted for each parameter, as well as the (implicit) Alloc for val.
+func TestSourceParameters(val Source, ptr *Source) { // want "source identified" "source identified" "source identified"
 
 }
 
 func TestSourceExtracts() {
-	s, err := CreateSource()                     // want "source identified"
-	sptr, err := NewSource()                     // want "source identified"
-	mapSource, ok := map[string]Source{}[""]     // want "source identified"
-	mapSourcePtr, ok := map[string]*Source{}[""] // want "source identified"
-	chanSource, ok := <-(make(chan Source))      // want "source identified"
-	chanSourcePtr, ok := <-(make(chan *Source))  // want "source identified"
+	s, err := CreateSource() // want "source identified"
+	sptr, err := NewSource() // want "source identified"
+
+	// we expect two reports for the following cases, since the map is a Source
+	mapSource, ok := map[string]Source{}[""]     // want "source identified" "source identified"
+	mapSourcePtr, ok := map[string]*Source{}[""] // want "source identified" "source identified"
+
+	// we expect two reports for the following cases, since the chan is a Source
+	chanSource, ok := <-(make(chan Source))     // want "source identified" "source identified"
+	chanSourcePtr, ok := <-(make(chan *Source)) // want "source identified" "source identified"
+
 	_, _, _, _, _, _, _, _ = s, sptr, mapSource, chanSource, mapSourcePtr, chanSourcePtr, err, ok
 }
+
+func TestCollections(ss []Source) { // want "source identified"
+	_ = map[Source]string{} // want "source identified"
+	_ = map[string]Source{} // want "source identified"
+	_ = map[Source]Source{} // want "source identified"
+	_ = [1]Source{}         // want "source identified"
+	_ = []Source{}          // want "source identified"
+	_ = make(chan Source)   // want "source identified"
+	_ = []*Source{}         // want "source identified"
+	_ = SourceSlice{}       // want "source identified"
+	_ = DeeplyNested{}      // want "source identified"
+}
+
+type SourceSlice []Source
+type DeeplyNested map[string][]map[string]map[string][][]map[string]Source

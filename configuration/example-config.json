@@ -23,7 +23,7 @@
   ],
   "Sinks": [
     {
-      "PackageRE": "k?log$",
+      "PackageRE": "log",
       "ReceiverRE": "",
       "MethodRE": "Info|Warning|Error|Fatal|Exit"
     }
