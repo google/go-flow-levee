@@ -14,17 +14,7 @@ func TestMultiBlock()
 	 1(*ssa.UnOp           ): t7 = *t6
 	 2(*ssa.BinOp          ): t8 = t7 > 0:int
 	 3(*ssa.If             ): if t8 goto 4 else 2
-2: if.done
-	 0(*ssa.Return         ): return
-3: if.else
-	 0(*ssa.Alloc          ): t9 = new [1]interface{} (varargs)
-	 1(*ssa.IndexAddr      ): t10 = &t9[0:int]
-	 2(*ssa.MakeInterface  ): t11 = make interface{} <- string ("somewhere":string)
-	 3(*ssa.Store          ): *t10 = t11
-	 4(*ssa.Slice          ): t12 = slice t9[:]
-	 5(*ssa.Call           ): t13 = fmt.Println(t12...)
-	 6(*ssa.Jump           ): jump 2
-4: if.then
+2: if.then
 	 0(*ssa.FieldAddr      ): t14 = &t0.X [#0]
 	 1(*ssa.UnOp           ): t15 = *t14
 	 2(*ssa.FieldAddr      ): t16 = &t0.Y [#1]
@@ -39,3 +29,13 @@ func TestMultiBlock()
 	11(*ssa.Slice          ): t23 = slice t18[:]
 	12(*ssa.Call           ): t24 = fmt.Printf("in top right quad...":string, t23...)
 	13(*ssa.Jump           ): jump 2
+3: if.done
+	 0(*ssa.Return         ): return
+4: if.else
+	 0(*ssa.Alloc          ): t9 = new [1]interface{} (varargs)
+	 1(*ssa.IndexAddr      ): t10 = &t9[0:int]
+	 2(*ssa.MakeInterface  ): t11 = make interface{} <- string ("somewhere":string)
+	 3(*ssa.Store          ): *t10 = t11
+	 4(*ssa.Slice          ): t12 = slice t9[:]
+	 5(*ssa.Call           ): t13 = fmt.Println(t12...)
+	 6(*ssa.Jump           ): jump 2
