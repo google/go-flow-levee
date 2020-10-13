@@ -118,3 +118,73 @@ func TestSinkAfterTaintInFor(sources []core.Source, w io.Writer) {
 	}
 	core.Sink(w) // want "a source has reached a sink"
 }
+
+func TestIfInFor() {
+	var e interface{}
+	for true {
+		e = core.Source{}
+	}
+	core.Sink(e) // want "a source has reached a sink"
+}
+
+func TestIfInFor1Step() {
+	var e interface{}
+	for true {
+		if true {
+			e = nil
+		} else {
+			e = core.Source{}
+		}
+	}
+	core.Sink(e) // want "a source has reached a sink"
+}
+
+func TestIfInFor2Steps() {
+	var e1 interface{}
+	var e2 interface{}
+	for true {
+		if true {
+			e1 = core.Source{}
+		} else {
+			e2 = e1
+		}
+	}
+	core.Sink(e1) // want "a source has reached a sink"
+	core.Sink(e2) // want "a source has reached a sink"
+}
+
+func TestIfInFor_() {
+	data := core.Source{}.Data
+	var s string
+	for true {
+		s = data
+	}
+	core.Sink(s) // want "a source has reached a sink"
+}
+
+func TestIfInFor1Step_() {
+	data := core.Source{}.Data
+	var s string
+	for true {
+		if true {
+			s = ""
+		} else {
+			s = data
+		}
+	}
+	core.Sink(s) // want "a source has reached a sink"
+}
+
+func TestIfInFor2Steps_() {
+	data := core.Source{}.Data
+	var s1, s2 string
+	for true {
+		if true {
+			s1 = data
+		} else {
+			s2 = s1
+		}
+	}
+	core.Sink(s1) // want "a source has reached a sink"
+	core.Sink(s2) // want "a source has reached a sink"
+}
