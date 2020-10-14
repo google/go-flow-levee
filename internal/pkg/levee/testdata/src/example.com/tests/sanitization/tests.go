@@ -57,3 +57,56 @@ func TestIncorrectSanitizationByValue(s core.Source) {
 	core.Sanitize(s)
 	core.Sink(s) // TODO want "a source has reached a sink"
 }
+
+func TestSanitizedAfterLoop() {
+	var e interface{}
+	for false {
+		if true {
+			e = nil
+		} else {
+			e = core.Source{}
+		}
+	}
+	e = core.Sanitize(e)[0]
+	core.Sink(e)
+}
+
+func TestSanitizedBeforeExit() {
+	var e interface{}
+	for false {
+		if true {
+			e = nil
+		} else {
+			e = core.Source{}
+		}
+		e = core.Sanitize(e)[0]
+	}
+	core.Sink(e)
+}
+
+func T1() {
+	var e interface{}
+	for false {
+		e = core.Source{}
+		e = core.Sanitize(e)[0]
+	}
+	core.Sink(e)
+}
+
+func T2() {
+	var e interface{}
+	for false {
+		e = core.Source{}
+		e = core.Sanitize(e)[0]
+		core.Sink(e)
+	}
+}
+
+func T3() {
+	var e interface{}
+	for false {
+		e = core.Source{}
+	}
+	e = core.Sanitize(e)[0]
+	core.Sink(e)
+}
