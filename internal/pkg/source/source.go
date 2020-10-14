@@ -403,6 +403,8 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 func isSourceType(c classifier, t types.Type) bool {
 	deref := utils.Dereference(t)
 	switch tt := deref.(type) {
+	case *types.Named:
+		return c.IsSource(tt) || isSourceType(c, tt.Underlying())
 	case *types.Array:
 		return isSourceType(c, tt.Elem())
 	case *types.Slice:
@@ -413,10 +415,15 @@ func isSourceType(c classifier, t types.Type) bool {
 		key := isSourceType(c, tt.Key())
 		elem := isSourceType(c, tt.Elem())
 		return key || elem
-	case *types.Basic, *types.Interface, *types.Tuple, *types.Struct:
+	case *types.Basic, *types.Struct, *types.Tuple, *types.Interface, *types.Signature, *types.Pointer:
 		return false
 	default:
-		return c.IsSource(tt) || isSourceType(c, tt.Underlying())
+		// The above case is a safeguard against infinite recursion.
+		// If we missed a case, we should panic.
+		if tt.Underlying() == tt {
+			panic(fmt.Errorf("heading into infinite loop on isSourceType, <%T> %v", tt, tt))
+		}
+		return isSourceType(c, tt.Underlying())
 	}
 }
 
