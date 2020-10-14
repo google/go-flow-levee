@@ -18,6 +18,28 @@ import (
 	"example.com/core"
 )
 
+func TestTaintInThenBlockSinkInElseBlockInLoop() {
+	var e interface{}
+	for true {
+		if true {
+			e = core.Source{}
+		} else {
+			core.Sink(e) // want "a source has reached a sink"
+		}
+	}
+}
+
+func TestTaintInElseBlockSinkInThenBlockInLoop() {
+	var e interface{}
+	for true {
+		if true {
+			e = core.Source{}
+		} else {
+			core.Sink(e) // want "a source has reached a sink"
+		}
+	}
+}
+
 func TestTaintInThenBlockInLoop() {
 	var e interface{}
 	for true {
