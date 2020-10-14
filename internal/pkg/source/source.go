@@ -125,6 +125,7 @@ func (s *Source) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]
 		case *ssa.Call:
 			if s.config.IsSanitizer(v) {
 				s.sanitizers = append(s.sanitizers, &sanitizer.Sanitizer{Call: v})
+				continue
 			}
 		}
 
