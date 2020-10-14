@@ -18,7 +18,19 @@ import (
 	"example.com/core"
 )
 
-func TestConditionalInLoop() {
+func TestTaintInThenBlockInLoop() {
+	var e interface{}
+	for true {
+		if true {
+			e = core.Source{}
+		} else {
+			e = nil
+		}
+	}
+	core.Sink(e) // want "a source has reached a sink"
+}
+
+func TestTaintInElseBlockInLoop() {
 	var e interface{}
 	for true {
 		if true {
@@ -30,7 +42,7 @@ func TestConditionalInLoop() {
 	core.Sink(e) // want "a source has reached a sink"
 }
 
-func TestNestedConditionalInLoop() {
+func TestTaintInNestedConditionalInLoop() {
 	var e interface{}
 	for true {
 		if true {
@@ -46,7 +58,7 @@ func TestNestedConditionalInLoop() {
 	core.Sink(e) // want "a source has reached a sink"
 }
 
-func TestPropagationOverMultipleIterations() {
+func TestTaintPropagationOverMultipleIterations() {
 	var e1 interface{}
 	var e2 interface{}
 	for true {
@@ -60,7 +72,7 @@ func TestPropagationOverMultipleIterations() {
 	core.Sink(e2) // want "a source has reached a sink"
 }
 
-func TestPropagationOverMultipleIterationsWithNestedConditionals() {
+func TestTaintPropagationOverMultipleIterationsWithNestedConditionals() {
 	var e1 interface{}
 	var e2 interface{}
 	var e3 interface{}
