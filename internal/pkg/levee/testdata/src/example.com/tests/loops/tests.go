@@ -18,6 +18,30 @@ import (
 	"example.com/core"
 )
 
+func TestTaintInThenBlockInLoopSinkAfterLoop() {
+	var e interface{}
+	for true {
+		if true {
+			e = core.Source{}
+		} else {
+			e = nil
+		}
+	}
+	core.Sink(e) // want "a source has reached a sink"
+}
+
+func TestTaintInElseBlockInLoopSinkAfterLoop() {
+	var e interface{}
+	for true {
+		if true {
+			e = nil
+		} else {
+			e = core.Source{}
+		}
+	}
+	core.Sink(e) // want "a source has reached a sink"
+}
+
 func TestTaintInThenBlockSinkInElseBlockInLoop() {
 	var e interface{}
 	for true {
@@ -38,30 +62,6 @@ func TestTaintInElseBlockSinkInThenBlockInLoop() {
 			core.Sink(e) // want "a source has reached a sink"
 		}
 	}
-}
-
-func TestTaintInThenBlockInLoop() {
-	var e interface{}
-	for true {
-		if true {
-			e = core.Source{}
-		} else {
-			e = nil
-		}
-	}
-	core.Sink(e) // want "a source has reached a sink"
-}
-
-func TestTaintInElseBlockInLoop() {
-	var e interface{}
-	for true {
-		if true {
-			e = nil
-		} else {
-			e = core.Source{}
-		}
-	}
-	core.Sink(e) // want "a source has reached a sink"
 }
 
 func TestTaintInNestedConditionalInLoop() {
