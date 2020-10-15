@@ -403,6 +403,8 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 func isSourceType(c classifier, t types.Type) bool {
 	deref := utils.Dereference(t)
 	switch tt := deref.(type) {
+	case *types.Named:
+		return c.IsSource(tt) || isSourceType(c, tt.Underlying())
 	case *types.Array:
 		return isSourceType(c, tt.Elem())
 	case *types.Slice:
@@ -413,10 +415,16 @@ func isSourceType(c classifier, t types.Type) bool {
 		key := isSourceType(c, tt.Key())
 		elem := isSourceType(c, tt.Elem())
 		return key || elem
-	case *types.Basic, *types.Interface, *types.Tuple, *types.Struct:
+	case *types.Basic, *types.Struct, *types.Tuple, *types.Interface, *types.Signature:
+		// These types do not currently represent possible source types
+		return false
+	case *types.Pointer:
+		// This should be unreachable due to the dereference above
 		return false
 	default:
-		return c.IsSource(tt) || isSourceType(c, tt.Underlying())
+		// The above should be exhaustive.  Reaching this default case is an error.
+		fmt.Printf("unexpected type received: %T %v; please report this issue\n", tt, tt)
+		return false
 	}
 }
 
