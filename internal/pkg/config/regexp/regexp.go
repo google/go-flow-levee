@@ -31,6 +31,16 @@ func (mr *Regexp) MatchString(s string) bool {
 	return mr.r == nil || mr.r.MatchString(s)
 }
 
+func (mr *Regexp) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var s string
+	if err := unmarshal(&s); err != nil {
+		return err
+	}
+
+	mr.r = regexp.MustCompile(s)
+	return nil
+}
+
 // UnmarshalJSON implementation of json.UnmarshalJSON interface.
 func (mr *Regexp) UnmarshalJSON(data []byte) error {
 	var matcher string

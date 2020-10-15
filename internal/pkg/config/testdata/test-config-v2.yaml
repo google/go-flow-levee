@@ -1,0 +1,55 @@
+apiVersion: config/v2
+kind: config
+
+metadata:
+  validate-config: true
+  pointer-analysis: true
+  scope:
+    skip:
+    - imports: testing
+    - package: my/special/pkg
+
+source:
+- value:
+    id: "Password field"
+    package: ^k8s.io/client-go/rest$
+    type: ^TLSClientConfig$
+    field: Password
+- value:
+    # `levee:”source”` should be default, but additional tags
+    # should be configurable
+    fieldTag: myTag:"source"
+- call:
+    id: "sensitive environment information"
+    package: os
+    function: getEnv
+    argument:
+    - value:
+        position: 0
+        const: CFSSL_CA_PK_PASSWORD
+
+sink:
+- call:  &println-sink
+    id: "don't print"
+    package: fmt
+    function: Println
+    unless:
+      context:
+        package: my/sanctioned/package
+- value:
+    id: "Sink function member"
+    package: path/to/my/sinker/pkg
+    type: MySinker
+    field: SinkField
+
+allowlist:
+- call: *println-sink
+  context:
+    package:  third_party/pkg
+    function: falsePositiveProducer
+- spec:
+    id: "Sink function member"
+    context:
+      package: path/to/my/sinker/pkg
+      function: SafeSink
+      receiver: MySinker

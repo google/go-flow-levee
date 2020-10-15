@@ -15,8 +15,13 @@
 package config
 
 import (
+	"fmt"
+	"io/ioutil"
+	"log"
 	"path/filepath"
 	"testing"
+
+	"gopkg.in/yaml.v2"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
@@ -69,4 +74,19 @@ func TestConfig(t *testing.T) {
 	for _, p := range []string{"core", "exclusion"} {
 		analysistest.Run(t, testdata, testAnalyzer, filepath.Join(testdata, "src/notexample.com", p))
 	}
+}
+
+func TestLoadConfigV2(t *testing.T) {
+	testdata := analysistest.TestData()
+	bytes, err := ioutil.ReadFile(testdata + "/test-config-v2.yaml")
+	if err != nil {
+		t.Error(err)
+	}
+
+	var cfg ConfigV2
+	err = yaml.Unmarshal(bytes, &cfg)
+	if err != nil {
+		log.Fatalf("cannot unmarshal data: %v", err)
+	}
+	fmt.Printf("%#v\n", cfg)
 }
