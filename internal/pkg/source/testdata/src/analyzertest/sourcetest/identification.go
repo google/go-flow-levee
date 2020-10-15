@@ -26,6 +26,7 @@ type FuncField struct {
 	ptr      func() *Source
 }
 
+// This test exercises isSourceType for *types.Signature and related interactions.
 func TestFunctionFields() {
 	bar := FuncField{
 		flipCoin: func() bool {
