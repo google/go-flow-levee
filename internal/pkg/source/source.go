@@ -124,6 +124,7 @@ func (s *Source) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]
 		switch v := r.(type) {
 		case *ssa.Call:
 			if s.config.IsSanitizer(v) {
+				s.preOrder = append(s.preOrder, v)
 				s.sanitizers = append(s.sanitizers, &sanitizer.Sanitizer{Call: v})
 				continue
 			}
