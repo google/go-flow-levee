@@ -10,9 +10,9 @@ import (
 type NotImplemented = interface{}
 
 type FieldSpec struct {
-	typeSpec `yaml:",inline"`
-	Field    regexp.Regexp
-	Tags     []fieldTagMatcher
+	typeSpec  `yaml:",inline"`
+	Field     regexp.Regexp
+	Fieldtags []fieldTagMatcher
 }
 
 func (fs FieldSpec) MatchName(name string) bool {
@@ -20,7 +20,7 @@ func (fs FieldSpec) MatchName(name string) bool {
 }
 
 func (fs FieldSpec) MatchTag(key, value string) bool {
-	for _, ftm := range fs.Tags {
+	for _, ftm := range fs.Fieldtags {
 		if ftm.Key == key && ftm.Val == value {
 			return true
 		}

@@ -52,6 +52,24 @@ type fieldTagMatcher struct {
 	Val string
 }
 
+func (f *fieldTagMatcher) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var m map[string]string
+	if err := unmarshal(&m); err != nil {
+		return err
+	}
+
+	if len(m) != 1 {
+		return fmt.Errorf("expected single key-value pair, got %d", len(m))
+	}
+
+	for k, v := range m {
+		f.Key = k
+		f.Val = v
+		break
+	}
+	return nil
+}
+
 // IsSourceFieldTag determines whether a field tag made up of a key and value
 // is a Source.
 func (c Config) IsSourceFieldTag(tag string) bool {

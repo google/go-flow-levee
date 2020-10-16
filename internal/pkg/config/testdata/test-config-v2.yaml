@@ -11,14 +11,16 @@ metadata:
 
 source:
 - value:
-    id: "Password field"
+    id: "Core Source"
     package: ^k8s.io/client-go/rest$
     type: ^TLSClientConfig$
     field: Password
 - value:
     # `levee:”source”` should be default, but additional tags
     # should be configurable
-    fieldTag: myTag:"source"
+    fieldtags:
+      - myTag: source
+      - myTag: otherSource
 - call:
     id: "sensitive environment information"
     package: os
