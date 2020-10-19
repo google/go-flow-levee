@@ -80,6 +80,13 @@ func TestSourceParameters(val Source, ptr *Source) { // want "source identified"
 
 }
 
+// A report should be emitted for val, because it will have an Alloc in the body.
+// A report should *not* be emitted for ptr, because it will not, by itself, lead to
+// the creation of a Source value.
+func TestNamedReturnValues() (val Source, ptr *Source) { // want "source identified"
+	return
+}
+
 func TestSourceExtracts() {
 	s, err := CreateSource() // want "source identified"
 	sptr, err := NewSource() // want "source identified"
