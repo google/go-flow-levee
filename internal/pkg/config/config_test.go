@@ -15,7 +15,6 @@
 package config
 
 import (
-	"fmt"
 	"io/ioutil"
 	"log"
 	"path/filepath"
@@ -88,5 +87,4 @@ func TestLoadConfigV2(t *testing.T) {
 	if err != nil {
 		log.Fatalf("cannot unmarshal data: %v", err)
 	}
-	fmt.Printf("%#v\n", cfg)
 }
