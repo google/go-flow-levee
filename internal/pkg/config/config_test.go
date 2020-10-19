@@ -84,7 +84,7 @@ func TestLoadConfigV2(t *testing.T) {
 	}
 
 	var cfg ConfigV2
-	err = yaml.Unmarshal(bytes, &cfg)
+	err = yaml.UnmarshalStrict(bytes, &cfg)
 	if err != nil {
 		log.Fatalf("cannot unmarshal data: %v", err)
 	}

@@ -2,8 +2,7 @@ apiVersion: config/v2
 kind: config
 
 metadata:
-  validate-config: true
-  pointer-analysis: true
+  validateConfig: true
   scope:
     skip:
     - imports: testing
@@ -25,7 +24,7 @@ source:
     id: "sensitive environment information"
     package: os
     function: getEnv
-    argument:
+    arguments:
     - value:
         position: 0
         const: CFSSL_CA_PK_PASSWORD
@@ -36,8 +35,8 @@ sink:
     package: fmt
     function: Println
     unless:
-      context:
-        package: my/sanctioned/package
+      - context:
+          package: my/sanctioned/package
 - value:
     id: "Sink function member"
     package: path/to/my/sinker/pkg
@@ -45,11 +44,13 @@ sink:
     field: SinkField
 
 allowlist:
-- call: *println-sink
-  context:
-    package:  third_party/pkg
-    function: falsePositiveProducer
-- spec:
+- call:
+    <<: *println-sink                        # YAML Anchor expansion sets 'id', 'package', 'function', 'unless'
+    id: "Ignore prints in third_party/pkg"   # overwrite 'id'
+    context:                                 # add context
+      package:  third_party/pkg
+      function: falsePositiveProducer
+- call:
     id: "Sink function member"
     context:
       package: path/to/my/sinker/pkg
