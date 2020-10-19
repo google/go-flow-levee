@@ -24,6 +24,6 @@ func TestNamedReturnValue() (s core.Source) {
 }
 
 func TestNamedReturnValuePointer() (s *core.Source) {
-	core.Sink(s) // we do not want a report here, because no Source value is being created
+	core.Sink(s) // we do not want a report here, because no Source value has been created
 	return
 }
