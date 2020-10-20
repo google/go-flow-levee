@@ -135,7 +135,7 @@ func exportSourceFacts(pass *analysis.Pass, ssaType *ssa.Type, conf *config.Conf
 			if fld.Pkg() != pass.Pkg {
 				continue
 			}
-			if conf.IsSourceField(ssaType.Type(), fld, taggedFields) {
+			if conf.IsSourceField(ssaType.Type(), fld) || taggedFields.IsSource(fld) {
 				pass.ExportObjectFact(fld, &fieldDeclFact{})
 			}
 		}
