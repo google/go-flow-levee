@@ -1,15 +1,20 @@
-apiVersion: config/v2
-kind: config
-
+# metadata contains broad analysis configuration beyond the identification of
+# key taint-propagation elements.
+# These are intended as examples, not necessarily intended to represent explicit intent.
 metadata:
+  # For instance, a flag to warn if a spec would identify no elements, suggesting configuration is stale.
   validateConfig: true
+  # Analysis runs on the transitive closure of import dependencies.
+  # We may wish to explicitly skip those packages which import "testing" or have been otherwise sanctified.
   scope:
     skip:
     - imports: testing
     - package: my/special/pkg
 
+# Identification of taint-propagation elements is done by value or by function call
 source:
 - value:
+    # The specific type and field .../rest.TLSClientConfig.Password is a source
     id: "Core Source"
     package: ^k8s.io/client-go/rest$
     type: ^TLSClientConfig$
@@ -21,9 +26,10 @@ source:
       - myTag: source
       - myTag: otherSource
 - call:
+    # The value returned by os.Getenv("CFSSL_CA_PK_PASSWORD") is sensitive
     id: "sensitive environment information"
     package: os
-    function: getEnv
+    function: Getenv
     arguments:
     - value:
         position: 0
@@ -43,6 +49,8 @@ sink:
     type: MySinker
     field: SinkField
 
+# An allow-list is distinct from an identification's .unless field in intent
+# This allow-list represents false-positive suppression, not intended avoidance.
 allowlist:
 - call:
     <<: *println-sink                        # YAML Anchor expansion sets 'id', 'package', 'function', 'unless'
