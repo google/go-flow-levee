@@ -70,6 +70,6 @@ func checkForGoFiles(path string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("found no Go files in test directory (%s).  You may need to run `git clean`.", path)
+	return fmt.Errorf("found no Go files in test directory (%s)", path)
 
 }
