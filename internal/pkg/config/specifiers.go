@@ -28,10 +28,10 @@ type ConfigV2 struct {
 
 	Metadata metaSpec
 
-	Source    []specifier
-	Sink      []specifier
-	Sanitizer []specifier
-	Allowlist []specifier
+	Sources    []specifier
+	Sinks      []specifier
+	Sanitizers []specifier
+	Allowlist  []specifier
 }
 
 type metaSpec struct {

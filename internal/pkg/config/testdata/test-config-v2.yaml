@@ -27,7 +27,7 @@ metadata:
     - package: my/special/pkg
 
 # Identification of taint-propagation elements is done by value or by function call
-source:
+sources:
 - value:
     # The specific type and field .../rest.TLSClientConfig.Password is a source
     id: "Core Source"
@@ -50,7 +50,7 @@ source:
         position: 0
         const: CFSSL_CA_PK_PASSWORD
 
-sink:
+sinks:
 - call:  &println-sink
     id: "don't print"
     package: fmt
