@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package _switch
+package typeassert
 
 import (
 	"example.com/core"
@@ -24,10 +24,12 @@ func TestTypeSwitch(i interface{}) {
 		core.Sink(i)
 		core.Sink(t)
 	case *core.Source:
-		core.Sink(i) // TODO/discuss - do we want "a source has reached a sink"
+		// The type of i is definitively known within this block
+		core.Sink(i) // TODO want "a source has reached a sink"
 		core.Sink(t) // want "a source has reached a sink"
 	case core.Source:
-		core.Sink(i) // TODO/discuss - do we want "a source has reached a sink"
+		// The type of i is definitively known within this block
+		core.Sink(i) // TODO want "a source has reached a sink"
 		core.Sink(t) // want "a source has reached a sink"
 	default:
 		core.Sink(i)
@@ -38,8 +40,23 @@ func TestTypeSwitch(i interface{}) {
 func TestTypeSwitchInline(i interface{}) {
 	switch i.(type) {
 	case core.Innocuous, *core.Source, core.Source:
-		core.Sink(i) // TODO/discuss - do we want "a source has reached a sink"
+		// While not definitively known, the type of i may be asserted to be a source type
+		core.Sink(i) // TODO want "a source has reached a sink"
 	default:
 		// do nothing
 	}
+}
+
+func TestPanicTypeAssert(i interface{}) {
+	s := t.(core.Source)
+	_ = s
+	// The dominating type assertion would panic if i were not a source type.
+	core.Sink(i) // TODO want "a source has reached a sink"
+}
+
+func TestOkayTypeAssert(i interface{}) {
+	s, ok := t.(core.Source)
+	_, _ = s, ok
+	// The dominating type assertion will not panic.  Value of ok is not known, so we cannot presume the type of i
+	core.Sink(i)
 }
