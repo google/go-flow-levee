@@ -39,10 +39,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			for _, i := range b.Instrs {
 				if c, ok := i.(*ssa.Call); ok {
 					name := c.Call.StaticCallee().Name()
-					if name == "scrub" {
+					switch name {
+					case "scrub":
 						sanitizers = append(sanitizers, Sanitizer{c})
-					}
-					if name == "Print" {
+					case "Print":
 						sinks = append(sinks, c)
 					}
 				}
