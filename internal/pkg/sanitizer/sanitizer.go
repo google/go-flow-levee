@@ -38,8 +38,8 @@ func (s Sanitizer) Dominates(target ssa.Instruction) bool {
 		return false
 	}
 
-	if !s.Call.Block().Dominates(target.Block()) {
-		return false
+	if s.Call.Block().Dominates(target.Block()) && s.Call.Block() != target.Block() {
+		return true
 	}
 
 	if s.Call.Block() == target.Block() {
