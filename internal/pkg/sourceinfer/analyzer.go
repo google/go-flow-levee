@@ -103,61 +103,53 @@ func createTypeDefGraph(pass *analysis.Pass, ins *inspector.Inspector) ObjectGra
 	defGraph := ObjectGraph{}
 
 	genDeclFilter := []ast.Node{
-		(*ast.GenDecl)(nil),
+		(*ast.TypeSpec)(nil),
 	}
 
 	ins.Preorder(genDeclFilter, func(n ast.Node) {
-		gd, ok := n.(*ast.GenDecl)
+		ts, ok := n.(*ast.TypeSpec)
 		if !ok {
 			return
 		}
-		for _, spec := range gd.Specs {
-			// type definition
-			ts, ok := spec.(*ast.TypeSpec)
+		// type alias, e.g. type A = B
+		// we don't need to handle these, since the type will be inlined
+		if ts.Assign != token.NoPos {
+			return
+		}
+
+		// struct definition, fields will be checked later in the analysis
+		if _, ok := ts.Type.(*ast.StructType); ok {
+			return
+		}
+
+		typeBeingDefined := pass.TypesInfo.ObjectOf(ts.Name)
+
+		selectorFinder := &selectorFinder{nil, map[*ast.Ident]bool{}}
+		ast.Walk(selectorFinder, (ast.Node)(ts.Type))
+		for _, sel := range selectorFinder.foundSelectors {
+			named, ok := pass.TypesInfo.TypeOf(sel).(*types.Named)
 			if !ok {
 				continue
 			}
+			obj := named.Obj()
+			if len(defGraph[obj]) == 0 {
+				defGraph[obj] = make([]types.Object, 0, 1)
+			}
+			defGraph[obj] = append(defGraph[obj], typeBeingDefined)
+		}
 
-			// type alias, e.g. type A = B
-			// we don't need to handle these, since the type will be inlined
-			if ts.Assign != token.NoPos {
+		idFinder := &identFinder{}
+		ast.Walk(idFinder, (ast.Node)(ts.Type))
+		for _, id := range idFinder.foundIdentifiers {
+			// identifier is part of a SelectorExpr and has already been handled
+			if selectorFinder.foundIdentifiers[id] {
 				continue
 			}
-
-			// struct definition, fields will be checked later in the analysis
-			if _, ok := ts.Type.(*ast.StructType); ok {
-				continue
+			obj := pass.TypesInfo.ObjectOf(id)
+			if len(defGraph[obj]) == 0 {
+				defGraph[obj] = make([]types.Object, 0, 1)
 			}
-
-			typeBeingDefined := pass.TypesInfo.ObjectOf(ts.Name)
-
-			selectorFinder := &selectorFinder{nil, map[*ast.Ident]bool{}}
-			ast.Walk(selectorFinder, (ast.Node)(ts.Type))
-			for _, sel := range selectorFinder.foundSelectors {
-				named, ok := pass.TypesInfo.TypeOf(sel).(*types.Named)
-				if !ok {
-					continue
-				}
-				obj := named.Obj()
-				if len(defGraph[obj]) == 0 {
-					defGraph[obj] = make([]types.Object, 0, 1)
-				}
-				defGraph[obj] = append(defGraph[obj], typeBeingDefined)
-			}
-
-			idFinder := &identFinder{}
-			ast.Walk(idFinder, (ast.Node)(ts.Type))
-			for _, id := range idFinder.foundIdentifiers {
-				// identifier is part of a SelectorExpr and has already been handled
-				if selectorFinder.foundIdentifiers[id] {
-					continue
-				}
-				obj := pass.TypesInfo.ObjectOf(id)
-				if len(defGraph[obj]) == 0 {
-					defGraph[obj] = make([]types.Object, 0, 1)
-				}
-				defGraph[obj] = append(defGraph[obj], typeBeingDefined)
-			}
+			defGraph[obj] = append(defGraph[obj], typeBeingDefined)
 		}
 	})
 
