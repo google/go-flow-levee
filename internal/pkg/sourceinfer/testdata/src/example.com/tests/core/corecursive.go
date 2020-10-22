@@ -44,6 +44,16 @@ type (
 	}
 )
 
+type (
+	F struct {
+		g *G
+	}
+
+	G struct {
+		f *F
+	}
+)
+
 type SelfRecursive struct {
 	*SelfRecursive
 }
