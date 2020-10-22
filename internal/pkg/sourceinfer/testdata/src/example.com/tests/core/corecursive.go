@@ -43,3 +43,12 @@ type (
 		c *C
 	}
 )
+
+type SelfRecursive struct {
+	*SelfRecursive
+}
+
+type SelfRecursiveWithSource struct { // want SelfRecursiveWithSource:"inferred source"
+	*SelfRecursiveWithSource
+	s source.Source
+}
