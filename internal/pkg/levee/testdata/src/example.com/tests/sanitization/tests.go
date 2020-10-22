@@ -116,3 +116,24 @@ func TestSanitizedBeforeSinkInLoop() {
 		core.Sink(e)
 	}
 }
+
+func TestSanitizedBeforeMaybeSinkingMaybeTaintedValue() {
+	var obj interface{}
+	if false {
+		obj = core.Source{}
+	} else {
+		obj = 10
+	}
+
+	obj = core.Sanitize(obj)[0]
+
+	if false {
+		core.Sink(obj)
+	}
+}
+
+func TestSanitizedAfterSink() {
+	s := core.Source{}
+	core.Sink(s) // want "a source has reached a sink"
+	core.SanitizePtr(&s)
+}

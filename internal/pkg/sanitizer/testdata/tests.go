@@ -20,11 +20,31 @@ import (
 	"time"
 )
 
-func notDominated() {
+func dominatedSameBlock() {
+	pwd := "password"
+	pwd = scrub(pwd)
+	log.Print(pwd) // want "dominated"
+}
+
+func notDominatedSameBlock() {
+	pwd := "password"
+	log.Print(pwd)
+	pwd = scrub(pwd)
+}
+
+func dominatedDifferentBlocks() {
+	pwd := "password"
+	pwd = scrub(pwd)
+	if time.Now().Weekday() == time.Monday {
+		log.Print(pwd) // want "dominated"
+	}
+}
+
+func notDominatedDifferentBlocks() {
 	pwd := "P@ssword1"
 	if time.Now().Weekday() == time.Monday {
 		pwd = scrub(pwd)
-		log.Print(pwd)
+		log.Print(pwd) // want "dominated"
 	}
 
 	log.Print(pwd)
