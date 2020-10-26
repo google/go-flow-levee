@@ -57,3 +57,83 @@ func TestIncorrectSanitizationByValue(s core.Source) {
 	core.Sanitize(s)
 	core.Sink(s) // TODO want "a source has reached a sink"
 }
+
+func TestOnlySanitizedIfLoopIsTaken() {
+	var e interface{} = core.Source{}
+	for false {
+		e = core.Sanitize(e)[0]
+	}
+	core.Sink(e) // want "a source has reached a sink"
+}
+
+func TestTaintedInLoopAndSanitizedAfterLoop() {
+	var e interface{}
+	for false {
+		e = core.Source{}
+	}
+	e = core.Sanitize(e)[0]
+	core.Sink(e)
+}
+
+func TestMaybeTaintedInLoopButSanitizedBeforeLoopExit() {
+	var e interface{}
+	for false {
+		if false {
+			e = core.Source{}
+		}
+		e = core.Sanitize(e)[0]
+	}
+	// TODO want no report here
+	core.Sink(e) // want "a source has reached a sink"
+}
+
+func TestTaintedInIfButSanitizedBeforeIfExit() {
+	var e interface{}
+	if false {
+		e = core.Source{}
+		e = core.Sanitize(e)[0]
+	}
+	// TODO want no report here
+	core.Sink(e) // want "a source has reached a sink"
+}
+
+func TestPointerTaintedInIfButSanitizedBeforeIfExit() {
+	var e interface{}
+	if false {
+		s := &core.Source{}
+		core.SanitizePtr(s)
+		e = s
+	}
+	// TODO want no report here
+	core.Sink(e) // want "a source has reached a sink"
+}
+
+func TestSanitizedBeforeSinkInLoop() {
+	var e interface{}
+	for false {
+		e = core.Source{}
+		e = core.Sanitize(e)[0]
+		core.Sink(e)
+	}
+}
+
+func TestSanitizedBeforeMaybeSinkingMaybeTaintedValue() {
+	var obj interface{}
+	if false {
+		obj = core.Source{}
+	} else {
+		obj = 10
+	}
+
+	obj = core.Sanitize(obj)[0]
+
+	if false {
+		core.Sink(obj)
+	}
+}
+
+func TestSanitizedAfterSink() {
+	s := core.Source{}
+	core.Sink(s) // want "a source has reached a sink"
+	core.SanitizePtr(&s)
+}

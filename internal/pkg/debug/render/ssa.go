@@ -40,7 +40,7 @@ func SSA(f *ssa.Function) string {
 		}
 	}
 
-	for i, blk := range f.Blocks {
+	for i, blk := range f.DomPreorder() {
 		renderBlock(&b, i, blk, maxBlockLength)
 	}
 

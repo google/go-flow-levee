@@ -15,7 +15,6 @@
 package sanitizer
 
 import (
-	"reflect"
 	"testing"
 
 	"golang.org/x/tools/go/analysis"
@@ -25,60 +24,43 @@ import (
 )
 
 var testAnalyzer = &analysis.Analyzer{
-	Name:       "domination",
-	Run:        run,
-	Doc:        "test harness for domination logic",
-	Requires:   []*analysis.Analyzer{buildssa.Analyzer},
-	ResultType: reflect.TypeOf([]*ssa.Call{}),
+	Name:     "domination",
+	Run:      run,
+	Doc:      "test harness for domination logic",
+	Requires: []*analysis.Analyzer{buildssa.Analyzer},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	in := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
-	var calls []*ssa.Call
+	var sanitizers []Sanitizer
+	var sinks []*ssa.Call
 	for _, fn := range in.SrcFuncs {
 		for _, b := range fn.Blocks {
 			for _, i := range b.Instrs {
 				if c, ok := i.(*ssa.Call); ok {
-					calls = append(calls, c)
+					name := c.Call.StaticCallee().Name()
+					switch name {
+					case "scrub":
+						sanitizers = append(sanitizers, Sanitizer{c})
+					case "Print":
+						sinks = append(sinks, c)
+					}
 				}
 			}
 		}
 	}
 
-	return calls, nil
+	for _, sink := range sinks {
+		for _, san := range sanitizers {
+			if san.Dominates(sink) {
+				pass.Reportf(sink.Pos(), "dominated")
+			}
+		}
+	}
+	return nil, nil
 }
 
 func TestDomination(t *testing.T) {
 	dir := analysistest.TestData()
-	r := analysistest.Run(t, dir, testAnalyzer)
-	if len(r) != 1 {
-		t.Fatalf("Got %d results, wanted one", len(r))
-	}
-	calls, ok := r[0].Result.([]*ssa.Call)
-	if !ok {
-		t.Fatalf("Got result of type %T, wanted []*ssa.Call", calls)
-	}
-
-	/*
-		    Call Sequence:
-
-				call time.Now()
-				call (time.Time).Weekday(t0)
-				call scrub("P@ssword1":string) // Sanitizer - index 2
-				call log.Print(t7...) // Dominated sink
-				call log.Print(t13...) // Non dominated sink due to an if statement.
-
-	*/
-
-	sanitizer := &Sanitizer{calls[2]}
-	dominatedSink := calls[3]
-	nonDominatedSink := calls[4]
-
-	if !sanitizer.Dominates(dominatedSink) {
-		t.Fatalf("Sanitizer %v should dominate the leak %v due to an if statement", sanitizer.Call, dominatedSink)
-	}
-
-	if sanitizer.Dominates(nonDominatedSink) {
-		t.Fatalf("Sanitizer %v should not dominate the leak %v due to no if statement", sanitizer.Call, nonDominatedSink)
-	}
+	analysistest.Run(t, dir, testAnalyzer)
 }

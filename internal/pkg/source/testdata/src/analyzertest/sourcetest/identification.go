@@ -20,6 +20,35 @@ type Alias = Source
 // type definition where the underlying type is a Source
 type Definition Source
 
+type FuncField struct {
+	flipCoin func() bool
+	producer func() Source
+	ptr      func() *Source
+}
+
+// This test exercises isSourceType for *types.Signature and related interactions.
+func TestFunctionFields() {
+	bar := FuncField{
+		flipCoin: func() bool {
+			return true // It's a trick coin
+		},
+		producer: func() Source {
+			return Source{} // want "source identified"
+		},
+		ptr: func() *Source {
+			return &Source{} // want "source identified"
+		},
+	}
+
+	// When the assigned-to type is a Source, then we expect two Allocs, and therefore two Source identifications.
+	// This Alloc doesn't occur if the assigned-to type is a pointer or interface
+	var i interface{} = bar.producer() // want "source identified"
+	s := bar.producer()                // want "source identified" "source identified"
+	ptr := bar.ptr()                   // want "source identified"
+
+	noop(bar, s, i, ptr)
+}
+
 // This function allows us to consume multiple arguments in a single line so this file can compile
 func noop(args ...interface{}) {}
 

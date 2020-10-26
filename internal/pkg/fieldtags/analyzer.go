@@ -71,14 +71,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 		for _, f := range (*s).Fields.List {
-			tags := extractTags(f)
-			isTaggedField := false
-			for _, ft := range tags {
-				if conf.IsSourceFieldTag(ft.key, ft.val) {
-					isTaggedField = true
-				}
-			}
-			if !isTaggedField || len(f.Names) == 0 {
+			if f.Tag == nil || len(f.Names) == 0 || !conf.IsSourceFieldTag(f.Tag.Value) {
 				continue
 			}
 			fNames := make([]string, len(f.Names))
@@ -91,61 +84,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	})
 
 	return ResultType(taggedFields), nil
-}
-
-func extractTags(field *ast.Field) (tags []fieldTag) {
-	if field.Tag == nil {
-		return
-	}
-
-	wholeTag := field.Tag.Value
-
-	// TODO: consider refactoring this logic into a regex matcher
-	i := 1 // skip initial quote
-	j := 1
-	for j < len(wholeTag) {
-		for j < len(wholeTag) && wholeTag[j] != ':' {
-			j++
-		}
-		key := wholeTag[i:j]
-		if key == "" {
-			return
-		}
-
-		i = j + 1 // skip colon
-		if i >= len(wholeTag) {
-			return
-		}
-		if wholeTag[i] == '\\' {
-			i++
-		}
-		i++ // skip quote
-
-		j = i
-		for j < len(wholeTag) && wholeTag[j] != '"' {
-			// skip escape character
-			if wholeTag[j] == '\\' {
-				j++
-			}
-			j++
-		}
-		value := wholeTag[i:j]
-		// remove trailing escaped quote if present
-		value = strings.TrimSuffix(value, `\"`)
-		if value == "" {
-			return
-		}
-
-		// value may be a list of comma separated values
-		for _, v := range strings.Split(value, ",") {
-			tags = append(tags, fieldTag{key: key, val: v})
-		}
-
-		i = j + 2 // skip closing quote and space
-		j = i
-	}
-
-	return tags
 }
 
 // IsSourceFieldAddr determines whether a ssa.FieldAddr is a source, that is whether it refers to a field previously identified as a source.

@@ -47,7 +47,7 @@ func TestSSA(t *testing.T) {
 		got := SSA(f)
 
 		if diff := cmp.Diff(want, got); diff != "" {
-			t.Errorf("render.SSA diff (-want +got):\n%s", diff)
+			t.Errorf("render.SSA(%s) diff (-want +got):\n%s", f.Name(), diff)
 		}
 	}
 }
