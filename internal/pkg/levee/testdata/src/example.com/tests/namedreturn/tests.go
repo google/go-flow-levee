@@ -27,3 +27,9 @@ func TestNamedReturnValuePointer() (s *core.Source) {
 	core.Sink(s) // we do not want a report here, because no Source value has been created
 	return
 }
+
+func TestNamedReturnValuePointerWithInitialization() (s *core.Source) {
+	s = &core.Source{}
+	core.Sink(s) // want "a source has reached a sink"
+	return
+}
