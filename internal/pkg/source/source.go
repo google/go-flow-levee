@@ -218,20 +218,20 @@ func (s *Source) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
 }
 
 func (s *Source) visitOperands(n ssa.Node, operands []*ssa.Value, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
-	_, visitingFromExtract := n.(*ssa.Extract)
+	// Do not visit Operands if the current node is an Extract.
+	// This is to avoid incorrectly tainting non-Source values that are
+	// produced by an Instruction that has a Source among the values it
+	// produces, e.g. a call to a function with a signature like:
+	// func NewSource() (*core.Source, error)
+	// Which leads to a flow like:
+	// Extract (*core.Source) --> Call (NewSource) --> error
+	if _, ok := n.(*ssa.Extract); ok {
+		return
+	}
 
 	for _, o := range operands {
 		n, ok := (*o).(ssa.Node)
 		if !ok {
-			continue
-		}
-
-		// Do not visit a Call if the current node is an Extract.
-		// This is to avoid incorrectly tainting non-Source values that are
-		// returned from a call that has a Source among its return values,
-		// e.g. a call to a function with a signature like:
-		// func CreateSource() (core.Source, error)
-		if _, ok := (*o).(*ssa.Call); visitingFromExtract && ok {
 			continue
 		}
 
@@ -403,6 +403,8 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 func isSourceType(c classifier, t types.Type) bool {
 	deref := utils.Dereference(t)
 	switch tt := deref.(type) {
+	case *types.Named:
+		return c.IsSource(tt) || isSourceType(c, tt.Underlying())
 	case *types.Array:
 		return isSourceType(c, tt.Elem())
 	case *types.Slice:
@@ -413,10 +415,16 @@ func isSourceType(c classifier, t types.Type) bool {
 		key := isSourceType(c, tt.Key())
 		elem := isSourceType(c, tt.Elem())
 		return key || elem
-	case *types.Basic, *types.Interface, *types.Tuple, *types.Struct:
+	case *types.Basic, *types.Struct, *types.Tuple, *types.Interface, *types.Signature:
+		// These types do not currently represent possible source types
+		return false
+	case *types.Pointer:
+		// This should be unreachable due to the dereference above
 		return false
 	default:
-		return c.IsSource(tt) || isSourceType(c, tt.Underlying())
+		// The above should be exhaustive.  Reaching this default case is an error.
+		fmt.Printf("unexpected type received: %T %v; please report this issue\n", tt, tt)
+		return false
 	}
 }
 

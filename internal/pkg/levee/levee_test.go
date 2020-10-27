@@ -16,8 +16,10 @@ package internal
 
 import (
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/go-flow-levee/internal/pkg/debug"
@@ -46,7 +48,28 @@ func findTestPatterns(t *testing.T, testsDir string) (patterns []string) {
 		t.Fatalf("Failed to read tests dir (%s): %v", testsDir, err)
 	}
 	for _, f := range files {
-		patterns = append(patterns, filepath.Join(testsDir, f.Name()))
+		path := filepath.Join(testsDir, f.Name())
+		// Make sure the directory contains a go file to avoid failure on empty directories.
+		if err := checkForGoFiles(path); err != nil {
+			t.Fatalf("Could not verify presence of Go files in test directory: %v", err)
+		}
+
+		patterns = append(patterns, path)
 	}
 	return
+}
+
+func checkForGoFiles(path string) error {
+	pkgFiles, err := ioutil.ReadDir(path)
+	if err != nil {
+		return fmt.Errorf("failed to examine test directory (%s): %v", path, err)
+	}
+
+	for _, file := range pkgFiles {
+		if strings.HasSuffix(file.Name(), ".go") {
+			return nil
+		}
+	}
+	return fmt.Errorf("found no Go files in test directory (%s)", path)
+
 }
