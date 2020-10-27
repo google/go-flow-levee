@@ -132,9 +132,6 @@ func createTypeDefGraph(pass *analysis.Pass, ins *inspector.Inspector) objectGra
 				continue
 			}
 			obj := named.Obj()
-			if len(defGraph[obj]) == 0 {
-				defGraph[obj] = make([]types.Object, 0, 1)
-			}
 			defGraph[obj] = append(defGraph[obj], typeBeingDefined)
 		}
 
@@ -146,9 +143,6 @@ func createTypeDefGraph(pass *analysis.Pass, ins *inspector.Inspector) objectGra
 				continue
 			}
 			obj := pass.TypesInfo.ObjectOf(id)
-			if len(defGraph[obj]) == 0 {
-				defGraph[obj] = make([]types.Object, 0, 1)
-			}
 			defGraph[obj] = append(defGraph[obj], typeBeingDefined)
 		}
 	})
@@ -206,9 +200,6 @@ func addFieldEdges(builtSSA *buildssa.SSA, typeGraph objectGraph) {
 			fieldType := s.Field(i).Type()
 			for nt := range findNamedTypes(fieldType) {
 				obj := nt.Obj()
-				if len(typeGraph[obj]) == 0 {
-					typeGraph[obj] = make([]types.Object, 0, 1)
-				}
 				typeGraph[obj] = append(typeGraph[obj], n.Obj())
 			}
 		}
