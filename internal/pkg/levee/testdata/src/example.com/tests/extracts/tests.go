@@ -22,6 +22,10 @@ func CreateSource() (core.Source, error) {
 	return core.Source{}, nil
 }
 
+func TryUpdateSource(s core.Source) (core.Source, bool) {
+	return s, true
+}
+
 func CreateSourceFlipped() (error, core.Source) {
 	return nil, core.Source{}
 }
@@ -31,12 +35,13 @@ func TakeSource(s core.Source) (string, int, interface{}) {
 }
 
 func TestOnlySourceExtractIsTaintedFromCall() {
-	s, err := CreateSource()
+	s, ok := TryUpdateSource(core.Source{})
 	core.Sink(s) // want "a source has reached a sink"
-	core.Sink(err)
+	core.Sink(ok)
 }
 
-func TestOnlySourceExtractIsTaintedFromTypeAssert(p interface{}) {
+func TestOnlySourceExtractIsTaintedFromTypeAssert(s core.Source) {
+	var p interface{} = s
 	s, ok := p.(core.Source)
 	core.Sink(s) // want "a source has reached a sink"
 	core.Sink(ok)

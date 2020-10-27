@@ -86,6 +86,13 @@ func (s *Source) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBl
 	if s.marked[n] {
 		return
 	}
+	// booleans can't meaningfully be tainted
+	if v, ok := n.(ssa.Value); ok {
+		if basic, ok := v.Type().(*types.Basic); ok && basic.Info() == types.IsBoolean {
+			return
+		}
+	}
+
 	mirCopy := map[*ssa.BasicBlock]int{}
 	for m, i := range maxInstrReached {
 		mirCopy[m] = i
@@ -162,33 +169,9 @@ func (s *Source) referrersToVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBloc
 			continue
 		}
 
-		if e, ok := r.(*ssa.Extract); ok && shouldNotVisitExtract(n, e) {
-			continue
-		}
-
 		referrers = append(referrers, r)
 	}
 	return referrers
-}
-
-// shouldNotVisitExtract determines if the extract is extracting a boolean from
-// a comma-ok map lookup or chan recv, in which case we should not visit it,
-// because a boolean cannot meaningfully be tainted.
-func shouldNotVisitExtract(n ssa.Node, e *ssa.Extract) bool {
-	// the boolean in a comma-ok extract is always at the 1st index
-	if e.Index != 1 {
-		return false
-	}
-	switch n.(type) {
-	// Lookup is for a map lookup, e.g.
-	// maybeValue, ok := myMap[myKey]
-	// UnOp is for a chan recv, e.g.
-	// maybeValue, ok := <-myChan
-	case *ssa.Lookup, *ssa.UnOp:
-		return true
-	default:
-		return false
-	}
 }
 
 func (s *Source) reachableFromSource(target ssa.Instruction) bool {
