@@ -36,11 +36,6 @@ type (
 		ns source.NotSource
 	}
 
-	// DefinedSource is defined in typedef.go
-	DefinedSourceHolder struct { // want DefinedSourceHolder:"inferred source"
-		ds DefinedSource
-	}
-
 	SourceSliceHolder struct { // want SourceSliceHolder:"inferred source"
 		ss []source.Source
 	}
