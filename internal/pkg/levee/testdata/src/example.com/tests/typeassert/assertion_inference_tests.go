@@ -65,8 +65,5 @@ func TestOkayTypeAssert(i interface{}) {
 	s, ok := i.(core.Source)
 	_, _ = s, ok
 	// The dominating type assertion will not panic.
-	// TODO: Should this produce a report?
-	// Currently, the source s appears to "backflow" into i, causing report.
-	core.Sink(i) // want "a source has reached a sink"
-
+	core.Sink(i)
 }
