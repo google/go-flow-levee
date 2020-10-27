@@ -80,7 +80,7 @@ type Quux Qux
 	FactTypes:  []analysis.Fact{new(inferredSource)},
 }
 
-type ObjectGraph map[types.Object][]types.Object
+type objectGraph map[types.Object][]types.Object
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	conf, err := config.ReadConfig()
@@ -99,8 +99,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return inferredSources, nil
 }
 
-func createTypeDefGraph(pass *analysis.Pass, ins *inspector.Inspector) ObjectGraph {
-	defGraph := ObjectGraph{}
+func createTypeDefGraph(pass *analysis.Pass, ins *inspector.Inspector) objectGraph {
+	defGraph := objectGraph{}
 
 	genDeclFilter := []ast.Node{
 		(*ast.TypeSpec)(nil),
@@ -188,7 +188,7 @@ func (i *identFinder) Visit(n ast.Node) ast.Visitor {
 	return i
 }
 
-func addFieldEdges(builtSSA *buildssa.SSA, typeGraph ObjectGraph) {
+func addFieldEdges(builtSSA *buildssa.SSA, typeGraph objectGraph) {
 	for _, m := range builtSSA.Pkg.Members {
 		t, ok := m.(*ssa.Type)
 		if !ok {
@@ -248,7 +248,7 @@ func findNamedTypes(t types.Type) map[*types.Named]bool {
 	return namedTypes
 }
 
-func inferSources(pass *analysis.Pass, conf *config.Config, typeGraph ObjectGraph) ResultType {
+func inferSources(pass *analysis.Pass, conf *config.Config, typeGraph objectGraph) ResultType {
 	inferredSources := ResultType{}
 
 	order := topoSort(typeGraph)
@@ -287,7 +287,7 @@ func inferSources(pass *analysis.Pass, conf *config.Config, typeGraph ObjectGrap
 // topoSort produces the topological order of a given graph.
 // If the graph contains cycles, the order within a cycle is not specified,
 // but the order of nodes outside the cycle will not be affected.
-func topoSort(graph ObjectGraph) []types.Object {
+func topoSort(graph objectGraph) []types.Object {
 	var order []types.Object
 	visited := map[types.Object]bool{}
 	var visit func(o types.Object)
