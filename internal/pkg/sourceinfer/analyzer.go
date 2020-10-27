@@ -203,9 +203,8 @@ func addFieldEdges(builtSSA *buildssa.SSA, typeGraph ObjectGraph) {
 			continue
 		}
 		for i := 0; i < s.NumFields(); i++ {
-			namedTypes := map[*types.Named]bool{}
-			findNamedTypes(s.Field(i).Type(), namedTypes)
-			for nt := range namedTypes {
+			fieldType := s.Field(i).Type()
+			for nt := range findNamedTypes(fieldType) {
 				obj := nt.Obj()
 				if len(typeGraph[obj]) == 0 {
 					typeGraph[obj] = make([]types.Object, 0, 1)
@@ -216,28 +215,37 @@ func addFieldEdges(builtSSA *buildssa.SSA, typeGraph ObjectGraph) {
 	}
 }
 
-func findNamedTypes(t types.Type, namedTypes map[*types.Named]bool) {
-	deref := utils.Dereference(t)
-	switch tt := deref.(type) {
-	case *types.Named:
-		namedTypes[tt] = true
-	case *types.Array:
-		findNamedTypes(tt.Elem(), namedTypes)
-	case *types.Slice:
-		findNamedTypes(tt.Elem(), namedTypes)
-	case *types.Chan:
-		findNamedTypes(tt.Elem(), namedTypes)
-	case *types.Map:
-		findNamedTypes(tt.Elem(), namedTypes)
-		findNamedTypes(tt.Key(), namedTypes)
-	case *types.Basic, *types.Struct, *types.Tuple, *types.Interface, *types.Signature:
-		// these types cannot hold named types
-	case *types.Pointer:
-		// this should be unreachable due to the dereference above
-	default:
-		// The above should be exhaustive.  Reaching this default case is an error.
-		fmt.Printf("unexpected type received: %T %v; please report this issue\n", tt, tt)
+func findNamedTypes(t types.Type) map[*types.Named]bool {
+	namedTypes := map[*types.Named]bool{}
+
+	var find func(t types.Type)
+	find = func(t types.Type) {
+		deref := utils.Dereference(t)
+		switch tt := deref.(type) {
+		case *types.Named:
+			namedTypes[tt] = true
+		case *types.Array:
+			find(tt.Elem())
+		case *types.Slice:
+			find(tt.Elem())
+		case *types.Chan:
+			find(tt.Elem())
+		case *types.Map:
+			find(tt.Key())
+			find(tt.Elem())
+		case *types.Basic, *types.Struct, *types.Tuple, *types.Interface, *types.Signature:
+			// these types cannot hold named types
+		case *types.Pointer:
+			// this should be unreachable due to the dereference above
+		default:
+			// The above should be exhaustive.  Reaching this default case is an error.
+			fmt.Printf("unexpected type received: %T %v; please report this issue\n", tt, tt)
+		}
 	}
+
+	find(t)
+
+	return namedTypes
 }
 
 func inferSources(pass *analysis.Pass, conf *config.Config, typeGraph ObjectGraph) ResultType {
@@ -300,29 +308,10 @@ func topoSort(graph ObjectGraph) []types.Object {
 }
 
 func isSourceType(c *config.Config, t types.Type) bool {
-	deref := utils.Dereference(t)
-	switch tt := deref.(type) {
-	case *types.Named:
-		return c.IsSource(tt) || isSourceType(c, tt.Underlying())
-	case *types.Array:
-		return isSourceType(c, tt.Elem())
-	case *types.Slice:
-		return isSourceType(c, tt.Elem())
-	case *types.Chan:
-		return isSourceType(c, tt.Elem())
-	case *types.Map:
-		key := isSourceType(c, tt.Key())
-		elem := isSourceType(c, tt.Elem())
-		return key || elem
-	case *types.Basic, *types.Struct, *types.Tuple, *types.Interface, *types.Signature:
-		// These types do not currently represent possible source types
-		return false
-	case *types.Pointer:
-		// This should be unreachable due to the dereference above
-		return false
-	default:
-		// The above should be exhaustive.  Reaching this default case is an error.
-		fmt.Printf("unexpected type received: %T %v; please report this issue\n", tt, tt)
-		return false
+	for nt := range findNamedTypes(t) {
+		if c.IsSource(nt) {
+			return true
+		}
 	}
+	return false
 }
