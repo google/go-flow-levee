@@ -29,7 +29,7 @@ func TestInferAnalysis(t *testing.T) {
 		t.Error(err)
 	}
 
-	for _, testPkg := range []string{"core", "crosspkg", "samepkg"} {
+	for _, testPkg := range []string{"core", "crosspkg", "samepkg", "nosource"} {
 		analysistest.Run(t, testdata, Analyzer, filepath.Join(testdata, "src/example.com/tests", testPkg))
 	}
 }
