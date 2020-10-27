@@ -47,16 +47,26 @@ func TestTypeSwitchInline(i interface{}) {
 	}
 }
 
-func TestPanicTypeAssert(i interface{}) {
-	s := t.(core.Source)
+func TestPanicTypeAssertSource(i interface{}) {
+	s := i.(core.Source)
 	_ = s
 	// The dominating type assertion would panic if i were not a source type.
-	core.Sink(i) // TODO want "a source has reached a sink"
+	core.Sink(i) // want "a source has reached a sink"
+}
+
+func TestPanicTypeAssertInnocuous(i interface{}) {
+	// TypeAssert instructions should not cause reports by themselves.
+	innoc := i.(core.Innocuous)
+	_ = innoc
+	core.Sink(i)
 }
 
 func TestOkayTypeAssert(i interface{}) {
-	s, ok := t.(core.Source)
+	s, ok := i.(core.Source)
 	_, _ = s, ok
-	// The dominating type assertion will not panic.  Value of ok is not known, so we cannot presume the type of i
-	core.Sink(i)
+	// The dominating type assertion will not panic.
+	// TODO: Should this produce a report?
+	// Currently, the source s appears to "backflow" into i, causing report.
+	core.Sink(i) // want "a source has reached a sink"
+
 }
