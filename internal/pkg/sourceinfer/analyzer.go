@@ -88,20 +88,20 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		return nil, err
 	}
 
+	objGraph := objectGraph{}
+
 	ins := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	typeGraph := createTypeDefGraph(pass, ins)
+	addTypeDefEdges(pass, ins, objGraph)
 
 	builtSSA := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
-	addFieldEdges(builtSSA, typeGraph)
+	addFieldEdges(builtSSA, objGraph)
 
-	inferredSources := inferSources(pass, conf, typeGraph)
+	inferredSources := inferSources(pass, conf, objGraph)
 
 	return inferredSources, nil
 }
 
-func createTypeDefGraph(pass *analysis.Pass, ins *inspector.Inspector) objectGraph {
-	defGraph := objectGraph{}
-
+func addTypeDefEdges(pass *analysis.Pass, ins *inspector.Inspector, objGraph objectGraph) {
 	genDeclFilter := []ast.Node{
 		(*ast.TypeSpec)(nil),
 	}
@@ -132,7 +132,7 @@ func createTypeDefGraph(pass *analysis.Pass, ins *inspector.Inspector) objectGra
 				continue
 			}
 			obj := named.Obj()
-			defGraph[obj] = append(defGraph[obj], typeBeingDefined)
+			objGraph[obj] = append(objGraph[obj], typeBeingDefined)
 		}
 
 		idFinder := &identFinder{}
@@ -143,11 +143,9 @@ func createTypeDefGraph(pass *analysis.Pass, ins *inspector.Inspector) objectGra
 				continue
 			}
 			obj := pass.TypesInfo.ObjectOf(id)
-			defGraph[obj] = append(defGraph[obj], typeBeingDefined)
+			objGraph[obj] = append(objGraph[obj], typeBeingDefined)
 		}
 	})
-
-	return defGraph
 }
 
 type selectorFinder struct {
@@ -182,7 +180,7 @@ func (i *identFinder) Visit(n ast.Node) ast.Visitor {
 	return i
 }
 
-func addFieldEdges(builtSSA *buildssa.SSA, typeGraph objectGraph) {
+func addFieldEdges(builtSSA *buildssa.SSA, objGraph objectGraph) {
 	for _, m := range builtSSA.Pkg.Members {
 		t, ok := m.(*ssa.Type)
 		if !ok {
@@ -200,7 +198,7 @@ func addFieldEdges(builtSSA *buildssa.SSA, typeGraph objectGraph) {
 			fieldType := s.Field(i).Type()
 			for nt := range findNamedTypes(fieldType) {
 				obj := nt.Obj()
-				typeGraph[obj] = append(typeGraph[obj], n.Obj())
+				objGraph[obj] = append(objGraph[obj], n.Obj())
 			}
 		}
 	}
@@ -239,10 +237,10 @@ func findNamedTypes(t types.Type) map[*types.Named]bool {
 	return namedTypes
 }
 
-func inferSources(pass *analysis.Pass, conf *config.Config, typeGraph objectGraph) ResultType {
+func inferSources(pass *analysis.Pass, conf *config.Config, objGraph objectGraph) ResultType {
 	inferredSources := ResultType{}
 
-	order := topoSort(typeGraph)
+	order := topoSort(objGraph)
 
 	seen := map[types.Object]bool{}
 	for i := len(order) - 1; i >= 0; i-- {
@@ -262,7 +260,7 @@ func inferSources(pass *analysis.Pass, conf *config.Config, typeGraph objectGrap
 				pass.ExportObjectFact(current, &inferredSource{})
 				inferredSources[current] = true
 			}
-			for _, n := range typeGraph[current] {
+			for _, n := range objGraph[current] {
 				if seen[n] {
 					continue
 				}
