@@ -87,10 +87,8 @@ func (s *Source) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBl
 		return
 	}
 	// booleans can't meaningfully be tainted
-	if v, ok := n.(ssa.Value); ok {
-		if basic, ok := v.Type().(*types.Basic); ok && basic.Info() == types.IsBoolean {
-			return
-		}
+	if isBoolean(n) {
+		return
 	}
 
 	mirCopy := map[*ssa.BasicBlock]int{}
@@ -405,6 +403,15 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 		}
 	}
 	return sources
+}
+
+func isBoolean(n ssa.Node) bool {
+	if v, ok := n.(ssa.Value); ok {
+		if basic, ok := v.Type().(*types.Basic); ok && basic.Info() == types.IsBoolean {
+			return true
+		}
+	}
+	return false
 }
 
 func isSourceType(c classifier, t types.Type) bool {
