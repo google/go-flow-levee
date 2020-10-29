@@ -75,12 +75,14 @@ To match only methods without any receiver (i.e., a top-level function), use the
 
 ### Restricting analysis scope
 
-Functions can be explicitly excluded from analysis using regexps:
+Functions can be explicitly excluded from analysis using regexps,
+constructed similarly to those used to identify sanitizers and sinks:
 ```json
 {
   "Exclude": [
     {
-      "PathRE": "^myproject/mypackage\.myfunction$"
+      "PathRE": "^myproject/mypackage$",
+      "MethodRE": "^myfunction$"
     }
   ]
 }
