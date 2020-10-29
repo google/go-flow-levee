@@ -25,3 +25,13 @@ func Oops(s core.Source) {
 func OopsIDidItAgain(s core.Source) {
 	core.Sink(s) // want "a source has reached a sink"
 }
+
+type Receiver int
+
+func (Receiver) OopsWithReceiver(s core.Source) {
+	core.Sink(s) // want "a source has reached a sink"
+}
+
+func (Receiver) OopsWithReceiverExcluded(s core.Source) {
+	core.Sink(s) // we do not expect a report here, because this specific function is excluded from analysis
+}

@@ -44,7 +44,7 @@ type Config struct {
 	Sinks      []funcMatcher
 	Sanitizers []funcMatcher
 	FieldTags  []fieldTagMatcher
-	Exclude    []pathMatcher
+	Exclude    []funcMatcher
 }
 
 type fieldTagMatcher struct {
@@ -76,16 +76,10 @@ func (c Config) IsSourceFieldTag(tag string) bool {
 	return false
 }
 
-type pathMatcher struct {
-	PathRE regexp.Regexp
-}
-
-// IsExcluded determines if a function's fully qualified name (package path + name)
-// matches one of the exclusion patterns in the Config.
+// IsExcluded determines if a function matches one of the exclusion patterns.
 func (c Config) IsExcluded(fn *ssa.Function) bool {
-	path := fmt.Sprintf("%s.%s", fn.Pkg.Pkg.Path(), fn.Name())
 	for _, pm := range c.Exclude {
-		if pm.PathRE.MatchString(path) {
+		if pm.Match(fn) {
 			return true
 		}
 	}

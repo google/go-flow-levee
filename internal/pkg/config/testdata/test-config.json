@@ -18,10 +18,11 @@
   ],
   "Exclude": [
     {
-      "PathRE": "^example.com/exclusion.Foo$"
+      "PackageRE": "^example.com/exclusion$",
+      "MethodRE": "^Foo$"
     },
     {
-      "PathRE": "^notexample.com/exclusion"
+      "PackageRE": "^notexample.com/exclusion$"
     }
   ]
 }
