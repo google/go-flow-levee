@@ -20,10 +20,16 @@
   ],
   "Exclude": [
     {
-      "PathRE": "^example.com/tests/excludedpackage"
+      "PackageRE": "^example.com/tests/excludedpackage$"
     },
     {
-      "PathRE": "^example.com/tests/includedpackage.Oops$"
+      "PackageRE": "^example.com/tests/includedpackage$",
+      "MethodRE": "^Oops$"
+    },
+    {
+      "PackageRE": "^example.com/tests/includedpackage$",
+      "MethodRE": "^OopsWithReceiverExcluded$",
+      "ReceiverRE": "^Receiver$"
     }
   ]
 }

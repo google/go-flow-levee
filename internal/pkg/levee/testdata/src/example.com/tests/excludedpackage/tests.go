@@ -25,3 +25,9 @@ func Oops(s core.Source) {
 func OopsIDidItAgain(s core.Source) {
 	core.Sink(s) // we do not expect a report here, because this package is excluded from analysis
 }
+
+type Receiver int
+
+func (Receiver) OopsWithReceiver(s core.Source) {
+	core.Sink(s) // we do not expect a report here, because this package is excluded from analysis
+}
