@@ -88,6 +88,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	ins := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+
 	objectGraph := createObjectGraph(pass, ins)
 
 	inferredSources := inferSources(pass, conf, objectGraph)
@@ -98,16 +99,16 @@ func run(pass *analysis.Pass) (interface{}, error) {
 func createObjectGraph(pass *analysis.Pass, ins *inspector.Inspector) objectGraph {
 	objGraph := objectGraph{}
 
-	genDeclFilter := []ast.Node{
+	typeSpecFilter := []ast.Node{
 		(*ast.TypeSpec)(nil),
 	}
 
-	ins.Preorder(genDeclFilter, func(n ast.Node) {
+	ins.Preorder(typeSpecFilter, func(n ast.Node) {
 		ts, ok := n.(*ast.TypeSpec)
-
 		if !ok {
 			return
 		}
+
 		// type alias, e.g. type A = B
 		// we don't need to handle these, since the type will be inlined
 		if ts.Assign != token.NoPos {
@@ -116,6 +117,9 @@ func createObjectGraph(pass *analysis.Pass, ins *inspector.Inspector) objectGrap
 
 		typeBeingDefined := pass.TypesInfo.ObjectOf(ts.Name)
 
+		// Find selector expressions and add them to the graph.
+		// We need to look at SelectorExprs first, because they
+		// contain identifiers.
 		selectorFinder := &selectorFinder{nil, map[*ast.Ident]bool{}}
 		ast.Walk(selectorFinder, (ast.Node)(ts.Type))
 		for _, sel := range selectorFinder.foundSelectors {
@@ -127,6 +131,8 @@ func createObjectGraph(pass *analysis.Pass, ins *inspector.Inspector) objectGrap
 			objGraph[obj] = append(objGraph[obj], typeBeingDefined)
 		}
 
+		// Find identifiers that aren't in selector expressions
+		// and add them to the graph.
 		idFinder := &identFinder{}
 		ast.Walk(idFinder, (ast.Node)(ts.Type))
 		for _, id := range idFinder.foundIdentifiers {
