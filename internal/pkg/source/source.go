@@ -29,7 +29,7 @@ import (
 )
 
 type classifier interface {
-	IsSource(string, string) bool
+	IsSourceType(string, string) bool
 	IsSanitizer(string, string, string) bool
 	IsSourceFieldAddr(*ssa.FieldAddr) bool
 	IsSink(string, string, string) bool
@@ -148,7 +148,7 @@ func (s *Source) referrersToVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBloc
 		if c, ok := r.(*ssa.Call); ok {
 			// This is to avoid attaching calls where the source is the receiver, ex:
 			// core.Sinkf("Source id: %v", wrapper.Source.GetID())
-			if recv := c.Call.Signature().Recv(); recv != nil && s.config.IsSource(utils.DecomposeType(utils.Dereference(recv.Type()))) {
+			if recv := c.Call.Signature().Recv(); recv != nil && s.config.IsSourceType(utils.DecomposeType(utils.Dereference(recv.Type()))) {
 				continue
 			}
 
@@ -340,7 +340,7 @@ func sourcesFromClosure(fn *ssa.Function, conf classifier) []*Source {
 		case *types.Pointer:
 			// FreeVars (variables from a closure) appear as double-pointers
 			// Hence, the need to dereference them recursively.
-			if s, ok := utils.Dereference(t).(*types.Named); ok && conf.IsSource(utils.DecomposeType(s)) {
+			if s, ok := utils.Dereference(t).(*types.Named); ok && conf.IsSourceType(utils.DecomposeType(s)) {
 				sources = append(sources, New(p, conf))
 			}
 		}
@@ -377,7 +377,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 			// have an Alloc and we'll miss it.
 			case *ssa.Extract:
 				t := v.Tuple.Type().(*types.Tuple).At(v.Index).Type()
-				if _, ok := t.(*types.Pointer); ok && conf.IsSource(utils.DecomposeType(utils.Dereference(t))) {
+				if _, ok := t.(*types.Pointer); ok && conf.IsSourceType(utils.DecomposeType(utils.Dereference(t))) {
 					sources = append(sources, New(v, conf))
 				}
 				continue
@@ -418,7 +418,7 @@ func isSourceType(c classifier, t types.Type) bool {
 	deref := utils.Dereference(t)
 	switch tt := deref.(type) {
 	case *types.Named:
-		return c.IsSource(utils.DecomposeType(tt)) || isSourceType(c, tt.Underlying())
+		return c.IsSourceType(utils.DecomposeType(tt)) || isSourceType(c, tt.Underlying())
 	case *types.Array:
 		return isSourceType(c, tt.Elem())
 	case *types.Slice:

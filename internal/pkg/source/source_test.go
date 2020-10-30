@@ -33,7 +33,7 @@ type testConfig struct {
 	sinkPattern      string
 }
 
-func (c *testConfig) IsSource(path, typename string) bool {
+func (c *testConfig) IsSourceType(path, typename string) bool {
 	match, _ := regexp.MatchString(c.sourcePattern, typename)
 	return match
 }

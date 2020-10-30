@@ -69,7 +69,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	ssaProg := ssaInput.Pkg.Prog
 	for _, mem := range ssaInput.Pkg.Members {
 		ssaType, ok := mem.(*ssa.Type)
-		if !ok || !conf.IsSource(utils.DecomposeType(ssaType.Type())) {
+		if !ok || !conf.IsSourceType(utils.DecomposeType(ssaType.Type())) {
 			continue
 		}
 		methods := ssaProg.MethodSets.MethodSet(ssaType.Type())

@@ -93,7 +93,7 @@ func (r ResultType) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
 	return r.IsSource(field)
 }
 
-// IsSource determines whether a types.Var is a source, that is whether it refers to a field previously identified as a source.
+// IsSourceType determines whether a types.Var is a source, that is whether it refers to a field previously identified as a source.
 func (r ResultType) IsSource(field *types.Var) bool {
 	return r[(types.Object)(field)]
 }

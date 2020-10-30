@@ -38,13 +38,6 @@ func init() {
 	FlagSet.StringVar(&configFile, "config", "config.json", "path to analysis configuration file")
 }
 
-type Matcher interface {
-	MatchPkg(path string) bool
-	MatchType(path, typeName string) bool
-	MatchField(path, typeName, fieldName string) bool
-	MatchFunction(path, receiver, name string) bool
-}
-
 // config contains matchers and analysis scope information
 type Config struct {
 	Sources    []sourceMatcher
@@ -111,7 +104,7 @@ func (c Config) IsSanitizer(path, recv, name string) bool {
 	return false
 }
 
-func (c Config) IsSource(path string, name string) bool {
+func (c Config) IsSourceType(path string, name string) bool {
 	for _, p := range c.Sources {
 		if p.MatchType(path, name) {
 			return true
@@ -163,21 +156,12 @@ type sourceMatcher struct {
 	FieldRE   regexp.Regexp
 }
 
-func (s sourceMatcher) MatchPkg(path string) bool {
-	return s.PackageRE.MatchString(path)
-}
-
 func (s sourceMatcher) MatchType(path, typeName string) bool {
-	return s.MatchPkg(path) && s.TypeRE.MatchString(typeName)
+	return s.PackageRE.MatchString(path) && s.TypeRE.MatchString(typeName)
 }
 
 func (s sourceMatcher) MatchField(path, typeName, fieldName string) bool {
-	return s.MatchType(path, typeName) && s.FieldRE.MatchString(fieldName)
-}
-
-// sourceMatchers do not match functions
-func (s sourceMatcher) MatchFunction(path, receiver, name string) bool {
-	return false
+	return s.PackageRE.MatchString(path) && s.TypeRE.MatchString(typeName) && s.FieldRE.MatchString(fieldName)
 }
 
 type funcMatcher struct {
@@ -186,21 +170,8 @@ type funcMatcher struct {
 	MethodRE   regexp.Regexp
 }
 
-func (fm funcMatcher) MatchPkg(path string) bool {
-	return fm.PackageRE.MatchString(path)
-}
-
-func (fm funcMatcher) MatchType(path, typeName string) bool {
-	return fm.MatchPkg(path) && fm.ReceiverRE.MatchString(typeName)
-}
-
-func (fm funcMatcher) MatchField(path, typeName, fieldName string) bool {
-	return false
-}
-
-// sourceMatchers do not match functions
 func (fm funcMatcher) MatchFunction(path, receiver, name string) bool {
-	return fm.MatchType(path, receiver) && fm.MethodRE.MatchString(name)
+	return fm.PackageRE.MatchString(path) && fm.ReceiverRE.MatchString(receiver) && fm.MethodRE.MatchString(name)
 }
 
 var readFileOnce sync.Once
