@@ -132,12 +132,14 @@ func (c Config) IsSanitizer(call *ssa.Call) bool {
 
 func (c Config) IsSource(t types.Type) bool {
 	n, ok := t.(*types.Named)
-	if !ok {
+	if !ok || types.IsInterface(n) {
 		return false
 	}
 
+	path, name := n.Obj().Pkg().Path(), n.Obj().Name()
+
 	for _, p := range c.Sources {
-		if p.match(n) {
+		if p.MatchType(path, name) {
 			return true
 		}
 	}
@@ -146,12 +148,13 @@ func (c Config) IsSource(t types.Type) bool {
 
 func (c Config) IsSourceField(typ types.Type, fld *types.Var) bool {
 	n, ok := typ.(*types.Named)
-	if !ok {
+	if !ok || types.IsInterface(n) {
 		return false
 	}
 
+	path, typeName, fieldName := n.Obj().Pkg().Path(), n.Obj().Name(), fld.Name()
 	for _, p := range c.Sources {
-		if p.match(n) && p.FieldRE.MatchString(fld.Name()) {
+		if p.MatchField(path, typeName, fieldName) {
 			return true
 		}
 	}
@@ -162,15 +165,15 @@ func (c Config) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
 	// fa.Type() refers to the accessed field's type.
 	// fa.X.Type() refers to the surrounding struct's type.
 	deref := utils.Dereference(fa.X.Type())
-	fieldName := utils.FieldName(fa)
-
 	n, ok := deref.(*types.Named)
-	if !ok {
+	if !ok || types.IsInterface(n) {
 		return false
 	}
+	path, typeName := n.Obj().Pkg().Path(), n.Obj().Name()
+	fieldName := utils.FieldName(fa)
 
 	for _, p := range c.Sources {
-		if p.match(n) && p.FieldRE.MatchString(fieldName) {
+		if p.MatchField(path, typeName, fieldName) {
 			return true
 		}
 	}
@@ -201,15 +204,6 @@ func (s sourceMatcher) MatchField(path, typeName, fieldName string) bool {
 // sourceMatchers do not match functions
 func (s sourceMatcher) MatchFunction(path, receiver, name string) bool {
 	return false
-}
-
-func (s sourceMatcher) match(n *types.Named) bool {
-	if types.IsInterface(n) {
-		// In our context, both sources and sanitizers are concrete types.
-		return false
-	}
-
-	return s.MatchType(n.Obj().Pkg().Path(), n.Obj().Name())
 }
 
 type funcMatcher struct {
