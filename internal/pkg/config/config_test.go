@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
@@ -40,15 +41,15 @@ func runTest(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	for _, f := range in.SrcFuncs {
-		if conf.IsSink(DecomposeFunction(f)) {
+		if conf.IsSink(utils.DecomposeFunction(f)) {
 			pass.Reportf(f.Pos(), "sink")
 		}
-		if conf.IsExcluded(DecomposeFunction(f)) {
+		if conf.IsExcluded(utils.DecomposeFunction(f)) {
 			pass.Reportf(f.Pos(), "excluded")
 		}
 		for _, b := range f.Blocks {
 			for _, i := range b.Instrs {
-				if c, ok := i.(*ssa.Call); ok && conf.IsSink(DecomposeFunction(c.Call.StaticCallee())) {
+				if c, ok := i.(*ssa.Call); ok && conf.IsSink(utils.DecomposeFunction(c.Call.StaticCallee())) {
 					pass.Reportf(i.Pos(), "sink call")
 				}
 			}

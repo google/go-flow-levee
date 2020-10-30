@@ -25,6 +25,7 @@ import (
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
+	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
@@ -97,7 +98,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	// Members contains all named entities
 	for _, mem := range ssaInput.Pkg.Members {
 		if ssaType, ok := mem.(*ssa.Type); ok &&
-			(conf.IsSource(config.DecomposeType(ssaType.Type())) || hasTaggedField(mem, taggedFields)) {
+			(conf.IsSource(utils.DecomposeType(ssaType.Type())) || hasTaggedField(mem, taggedFields)) {
 			exportSourceFacts(pass, ssaType, conf, taggedFields)
 		}
 	}

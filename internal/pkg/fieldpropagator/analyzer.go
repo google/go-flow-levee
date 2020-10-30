@@ -22,6 +22,7 @@ import (
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
+	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
@@ -68,7 +69,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	ssaProg := ssaInput.Pkg.Prog
 	for _, mem := range ssaInput.Pkg.Members {
 		ssaType, ok := mem.(*ssa.Type)
-		if !ok || !conf.IsSource(config.DecomposeType(ssaType.Type())) {
+		if !ok || !conf.IsSource(utils.DecomposeType(ssaType.Type())) {
 			continue
 		}
 		methods := ssaProg.MethodSets.MethodSet(ssaType.Type())

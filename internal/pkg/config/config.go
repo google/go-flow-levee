@@ -111,17 +111,6 @@ func (c Config) IsSanitizer(path, recv, name string) bool {
 	return false
 }
 
-// DecompoeType returns the path, typename, and indicators for if the Type is Named or an Interface
-// Returns empty strings if the type is not *types.Named
-func DecomposeType(t types.Type) (path, name string) {
-	n, ok := t.(*types.Named)
-	if !ok {
-		return
-	}
-
-	return n.Obj().Pkg().Path(), n.Obj().Name()
-}
-
 func (c Config) IsSource(path string, name string) bool {
 	for _, p := range c.Sources {
 		if p.MatchType(path, name) {
@@ -214,15 +203,6 @@ func (fm funcMatcher) MatchFunction(path, receiver, name string) bool {
 	return fm.MatchType(path, receiver) && fm.MethodRE.MatchString(name)
 }
 
-func unqualifiedName(v *types.Var) string {
-	packageQualifiedName := v.Type().String()
-	dotPos := strings.LastIndexByte(packageQualifiedName, '.')
-	if dotPos == -1 {
-		return packageQualifiedName
-	}
-	return packageQualifiedName[dotPos+1:]
-}
-
 var readFileOnce sync.Once
 var readConfigCached *Config
 var readConfigCachedErr error
@@ -246,21 +226,4 @@ func ReadConfig() (*Config, error) {
 	})
 	_ = loadedFromCache
 	return readConfigCached, readConfigCachedErr
-}
-
-// DecomposeFunction returns the path, receiver, and name strings of a ssa.Function.
-// For functions that have no receiver, returns an empty string for recv.
-// If f is nil, returns empty strings for all return values.
-func DecomposeFunction(f *ssa.Function) (path, recv, name string) {
-	if f == nil {
-		return
-	}
-
-	path = f.Pkg.Pkg.Path()
-	name = f.Name()
-	recvVar := f.Signature.Recv()
-	if recvVar != nil {
-		recv = unqualifiedName(recvVar)
-	}
-	return
 }

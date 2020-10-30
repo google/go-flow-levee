@@ -20,6 +20,7 @@ import (
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/fieldpropagator"
+	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ssa"
 
@@ -58,7 +59,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				case fieldPropagators.IsFieldPropagator(v):
 					sources = append(sources, source.New(v, conf))
 
-				case conf.IsSink(config.DecomposeFunction(v.Call.StaticCallee())):
+				case conf.IsSink(utils.DecomposeFunction(v.Call.StaticCallee())):
 					for _, s := range sources {
 						if s.HasPathTo(instr.(ssa.Node)) && !s.IsSanitizedAt(v) {
 							report(pass, s, v)

@@ -22,7 +22,6 @@ import (
 	"log"
 	"strings"
 
-	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
@@ -129,7 +128,7 @@ func (s *Source) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]
 	for _, r := range referrers {
 		switch v := r.(type) {
 		case *ssa.Call:
-			if s.config.IsSanitizer(config.DecomposeFunction(v.Call.StaticCallee())) {
+			if s.config.IsSanitizer(utils.DecomposeFunction(v.Call.StaticCallee())) {
 				s.sanitizers = append(s.sanitizers, &sanitizer.Sanitizer{Call: v})
 			}
 		}
@@ -149,7 +148,7 @@ func (s *Source) referrersToVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBloc
 		if c, ok := r.(*ssa.Call); ok {
 			// This is to avoid attaching calls where the source is the receiver, ex:
 			// core.Sinkf("Source id: %v", wrapper.Source.GetID())
-			if recv := c.Call.Signature().Recv(); recv != nil && s.config.IsSource(config.DecomposeType(utils.Dereference(recv.Type()))) {
+			if recv := c.Call.Signature().Recv(); recv != nil && s.config.IsSource(utils.DecomposeType(utils.Dereference(recv.Type()))) {
 				continue
 			}
 
@@ -308,7 +307,7 @@ func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Sour
 
 	for _, fn := range ssaInput.SrcFuncs {
 		// no need to analyze the body of sinks, nor of excluded functions
-		if conf.IsSink(config.DecomposeFunction(fn)) || conf.IsExcluded(config.DecomposeFunction(fn)) {
+		if conf.IsSink(utils.DecomposeFunction(fn)) || conf.IsExcluded(utils.DecomposeFunction(fn)) {
 			continue
 		}
 
@@ -341,7 +340,7 @@ func sourcesFromClosure(fn *ssa.Function, conf classifier) []*Source {
 		case *types.Pointer:
 			// FreeVars (variables from a closure) appear as double-pointers
 			// Hence, the need to dereference them recursively.
-			if s, ok := utils.Dereference(t).(*types.Named); ok && conf.IsSource(config.DecomposeType(s)) {
+			if s, ok := utils.Dereference(t).(*types.Named); ok && conf.IsSource(utils.DecomposeType(s)) {
 				sources = append(sources, New(p, conf))
 			}
 		}
@@ -378,7 +377,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 			// have an Alloc and we'll miss it.
 			case *ssa.Extract:
 				t := v.Tuple.Type().(*types.Tuple).At(v.Index).Type()
-				if _, ok := t.(*types.Pointer); ok && conf.IsSource(config.DecomposeType(utils.Dereference(t))) {
+				if _, ok := t.(*types.Pointer); ok && conf.IsSource(utils.DecomposeType(utils.Dereference(t))) {
 					sources = append(sources, New(v, conf))
 				}
 				continue
@@ -419,7 +418,7 @@ func isSourceType(c classifier, t types.Type) bool {
 	deref := utils.Dereference(t)
 	switch tt := deref.(type) {
 	case *types.Named:
-		return c.IsSource(config.DecomposeType(tt)) || isSourceType(c, tt.Underlying())
+		return c.IsSource(utils.DecomposeType(tt)) || isSourceType(c, tt.Underlying())
 	case *types.Array:
 		return isSourceType(c, tt.Elem())
 	case *types.Slice:
@@ -453,7 +452,7 @@ func isProducedBySanitizer(v ssa.Value, conf classifier) bool {
 		if !ok {
 			continue
 		}
-		if conf.IsSanitizer(config.DecomposeFunction(call.Call.StaticCallee())) {
+		if conf.IsSanitizer(utils.DecomposeFunction(call.Call.StaticCallee())) {
 			return true
 		}
 	}
