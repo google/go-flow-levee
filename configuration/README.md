@@ -41,14 +41,13 @@ Sinks and sanitizers are identified via regexp according to package, method, and
 
 ```yaml
 Sinks:
-  - PackageRE: <package path regexp>,
-    ReceiverRE: <type name regexp>,
-    MethodRE: <method name regexp>
+- PackageRE: <package path regexp>
+  ReceiverRE: <type name regexp>
+  MethodRE: <method name regexp>
 Sanitizers:
-  - PackageRE: <package path regexp>,
-    ReceiverRE: <type name regexp>,
-    MethodRE: <method name regexp>
-]
+- PackageRE: <package path regexp>
+  ReceiverRE: <type name regexp>
+  MethodRE: <method name regexp>
 ```
 
 Taint propagation is performed automatically and does not need to be explicitly configured.
