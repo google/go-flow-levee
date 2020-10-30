@@ -11,21 +11,16 @@ Alternatively, build this repository from its root directory via `go build -o /i
 
 For design details concerning value and instruction classification, see [/design](../design/README.md).
 
-Configuration is provided to `go-flow-levee` via JSON.
+Configuration is provided to `go-flow-levee` via YAML.
 
 Objects of interest are identified primarily via regexp. An empty regexp will match any string.
 
 Sources are identified via regexp according to package, type, and field names.
-```json
-{
-  "Sources": [
-    {
-      "PackageRE": "<package path regexp>",
-      "TypeRE": "<type name regexp>",
-      "FieldRE": "<field name regexp>"
-    }
-  ]
-}
+```yaml
+Sources:
+- PackageRE: "<package path regexp>"
+  TypeRE: "<type name regexp>"
+  FieldRE: "<field name regexp>"
 ```
 
 Sources may also be identified via field tags:
