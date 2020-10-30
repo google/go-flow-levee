@@ -5,6 +5,7 @@ go:
 
 before_script:
 - go install golang.org/x/tools/cmd/goimports
+- apt install yamllint
 
 script:
 - go test -v ./...
@@ -35,3 +36,4 @@ script:
     fi
   )
 - echo "Checking json..." && find . -name '*.json' -exec jq type {} + &>/dev/null
+- echo "Checking yaml..." && find . -name '*.yaml' -exec yamllint {} + &>/dev/null
