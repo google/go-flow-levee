@@ -87,6 +87,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 }
 
 func analyzeBlocks(pass *analysis.Pass, conf *config.Config, tf fieldtags.ResultType, meth *ssa.Function) {
+	if meth == nil || meth.Signature == nil {
+		return
+	}
 	// Function does not return anything
 	if res := meth.Signature.Results(); res == nil || (*res).Len() == 0 {
 		return
