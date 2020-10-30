@@ -22,6 +22,7 @@ import (
 	"log"
 	"strings"
 
+	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
@@ -33,7 +34,7 @@ type classifier interface {
 	IsSanitizer(*ssa.Call) bool
 	IsSourceFieldAddr(*ssa.FieldAddr) bool
 	IsSinkFunction(fn *ssa.Function) bool
-	IsExcluded(fn *ssa.Function) bool
+	IsExcluded(path string, recv string, name string) bool
 }
 
 // Source represents a Source in an SSA call tree.
@@ -307,7 +308,7 @@ func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Sour
 
 	for _, fn := range ssaInput.SrcFuncs {
 		// no need to analyze the body of sinks, nor of excluded functions
-		if conf.IsSinkFunction(fn) || conf.IsExcluded(fn) {
+		if conf.IsSinkFunction(fn) || conf.IsExcluded(config.DecomposeFunction(fn)) {
 			continue
 		}
 

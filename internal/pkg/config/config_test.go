@@ -43,7 +43,7 @@ func runTest(pass *analysis.Pass) (interface{}, error) {
 		if conf.IsSinkFunction(f) {
 			pass.Reportf(f.Pos(), "sink")
 		}
-		if conf.IsExcluded(f) {
+		if conf.IsExcluded(DecomposeFunction(f)) {
 			pass.Reportf(f.Pos(), "excluded")
 		}
 		for _, b := range f.Blocks {

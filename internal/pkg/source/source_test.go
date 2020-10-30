@@ -60,7 +60,7 @@ func (c *testConfig) IsSinkFunction(f *ssa.Function) bool {
 	return match
 }
 
-func (c *testConfig) IsExcluded(f *ssa.Function) bool {
+func (c *testConfig) IsExcluded(path string, recv string, name string) bool {
 	return false
 }
 

@@ -84,9 +84,9 @@ func (c Config) IsSourceFieldTag(tag string) bool {
 }
 
 // IsExcluded determines if a function matches one of the exclusion patterns.
-func (c Config) IsExcluded(fn *ssa.Function) bool {
+func (c Config) IsExcluded(path string, recv string, name string) bool {
 	for _, pm := range c.Exclude {
-		if pm.Match(fn) {
+		if pm.MatchFunction(path, recv, name) {
 			return true
 		}
 	}
@@ -109,7 +109,7 @@ func (c Config) IsSinkFunction(f *ssa.Function) bool {
 	}
 
 	for _, p := range c.Sinks {
-		if p.Match(f) {
+		if p.removeMe(f) {
 			return true
 		}
 	}
@@ -123,7 +123,7 @@ func (c Config) IsSanitizer(call *ssa.Call) bool {
 	}
 
 	for _, p := range c.Sanitizers {
-		if p.Match(callee) {
+		if p.removeMe(callee) {
 			return true
 		}
 	}
@@ -229,10 +229,10 @@ func (fm funcMatcher) MatchFunction(path, receiver, name string) bool {
 	return fm.MatchType(path, receiver) && fm.MethodRE.MatchString(name)
 }
 
-// Match matches methods based on package, method, and receiver regexp.
+// removeMe matches methods based on package, method, and receiver regexp.
 // To explicitly match a method with no receiver (i.e., a top-level function),
 // provide the ReceiverRE regexp `^$`.
-func (fm funcMatcher) Match(f *ssa.Function) bool {
+func (fm funcMatcher) removeMe(f *ssa.Function) bool {
 	path := f.Pkg.Pkg.Path()
 	name := f.Name()
 	recvVar := f.Signature.Recv()
@@ -275,4 +275,14 @@ func ReadConfig() (*Config, error) {
 	})
 	_ = loadedFromCache
 	return readConfigCached, readConfigCachedErr
+}
+
+func DecomposeFunction(f *ssa.Function) (path, recv, name string) {
+	path = f.Pkg.Pkg.Path()
+	name = f.Name()
+	recvVar := f.Signature.Recv()
+	if recvVar != nil {
+		recv = unqualifiedName(recvVar)
+	}
+	return
 }
