@@ -29,11 +29,11 @@ import (
 )
 
 type classifier interface {
-	IsSourceType(string, string) bool
-	IsSanitizer(string, string, string) bool
-	IsSourceField(string, string, string) bool
-	IsSink(string, string, string) bool
-	IsExcluded(path string, recv string, name string) bool
+	IsSourceType(path, typeName string) bool
+	IsSourceField(path, typeName, fieldName string) bool
+	IsSanitizer(path, recv, name string) bool
+	IsSink(path, recv, name string) bool
+	IsExcluded(path, recv, name string) bool
 }
 
 // Source represents a Source in an SSA call tree.
@@ -313,7 +313,8 @@ func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Sour
 
 	for _, fn := range ssaInput.SrcFuncs {
 		// no need to analyze the body of sinks, nor of excluded functions
-		if conf.IsSink(utils.DecomposeFunction(fn)) || conf.IsExcluded(utils.DecomposeFunction(fn)) {
+		path, recv, name := utils.DecomposeFunction(fn)
+		if conf.IsSink(path, recv, name) || conf.IsExcluded(path, recv, name) {
 			continue
 		}
 
