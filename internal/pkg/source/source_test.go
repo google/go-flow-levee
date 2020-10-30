@@ -18,12 +18,9 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/google/go-flow-levee/internal/pkg/utils"
-
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
-	"golang.org/x/tools/go/ssa"
 )
 
 type testConfig struct {
@@ -43,8 +40,8 @@ func (c *testConfig) IsSanitizer(p, r, n string) bool {
 	return match
 }
 
-func (c *testConfig) IsSourceFieldAddr(field *ssa.FieldAddr) bool {
-	match, _ := regexp.MatchString(c.fieldsPattern, utils.FieldName(field))
+func (c *testConfig) IsSourceField(path, typeName, fieldName string) bool {
+	match, _ := regexp.MatchString(c.fieldsPattern, fieldName)
 	return match
 }
 

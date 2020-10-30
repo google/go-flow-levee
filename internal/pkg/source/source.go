@@ -31,7 +31,7 @@ import (
 type classifier interface {
 	IsSourceType(string, string) bool
 	IsSanitizer(string, string, string) bool
-	IsSourceFieldAddr(*ssa.FieldAddr) bool
+	IsSourceField(string, string, string) bool
 	IsSink(string, string, string) bool
 	IsExcluded(path string, recv string, name string) bool
 }
@@ -163,8 +163,14 @@ func (s *Source) referrersToVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBloc
 			}
 		}
 
-		if fa, ok := r.(*ssa.FieldAddr); ok && !s.config.IsSourceFieldAddr(fa) {
-			continue
+		if fa, ok := r.(*ssa.FieldAddr); ok {
+			deref := utils.Dereference(fa.X.Type())
+			typPath, typName := utils.DecomposeType(deref)
+			fieldName := utils.FieldName(fa)
+
+			if !s.config.IsSourceField(typPath, typName, fieldName) {
+				continue
+			}
 		}
 
 		referrers = append(referrers, r)

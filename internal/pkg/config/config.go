@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"go/types"
 	"io/ioutil"
 	"reflect"
 	"strconv"
@@ -26,8 +25,6 @@ import (
 	"sync"
 
 	"github.com/google/go-flow-levee/internal/pkg/config/regexp"
-	"github.com/google/go-flow-levee/internal/pkg/utils"
-	"golang.org/x/tools/go/ssa"
 )
 
 // FlagSet should be used by analyzers to reuse -config flag.
@@ -113,32 +110,7 @@ func (c Config) IsSourceType(path string, name string) bool {
 	return false
 }
 
-func (c Config) IsSourceField(typ types.Type, fld *types.Var) bool {
-	n, ok := typ.(*types.Named)
-	if !ok || types.IsInterface(n) {
-		return false
-	}
-
-	path, typeName, fieldName := n.Obj().Pkg().Path(), n.Obj().Name(), fld.Name()
-	for _, p := range c.Sources {
-		if p.MatchField(path, typeName, fieldName) {
-			return true
-		}
-	}
-	return false
-}
-
-func (c Config) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
-	// fa.Type() refers to the accessed field's type.
-	// fa.X.Type() refers to the surrounding struct's type.
-	deref := utils.Dereference(fa.X.Type())
-	n, ok := deref.(*types.Named)
-	if !ok || types.IsInterface(n) {
-		return false
-	}
-	path, typeName := n.Obj().Pkg().Path(), n.Obj().Name()
-	fieldName := utils.FieldName(fa)
-
+func (c Config) IsSourceField(path, typeName, fieldName string) bool {
 	for _, p := range c.Sources {
 		if p.MatchField(path, typeName, fieldName) {
 			return true

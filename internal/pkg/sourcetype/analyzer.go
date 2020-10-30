@@ -136,7 +136,9 @@ func exportSourceFacts(pass *analysis.Pass, ssaType *ssa.Type, conf *config.Conf
 			if fld.Pkg() != pass.Pkg {
 				continue
 			}
-			if conf.IsSourceField(ssaType.Type(), fld) || taggedFields.IsSource(fld) {
+
+			typPath, typName := utils.DecomposeType(ssaType.Type())
+			if conf.IsSourceField(typPath, typName, fld.Name()) || taggedFields.IsSource(fld) {
 				pass.ExportObjectFact(fld, &fieldDeclFact{})
 			}
 		}
