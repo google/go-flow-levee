@@ -15,7 +15,6 @@
 package source
 
 import (
-	"go/types"
 	"regexp"
 	"testing"
 
@@ -34,14 +33,8 @@ type testConfig struct {
 	sinkPattern      string
 }
 
-func (c *testConfig) IsSource(t types.Type) bool {
-	d := utils.Dereference(t)
-	_, ok := d.(*types.Named)
-	if !ok {
-		return false
-	}
-
-	match, _ := regexp.MatchString(c.sourcePattern, d.String())
+func (c *testConfig) IsSource(path, typename string) bool {
+	match, _ := regexp.MatchString(c.sourcePattern, typename)
 	return match
 }
 
@@ -74,7 +67,7 @@ var testAnalyzer = &analysis.Analyzer{
 func runTest(pass *analysis.Pass) (interface{}, error) {
 	in := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	config := &testConfig{
-		sourcePattern:    `\.foo`,
+		sourcePattern:    "foo",
 		sanitizerPattern: "sanitizer",
 		fieldsPattern:    "name",
 		sinkPattern:      "sink",

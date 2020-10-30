@@ -111,14 +111,18 @@ func (c Config) IsSanitizer(path, recv, name string) bool {
 	return false
 }
 
-func (c Config) IsSource(t types.Type) bool {
+// DecompoeType returns the path, typename, and indicators for if the Type is Named or an Interface
+// Returns empty strings if the type is not *types.Named
+func DecomposeType(t types.Type) (path, name string) {
 	n, ok := t.(*types.Named)
-	if !ok || types.IsInterface(n) {
-		return false
+	if !ok {
+		return
 	}
 
-	path, name := n.Obj().Pkg().Path(), n.Obj().Name()
+	return n.Obj().Pkg().Path(), n.Obj().Name()
+}
 
+func (c Config) IsSource(path string, name string) bool {
 	for _, p := range c.Sources {
 		if p.MatchType(path, name) {
 			return true

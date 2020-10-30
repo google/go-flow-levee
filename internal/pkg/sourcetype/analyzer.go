@@ -97,7 +97,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	// Members contains all named entities
 	for _, mem := range ssaInput.Pkg.Members {
 		if ssaType, ok := mem.(*ssa.Type); ok &&
-			(conf.IsSource(ssaType.Type()) || hasTaggedField(mem, taggedFields)) {
+			(conf.IsSource(config.DecomposeType(ssaType.Type())) || hasTaggedField(mem, taggedFields)) {
 			exportSourceFacts(pass, ssaType, conf, taggedFields)
 		}
 	}
