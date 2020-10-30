@@ -71,4 +71,5 @@ func checkForGoFiles(path string) error {
 		}
 	}
 	return fmt.Errorf("found no Go files in test directory (%s)", path)
+
 }
