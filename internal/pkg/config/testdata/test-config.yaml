@@ -1,0 +1,13 @@
+sinks:
+  - packageRE: "^example.com/core"
+    methodRE: "^Sink$"
+  - packageRE: "^example.com/core"
+    methodRE: "^Do$"
+    receiverRE: "^Sinker$"
+fieldTags:
+  - key: example
+    val: sensitive
+exclude:
+  - packageRE: "^example.com/exclusion$"
+    methodRE: "^Foo$"
+  - packageRE: "^notexample.com/exclusion$"

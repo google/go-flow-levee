@@ -16,6 +16,7 @@ package config
 
 import (
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"golang.org/x/tools/go/analysis"
@@ -58,15 +59,52 @@ func runTest(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
+var configFiles = []string{"test-config.json", "test-config.yaml"}
+
+// Using multiple configs in one test package's process requires us
+// to manually clear the cache during testing.
+func resetConfigCache() {
+	readFileOnce = sync.Once{}
+	readConfigCached = nil
+	readConfigCachedErr = nil
+}
+
+// TestReadConfig provides us earlier feedback if TestConfig fails due to config read errors.
+func TestReadConfig(t *testing.T) {
+	testdata := analysistest.TestData()
+	for _, f := range configFiles {
+		t.Run("config="+f, func(t *testing.T) {
+			resetConfigCache()
+
+			if err := FlagSet.Set("config", filepath.Join(testdata, f)); err != nil {
+				t.Fatal(err)
+			}
+			ReadConfig()
+
+			if readConfigCachedErr != nil {
+				t.Errorf("error reading config: %v", readConfigCachedErr)
+			}
+		})
+	}
+}
+
+// TestConfig loads configuration and validates it using the above testAnalyzer
 func TestConfig(t *testing.T) {
 	testdata := analysistest.TestData()
-	if err := FlagSet.Set("config", filepath.Join(testdata, "test-config.json")); err != nil {
-		t.Fatal(err)
-	}
-	for _, p := range []string{"core", "crosspkg", "exclusion", "notcore"} {
-		analysistest.Run(t, testdata, testAnalyzer, filepath.Join(testdata, "src/example.com", p))
-	}
-	for _, p := range []string{"core", "exclusion"} {
-		analysistest.Run(t, testdata, testAnalyzer, filepath.Join(testdata, "src/notexample.com", p))
+	for _, f := range configFiles {
+		t.Run("config="+f, func(t *testing.T) {
+			if err := FlagSet.Set("config", filepath.Join(testdata, f)); err != nil {
+				t.Fatal(err)
+			}
+
+			resetConfigCache()
+
+			for _, p := range []string{"core", "crosspkg", "exclusion", "notcore"} {
+				analysistest.Run(t, testdata, testAnalyzer, filepath.Join(testdata, "src/example.com", p))
+			}
+			for _, p := range []string{"core", "exclusion"} {
+				analysistest.Run(t, testdata, testAnalyzer, filepath.Join(testdata, "src/notexample.com", p))
+			}
+		})
 	}
 }

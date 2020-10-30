@@ -15,7 +15,6 @@
 package config
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"go/types"
@@ -24,6 +23,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"sigs.k8s.io/yaml"
 
 	"github.com/google/go-flow-levee/internal/pkg/config/regexp"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
@@ -228,9 +229,7 @@ var readConfigCached *Config
 var readConfigCachedErr error
 
 func ReadConfig() (*Config, error) {
-	loadedFromCache := true
 	readFileOnce.Do(func() {
-		loadedFromCache = false
 		c := new(Config)
 		bytes, err := ioutil.ReadFile(configFile)
 		if err != nil {
@@ -238,12 +237,11 @@ func ReadConfig() (*Config, error) {
 			return
 		}
 
-		if err := json.Unmarshal(bytes, c); err != nil {
+		if err := yaml.UnmarshalStrict(bytes, c); err != nil {
 			readConfigCachedErr = err
 			return
 		}
 		readConfigCached = c
 	})
-	_ = loadedFromCache
 	return readConfigCached, readConfigCachedErr
 }
