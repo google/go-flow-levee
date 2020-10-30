@@ -1,13 +1,15 @@
+# Use mixed lower and upper case keys here to test robustness of YAML package.
+
 sinks:
   - packageRE: "^example.com/core"
-    methodRE: "^Sink$"
+    methodre: "^Sink$"
   - packageRE: "^example.com/core"
     methodRE: "^Do$"
     receiverRE: "^Sinker$"
-fieldTags:
-  - key: example
+FieldTags:
+  - Key: example
     val: sensitive
 exclude:
-  - packageRE: "^example.com/exclusion$"
-    methodRE: "^Foo$"
+  - PackageRE: "^example.com/exclusion$"
+    MethodRE: "^Foo$"
   - packageRE: "^notexample.com/exclusion$"

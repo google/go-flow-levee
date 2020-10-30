@@ -31,36 +31,24 @@ type Example struct {
 ```
 
 The tag `levee:"source"` is built-in. Additional tags may be identified via explicit string literals (not regexps). The following example shows how the `levee:"source"` tag could be defined if it weren't built-in:
-```json
-{
-	"FieldTags": [
-		{
-			"Key": "levee",
-			"Val": "source"
-		}
-	]
-}
+```yaml
+FieldTags:
+- Key: levee
+  Val: source
 ```
 
 Sinks and sanitizers are identified via regexp according to package, method, and (optional) receiver name.
 
-```json
-{
-  "Sinks": [
-    {
-      "PackageRE": "<package path regexp>",
-      "ReceiverRE": "<type name regexp>",
-      "MethodRE": "<method name regexp>"
-    }
-  ],
-  "Sanitizers": [
-    {
-      "PackageRE": "<package path regexp>",
-      "ReceiverRE": "<type name regexp>",
-      "MethodRE": "<method name regexp>"
-    }
-  ]
-}
+```yaml
+Sinks:
+  - PackageRE: <package path regexp>,
+    ReceiverRE: <type name regexp>,
+    MethodRE: <method name regexp>
+Sanitizers:
+  - PackageRE: <package path regexp>,
+    ReceiverRE: <type name regexp>,
+    MethodRE: <method name regexp>
+]
 ```
 
 Taint propagation is performed automatically and does not need to be explicitly configured.
@@ -72,15 +60,10 @@ To match only methods without any receiver (i.e., a top-level function), use the
 
 Functions can be explicitly excluded from analysis using regexps,
 constructed similarly to those used to identify sanitizers and sinks:
-```json
-{
-  "Exclude": [
-    {
-      "PathRE": "^myproject/mypackage$",
-      "MethodRE": "^myfunction$"
-    }
-  ]
-}
+```yaml
+Exclude:
+- PathRE: "^myproject/mypackage$"
+  MethodRE: "^myfunction$"
 ```
 
 The above will match the function `myfunction` from the `myproject/mypackage` package. It will also match a method named `myfunction` in the same package.
