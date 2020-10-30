@@ -229,10 +229,6 @@ func (fm funcMatcher) MatchFunction(path, receiver, name string) bool {
 	return fm.MatchType(path, receiver) && fm.MethodRE.MatchString(name)
 }
 
-func (fm funcMatcher) matchPackage(p *types.Package) bool {
-	return fm.MatchPkg(p.Path())
-}
-
 // Match matches methods based on package, method, and receiver regexp.
 // To explicitly match a method with no receiver (i.e., a top-level function),
 // provide the ReceiverRE regexp `^$`.
