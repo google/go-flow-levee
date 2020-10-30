@@ -13,18 +13,16 @@
 # limitations under the License.
 ---
 
-# Use mixed lower and upper case keys here to test robustness of YAML package.
-
 sinks:
   - packageRE: "^example.com/core"
-    methodre: "^Sink$"
+    methodRE: "^Sink$"
   - packageRE: "^example.com/core"
     methodRE: "^Do$"
     receiverRE: "^Sinker$"
-FieldTags:
-  - Key: example
+fieldTags:
+  - key: example
     val: sensitive
 exclude:
-  - PackageRE: "^example.com/exclusion$"
-    MethodRE: "^Foo$"
+  - packageRE: "^example.com/exclusion$"
+    methodRE: "^Foo$"
   - packageRE: "^notexample.com/exclusion$"
