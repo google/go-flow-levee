@@ -119,9 +119,10 @@ func createObjectGraph(pass *analysis.Pass, ins *inspector.Inspector) objectGrap
 
 		// Find selector expressions and add them to the graph.
 		// We need to look at SelectorExprs first, because they
-		// contain identifiers, e.g. foo.Bar for a type Bar defined
-		// in package foo. We need to look at the whole expression
-		// in order to resolve the type correctly.
+		// contain identifiers, e.g. foo.Bar contains the identifiers
+		// foo (qualifying package) and Bar (unqualified type).
+		// We need to look at the whole expression in order to resolve
+		// the type correctly.
 		selectorFinder := &selectorFinder{nil, map[*ast.Ident]bool{}}
 		ast.Walk(selectorFinder, (ast.Node)(ts.Type))
 		for _, sel := range selectorFinder.foundSelectors {
