@@ -38,6 +38,13 @@ func init() {
 	FlagSet.StringVar(&configFile, "config", "config.json", "path to analysis configuration file")
 }
 
+type Matcher interface {
+	MatchPkg(path string) bool
+	MatchType(path, typeName string) bool
+	MatchField(path, typeName, fieldName string) bool
+	MatchFunction(path, receiver, name string) bool
+}
+
 // config contains matchers and analysis scope information
 type Config struct {
 	Sources    []sourceMatcher
@@ -179,13 +186,30 @@ type sourceMatcher struct {
 	FieldRE   regexp.Regexp
 }
 
+func (s sourceMatcher) MatchPkg(path string) bool {
+	return s.PackageRE.MatchString(path)
+}
+
+func (s sourceMatcher) MatchType(path, typeName string) bool {
+	return s.MatchPkg(path) && s.TypeRE.MatchString(typeName)
+}
+
+func (s sourceMatcher) MatchField(path, typeName, fieldName string) bool {
+	return s.MatchType(path, typeName) && s.FieldRE.MatchString(fieldName)
+}
+
+// sourceMatchers do not match functions
+func (s sourceMatcher) MatchFunction(path, receiver, name string) bool {
+	return false
+}
+
 func (s sourceMatcher) match(n *types.Named) bool {
 	if types.IsInterface(n) {
 		// In our context, both sources and sanitizers are concrete types.
 		return false
 	}
 
-	return s.PackageRE.MatchString(n.Obj().Pkg().Path()) && s.TypeRE.MatchString(n.Obj().Name())
+	return s.MatchType(n.Obj().Pkg().Path(), n.Obj().Name())
 }
 
 type funcMatcher struct {
@@ -194,24 +218,39 @@ type funcMatcher struct {
 	MethodRE   regexp.Regexp
 }
 
+func (fm funcMatcher) MatchPkg(path string) bool {
+	return fm.PackageRE.MatchString(path)
+}
+
+func (fm funcMatcher) MatchType(path, typeName string) bool {
+	return fm.MatchPkg(path) && fm.ReceiverRE.MatchString(typeName)
+}
+
+func (fm funcMatcher) MatchField(path, typeName, fieldName string) bool {
+	return false
+}
+
+// sourceMatchers do not match functions
+func (fm funcMatcher) MatchFunction(path, receiver, name string) bool {
+	return fm.MatchType(path, receiver) && fm.MethodRE.MatchString(name)
+}
+
 func (fm funcMatcher) matchPackage(p *types.Package) bool {
-	return fm.PackageRE.MatchString(p.Path())
+	return fm.MatchPkg(p.Path())
 }
 
 // Match matches methods based on package, method, and receiver regexp.
 // To explicitly match a method with no receiver (i.e., a top-level function),
 // provide the ReceiverRE regexp `^$`.
 func (fm funcMatcher) Match(f *ssa.Function) bool {
-	if !fm.matchPackage(f.Pkg.Pkg) || !fm.MethodRE.MatchString(f.Name()) {
-		return false
+	path := f.Pkg.Pkg.Path()
+	name := f.Name()
+	recvVar := f.Signature.Recv()
+	var recv string
+	if recvVar != nil {
+		recv = unqualifiedName(recvVar)
 	}
-
-	recv := f.Signature.Recv()
-	var recvName string
-	if recv != nil {
-		recvName = unqualifiedName(recv)
-	}
-	return fm.ReceiverRE.MatchString(recvName)
+	return fm.MatchFunction(path, recv, name)
 }
 
 func unqualifiedName(v *types.Var) string {
