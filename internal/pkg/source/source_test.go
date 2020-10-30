@@ -45,8 +45,8 @@ func (c *testConfig) IsSource(t types.Type) bool {
 	return match
 }
 
-func (c *testConfig) IsSanitizer(call *ssa.Call) bool {
-	match, _ := regexp.MatchString(c.sanitizerPattern, call.String())
+func (c *testConfig) IsSanitizer(p, r, n string) bool {
+	match, _ := regexp.MatchString(c.sanitizerPattern, n)
 	return match
 }
 
@@ -55,8 +55,8 @@ func (c *testConfig) IsSourceFieldAddr(field *ssa.FieldAddr) bool {
 	return match
 }
 
-func (c *testConfig) IsSinkFunction(f *ssa.Function) bool {
-	match, _ := regexp.MatchString(c.sinkPattern, f.Name())
+func (c *testConfig) IsSink(path, recv, name string) bool {
+	match, _ := regexp.MatchString(c.sinkPattern, name)
 	return match
 }
 

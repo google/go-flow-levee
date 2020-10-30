@@ -40,7 +40,7 @@ func runTest(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	for _, f := range in.SrcFuncs {
-		if conf.IsSinkFunction(f) {
+		if conf.IsSink(DecomposeFunction(f)) {
 			pass.Reportf(f.Pos(), "sink")
 		}
 		if conf.IsExcluded(DecomposeFunction(f)) {
@@ -48,7 +48,7 @@ func runTest(pass *analysis.Pass) (interface{}, error) {
 		}
 		for _, b := range f.Blocks {
 			for _, i := range b.Instrs {
-				if c, ok := i.(*ssa.Call); ok && conf.IsSinkCall(c) {
+				if c, ok := i.(*ssa.Call); ok && conf.IsSink(DecomposeFunction(c.Call.StaticCallee())) {
 					pass.Reportf(i.Pos(), "sink call")
 				}
 			}

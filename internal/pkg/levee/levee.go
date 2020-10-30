@@ -58,7 +58,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				case fieldPropagators.IsFieldPropagator(v):
 					sources = append(sources, source.New(v, conf))
 
-				case conf.IsSinkCall(v):
+				case conf.IsSink(config.DecomposeFunction(v.Call.StaticCallee())):
 					for _, s := range sources {
 						if s.HasPathTo(instr.(ssa.Node)) && !s.IsSanitizedAt(v) {
 							report(pass, s, v)

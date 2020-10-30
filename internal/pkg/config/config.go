@@ -93,37 +93,18 @@ func (c Config) IsExcluded(path string, recv string, name string) bool {
 	return false
 }
 
-func (c Config) IsSinkCall(call *ssa.Call) bool {
-	callee := call.Call.StaticCallee()
-	if callee == nil {
-		return false
-	}
-	return c.IsSinkFunction(callee)
-}
-
-func (c Config) IsSinkFunction(f *ssa.Function) bool {
-	// according to the documentation for ssa.Function, this can happen if
-	// f is a "shared func", e.g. "wrappers and error.Error"
-	if f.Pkg == nil {
-		return false
-	}
-
+func (c Config) IsSink(path, recv, name string) bool {
 	for _, p := range c.Sinks {
-		if p.removeMe(f) {
+		if p.MatchFunction(path, recv, name) {
 			return true
 		}
 	}
 	return false
 }
 
-func (c Config) IsSanitizer(call *ssa.Call) bool {
-	callee := call.Call.StaticCallee()
-	if callee == nil {
-		return false
-	}
-
+func (c Config) IsSanitizer(path, recv, name string) bool {
 	for _, p := range c.Sanitizers {
-		if p.removeMe(callee) {
+		if p.MatchFunction(path, recv, name) {
 			return true
 		}
 	}
@@ -229,20 +210,6 @@ func (fm funcMatcher) MatchFunction(path, receiver, name string) bool {
 	return fm.MatchType(path, receiver) && fm.MethodRE.MatchString(name)
 }
 
-// removeMe matches methods based on package, method, and receiver regexp.
-// To explicitly match a method with no receiver (i.e., a top-level function),
-// provide the ReceiverRE regexp `^$`.
-func (fm funcMatcher) removeMe(f *ssa.Function) bool {
-	path := f.Pkg.Pkg.Path()
-	name := f.Name()
-	recvVar := f.Signature.Recv()
-	var recv string
-	if recvVar != nil {
-		recv = unqualifiedName(recvVar)
-	}
-	return fm.MatchFunction(path, recv, name)
-}
-
 func unqualifiedName(v *types.Var) string {
 	packageQualifiedName := v.Type().String()
 	dotPos := strings.LastIndexByte(packageQualifiedName, '.')
@@ -277,7 +244,14 @@ func ReadConfig() (*Config, error) {
 	return readConfigCached, readConfigCachedErr
 }
 
+// DecomposeFunction returns the path, receiver, and name strings of a ssa.Function.
+// For functions that have no receiver, returns an empty string for recv.
+// If f is nil, returns empty strings for all return values.
 func DecomposeFunction(f *ssa.Function) (path, recv, name string) {
+	if f == nil {
+		return
+	}
+
 	path = f.Pkg.Pkg.Path()
 	name = f.Name()
 	recvVar := f.Signature.Recv()

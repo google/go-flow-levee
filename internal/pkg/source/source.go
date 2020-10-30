@@ -31,9 +31,9 @@ import (
 
 type classifier interface {
 	IsSource(types.Type) bool
-	IsSanitizer(*ssa.Call) bool
+	IsSanitizer(string, string, string) bool
 	IsSourceFieldAddr(*ssa.FieldAddr) bool
-	IsSinkFunction(fn *ssa.Function) bool
+	IsSink(string, string, string) bool
 	IsExcluded(path string, recv string, name string) bool
 }
 
@@ -129,7 +129,7 @@ func (s *Source) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]
 	for _, r := range referrers {
 		switch v := r.(type) {
 		case *ssa.Call:
-			if s.config.IsSanitizer(v) {
+			if s.config.IsSanitizer(config.DecomposeFunction(v.Call.StaticCallee())) {
 				s.sanitizers = append(s.sanitizers, &sanitizer.Sanitizer{Call: v})
 			}
 		}
@@ -308,7 +308,7 @@ func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Sour
 
 	for _, fn := range ssaInput.SrcFuncs {
 		// no need to analyze the body of sinks, nor of excluded functions
-		if conf.IsSinkFunction(fn) || conf.IsExcluded(config.DecomposeFunction(fn)) {
+		if conf.IsSink(config.DecomposeFunction(fn)) || conf.IsExcluded(config.DecomposeFunction(fn)) {
 			continue
 		}
 
@@ -453,7 +453,7 @@ func isProducedBySanitizer(v ssa.Value, conf classifier) bool {
 		if !ok {
 			continue
 		}
-		if conf.IsSanitizer(call) {
+		if conf.IsSanitizer(config.DecomposeFunction(call.Call.StaticCallee())) {
 			return true
 		}
 	}
