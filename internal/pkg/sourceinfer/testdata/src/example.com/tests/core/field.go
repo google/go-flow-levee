@@ -54,3 +54,17 @@ type (
 		ns source.NotSource
 	}
 )
+
+func Field() {
+	type HoldingInFunc struct { // want HoldingInFunc:"inferred source"
+		s source.Source
+	}
+}
+
+func FieldAnonymousFunc() {
+	_ = func() {
+		type HoldingInAnonymousFunc struct { // want HoldingInAnonymousFunc:"inferred source"
+			s source.Source
+		}
+	}
+}

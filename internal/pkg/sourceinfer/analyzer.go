@@ -30,7 +30,6 @@ import (
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
-	"golang.org/x/tools/go/ssa"
 )
 
 // ResultType is a set of types.Object that are inferred Sources.
@@ -88,37 +87,30 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		return nil, err
 	}
 
-	objGraph := objectGraph{}
-
 	ins := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	addTypeDefEdges(pass, ins, objGraph)
+	objectGraph := createObjectGraph(pass, ins)
 
-	builtSSA := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
-	addFieldEdges(builtSSA, objGraph)
-
-	inferredSources := inferSources(pass, conf, objGraph)
+	inferredSources := inferSources(pass, conf, objectGraph)
 
 	return inferredSources, nil
 }
 
-func addTypeDefEdges(pass *analysis.Pass, ins *inspector.Inspector, objGraph objectGraph) {
+func createObjectGraph(pass *analysis.Pass, ins *inspector.Inspector) objectGraph {
+	objGraph := objectGraph{}
+
 	genDeclFilter := []ast.Node{
 		(*ast.TypeSpec)(nil),
 	}
 
 	ins.Preorder(genDeclFilter, func(n ast.Node) {
 		ts, ok := n.(*ast.TypeSpec)
+
 		if !ok {
 			return
 		}
 		// type alias, e.g. type A = B
 		// we don't need to handle these, since the type will be inlined
 		if ts.Assign != token.NoPos {
-			return
-		}
-
-		// struct definition, fields will be checked later in the analysis
-		if _, ok := ts.Type.(*ast.StructType); ok {
 			return
 		}
 
@@ -146,6 +138,8 @@ func addTypeDefEdges(pass *analysis.Pass, ins *inspector.Inspector, objGraph obj
 			objGraph[obj] = append(objGraph[obj], typeBeingDefined)
 		}
 	})
+
+	return objGraph
 }
 
 type selectorFinder struct {
@@ -178,30 +172,6 @@ func (i *identFinder) Visit(n ast.Node) ast.Visitor {
 		return nil
 	}
 	return i
-}
-
-func addFieldEdges(builtSSA *buildssa.SSA, objGraph objectGraph) {
-	for _, m := range builtSSA.Pkg.Members {
-		t, ok := m.(*ssa.Type)
-		if !ok {
-			continue
-		}
-		n, ok := t.Type().(*types.Named)
-		if !ok {
-			continue
-		}
-		s, ok := n.Underlying().(*types.Struct)
-		if !ok {
-			continue
-		}
-		for i := 0; i < s.NumFields(); i++ {
-			fieldType := s.Field(i).Type()
-			for nt := range findNamedTypes(fieldType) {
-				obj := nt.Obj()
-				objGraph[obj] = append(objGraph[obj], n.Obj())
-			}
-		}
-	}
 }
 
 func findNamedTypes(t types.Type) map[*types.Named]bool {

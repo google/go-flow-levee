@@ -31,3 +31,13 @@ type (
 type (
 	NotDefinedSource source.NotSource
 )
+
+func Typedef() {
+	type DefinedInFunc source.Source // want DefinedInFunc:"inferred source"
+}
+
+func TypedefAnonymousFunc() {
+	_ = func() {
+		type DefinedInAnonymousFunc source.Source // want DefinedInAnonymousFunc:"inferred source"
+	}
+}
