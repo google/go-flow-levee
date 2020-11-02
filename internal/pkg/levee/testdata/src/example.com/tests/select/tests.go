@@ -44,15 +44,6 @@ func TestSelectSourcePointer(sources <-chan *core.Source) {
 	}
 }
 
-func TestTaintChannelInParameter(objects chan interface{}) {
-	objects <- core.Source{}
-	select {
-	case s := <-objects:
-		core.Sink(s) // want "a source has reached a sink"
-	default:
-	}
-}
-
 func TestTaintedInOneSelectSinkedInTheNext(objects chan interface{}) {
 	select {
 	case objects <- core.Source{}:
@@ -96,7 +87,7 @@ func TestSelectSourceAndInnoc(sources <-chan core.Source, innocs <-chan core.Inn
 	}
 }
 
-func TestSelectIntoInterface(sources <-chan core.Source, innocs <-chan core.Innocuous) {
+func TestSelectRecvIntoInterface(sources <-chan core.Source, innocs <-chan core.Innocuous) {
 	var empty interface{}
 	select {
 	case empty = <-sources:
