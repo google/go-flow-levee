@@ -5,7 +5,6 @@ go:
 
 before_script:
 - go install golang.org/x/tools/cmd/goimports
-- go install honnef.co/go/tools/cmd/staticcheck
 - sudo apt-get -y install yamllint
 
 script:
@@ -36,6 +35,7 @@ script:
       false
     fi
   )
+- go install honnef.co/go/tools/cmd/staticcheck
 - >
   echo "Checking staticcheck..." && (
     if [[ -n $(staticcheck ./... 2>&1) ]]; then
