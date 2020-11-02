@@ -35,8 +35,8 @@ func (c *testConfig) IsSourceType(path, typename string) bool {
 	return match
 }
 
-func (c *testConfig) IsSanitizer(p, r, n string) bool {
-	match, _ := regexp.MatchString(c.sanitizerPattern, n)
+func (c *testConfig) IsSanitizer(path, recv, name string) bool {
+	match, _ := regexp.MatchString(c.sanitizerPattern, name)
 	return match
 }
 
@@ -50,7 +50,7 @@ func (c *testConfig) IsSink(path, recv, name string) bool {
 	return match
 }
 
-func (c *testConfig) IsExcluded(path string, recv string, name string) bool {
+func (c *testConfig) IsExcluded(path, recv, name string) bool {
 	return false
 }
 

@@ -47,7 +47,7 @@ func FieldName(fa *ssa.FieldAddr) string {
 	return st.Field(fa.Field).Name()
 }
 
-// DecompoeType returns the path, typename, and indicators for if the Type is Named or an Interface
+// DecomposeType returns the path and name of a Named type
 // Returns empty strings if the type is not *types.Named
 func DecomposeType(t types.Type) (path, name string) {
 	n, ok := t.(*types.Named)
@@ -62,7 +62,7 @@ func DecomposeType(t types.Type) (path, name string) {
 	return path, n.Obj().Name()
 }
 
-func UnqualifiedName(v *types.Var) string {
+func unqualifiedName(v *types.Var) string {
 	packageQualifiedName := v.Type().String()
 	dotPos := strings.LastIndexByte(packageQualifiedName, '.')
 	if dotPos == -1 {
@@ -79,11 +79,12 @@ func DecomposeFunction(f *ssa.Function) (path, recv, name string) {
 		return
 	}
 
-	path = f.Pkg.Pkg.Path()
+	if f.Pkg != nil {
+		path = f.Pkg.Pkg.Path()
+	}
 	name = f.Name()
-	recvVar := f.Signature.Recv()
-	if recvVar != nil {
-		recv = UnqualifiedName(recvVar)
+	if recvVar := f.Signature.Recv(); recvVar != nil {
+		recv = unqualifiedName(recvVar)
 	}
 	return
 }

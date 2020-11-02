@@ -75,7 +75,7 @@ func (c Config) IsSourceFieldTag(tag string) bool {
 }
 
 // IsExcluded determines if a function matches one of the exclusion patterns.
-func (c Config) IsExcluded(path string, recv string, name string) bool {
+func (c Config) IsExcluded(path, recv, name string) bool {
 	for _, pm := range c.Exclude {
 		if pm.MatchFunction(path, recv, name) {
 			return true
@@ -102,7 +102,7 @@ func (c Config) IsSanitizer(path, recv, name string) bool {
 	return false
 }
 
-func (c Config) IsSourceType(path string, name string) bool {
+func (c Config) IsSourceType(path, name string) bool {
 	for _, p := range c.Sources {
 		if p.MatchType(path, name) {
 			return true
