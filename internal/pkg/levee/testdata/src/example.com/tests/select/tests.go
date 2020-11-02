@@ -53,21 +53,7 @@ func TestTaintChannelInParameter(objects chan interface{}) {
 	}
 }
 
-func TestTaintChannelMadeLocally() {
-	objects := make(chan interface{}, 1)
-
-	objects <- core.Source{}
-
-	select {
-	case s := <-objects:
-		core.Sink(s) // TODO want "a source has reached a sink"
-	default:
-	}
-}
-
-func TestTaintedInOneSelectSinkedInTheNext() {
-	objects := make(chan interface{}, 1)
-
+func TestTaintedInOneSelectSinkedInTheNext(objects chan interface{}) {
 	select {
 	case objects <- core.Source{}:
 	default:
@@ -75,7 +61,7 @@ func TestTaintedInOneSelectSinkedInTheNext() {
 
 	select {
 	case s := <-objects:
-		core.Sink(s) // TODO want "a source has reached a sink"
+		core.Sink(s) // want "a source has reached a sink"
 	default:
 	}
 }
