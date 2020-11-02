@@ -52,3 +52,15 @@ func TestDoesNotReachSinkInIfBeforeSourceThroughValueCreatedBeforeSource() {
 
 	_ = map[string]core.Source{}[k.name]
 }
+
+func TestValueDeclaredBeforeSourceIsTainted() {
+	var x interface{} = core.Innocuous{}
+	x = core.Source{}
+	core.Sink(x) // want "a source has reached a sink"
+}
+
+func TestSliceDeclaredBeforeSourceIsTainted() {
+	xs := []interface{}{nil}
+	xs[0] = core.Source{}
+	core.Sink(xs) // want "a source has reached a sink"
+}
