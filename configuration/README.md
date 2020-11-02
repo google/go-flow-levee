@@ -11,21 +11,16 @@ Alternatively, build this repository from its root directory via `go build -o /i
 
 For design details concerning value and instruction classification, see [/design](../design/README.md).
 
-Configuration is provided to `go-flow-levee` via JSON.
+Configuration is provided to `go-flow-levee` via YAML.
 
 Objects of interest are identified primarily via regexp. An empty regexp will match any string.
 
 Sources are identified via regexp according to package, type, and field names.
-```json
-{
-  "Sources": [
-    {
-      "PackageRE": "<package path regexp>",
-      "TypeRE": "<type name regexp>",
-      "FieldRE": "<field name regexp>"
-    }
-  ]
-}
+```yaml
+Sources:
+- PackageRE: "<package path regexp>"
+  TypeRE: "<type name regexp>"
+  FieldRE: "<field name regexp>"
 ```
 
 Sources may also be identified via field tags:
@@ -36,36 +31,23 @@ type Example struct {
 ```
 
 The tag `levee:"source"` is built-in. Additional tags may be identified via explicit string literals (not regexps). The following example shows how the `levee:"source"` tag could be defined if it weren't built-in:
-```json
-{
-	"FieldTags": [
-		{
-			"Key": "levee",
-			"Val": "source"
-		}
-	]
-}
+```yaml
+FieldTags:
+- Key: levee
+  Val: source
 ```
 
 Sinks and sanitizers are identified via regexp according to package, method, and (optional) receiver name.
 
-```json
-{
-  "Sinks": [
-    {
-      "PackageRE": "<package path regexp>",
-      "ReceiverRE": "<type name regexp>",
-      "MethodRE": "<method name regexp>"
-    }
-  ],
-  "Sanitizers": [
-    {
-      "PackageRE": "<package path regexp>",
-      "ReceiverRE": "<type name regexp>",
-      "MethodRE": "<method name regexp>"
-    }
-  ]
-}
+```yaml
+Sinks:
+- PackageRE: <package path regexp>
+  ReceiverRE: <type name regexp>
+  MethodRE: <method name regexp>
+Sanitizers:
+- PackageRE: <package path regexp>
+  ReceiverRE: <type name regexp>
+  MethodRE: <method name regexp>
 ```
 
 Taint propagation is performed automatically and does not need to be explicitly configured.
@@ -77,15 +59,10 @@ To match only methods without any receiver (i.e., a top-level function), use the
 
 Functions can be explicitly excluded from analysis using regexps,
 constructed similarly to those used to identify sanitizers and sinks:
-```json
-{
-  "Exclude": [
-    {
-      "PathRE": "^myproject/mypackage$",
-      "MethodRE": "^myfunction$"
-    }
-  ]
-}
+```yaml
+Exclude:
+- PathRE: "^myproject/mypackage$"
+  MethodRE: "^myfunction$"
 ```
 
 The above will match the function `myfunction` from the `myproject/mypackage` package. It will also match a method named `myfunction` in the same package.
