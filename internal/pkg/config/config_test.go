@@ -61,7 +61,7 @@ func runTest(pass *analysis.Pass) (interface{}, error) {
 
 func TestConfig(t *testing.T) {
 	testdata := analysistest.TestData()
-	if err := FlagSet.Set("config", filepath.Join(testdata, "test-config.json")); err != nil {
+	if err := FlagSet.Set("config", filepath.Join(testdata, "test-config.yaml")); err != nil {
 		t.Fatal(err)
 	}
 	for _, p := range []string{"core", "crosspkg", "exclusion", "notcore"} {
