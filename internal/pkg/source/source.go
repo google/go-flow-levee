@@ -223,8 +223,9 @@ func (s *Source) visitOperands(from ssa.Node, operands []*ssa.Value, maxInstrRea
 			}
 		}
 
-		// don't traverse to the key in a lookup
-		// if a map is tainted, looking up a value in the map doesn't taint the key
+		// Don't traverse to the key in a lookup.
+		// For example, if a map is tainted, looking up a value in the map
+		// doesn't taint the key, so we shouldn't traverse to the key.
 		if look, ok := from.(*ssa.Lookup); ok && *o == look.Index {
 			continue
 		}
