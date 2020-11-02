@@ -5,6 +5,7 @@ go:
 
 before_script:
 - go install golang.org/x/tools/cmd/goimports
+- go install honnef.co/go/tools/cmd/staticcheck
 - sudo apt-get -y install yamllint
 
 script:
@@ -32,6 +33,14 @@ script:
     if [[ -n ${FILES} ]]; then
       echo "The following files are missing the Apache header:"
       echo ${FILES}
+      false
+    fi
+  )
+- >
+  echo "Checking staticcheck..." && (
+    if [[ -n $(staticcheck ./... 2>&1) ]]; then
+      staticcheck ./...
+      echo 'Please run `staticcheck` and fix the issues.'
       false
     fi
   )
