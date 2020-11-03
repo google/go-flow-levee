@@ -61,10 +61,9 @@ func TestTaintedAndSinkedInDifferentBranches(objects chan interface{}) {
 	select {
 	case objects <- core.Source{}:
 	case s := <-objects:
-		// TODO: we do not expect a report here, because objects is only tainted if the
+		// TODO want no report here, because objects is only tainted if the
 		// other branch is taken, and only one branch can be taken
 		core.Sink(s) // want "a source has reached a sink"
-		_ = s
 	}
 }
 
