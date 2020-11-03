@@ -27,7 +27,6 @@ import (
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
 )
@@ -45,7 +44,7 @@ func (i inferredSourceFact) String() string {
 
 var Analyzer = &analysis.Analyzer{
 	Name: "sourceinfer",
-	Doc: `This analyzer infers source types from typedefs and fields.
+	Doc: `This analyzer infers named source types from typedefs and fields.
 
 Suppose Foo has been configured to be a source type.
 
@@ -63,17 +62,15 @@ type Baz struct {
 Indeed, if Foo contains sensitive data, and Bar contains Foo, Bar also
 contains that data, via Foo.
 
-The analysis is recursive: types identified as sources during analysis
-will be used to evaluate the sourceyness of types that depend on them.
-For example, in the below type definitions, both Qux and Quux will be
-identified as sources:
+Types identified as sources during analysis are used to evaluate
+the sourceyness of types that depend on them. For example, in the
+below type definitions, both Qux and Quux will be identified as sources:
 type Qux Foo
 type Quux Qux
 `,
 	Run: run,
 	Requires: []*analysis.Analyzer{
 		inspect.Analyzer,
-		buildssa.Analyzer,
 	},
 	ResultType: reflect.TypeOf(new(ResultType)).Elem(),
 	FactTypes:  []analysis.Fact{new(inferredSourceFact)},
