@@ -1,0 +1,6 @@
+---
+Sources:
+- PackageRE: "^example.com/source$"
+  TypeRE: "^Source$"
+- PackageRE: "^example.com/tests/samepkg$"
+  TypeRE: "^Source$"

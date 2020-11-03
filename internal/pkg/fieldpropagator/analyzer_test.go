@@ -24,7 +24,7 @@ import (
 
 func TestFieldPropagatorAnalysis(t *testing.T) {
 	testdata := analysistest.TestData()
-	if err := config.FlagSet.Set("config", filepath.Join(testdata, "test-config.json")); err != nil {
+	if err := config.FlagSet.Set("config", filepath.Join(testdata, "test-config.yaml")); err != nil {
 		t.Error(err)
 	}
 	analysistest.Run(t, testdata, Analyzer, "source", "test")

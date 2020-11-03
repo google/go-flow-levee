@@ -1,0 +1,5 @@
+---
+Sources:
+- PackageRE: ''
+  TypeRE: "^Source$"
+  FieldRE: "^Data"

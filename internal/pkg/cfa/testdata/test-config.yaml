@@ -1,0 +1,11 @@
+---
+Sources:
+- PackageRE: "^example.com/core$"
+  TypeRE: "^Source$"
+  FieldRE: "^Data"
+Sinks:
+- PackageRE: "^example.com/core$"
+  MethodRE: Sinkf?$
+Sanitizers:
+- PackageRE: "^example.com/core$"
+  MethodRE: "^Sanitize"

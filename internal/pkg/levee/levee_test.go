@@ -30,7 +30,7 @@ var debugging *bool = flag.Bool("debug", false, "run the debug analyzer")
 
 func TestLevee(t *testing.T) {
 	dataDir := analysistest.TestData()
-	if err := Analyzer.Flags.Set("config", dataDir+"/test-config.json"); err != nil {
+	if err := Analyzer.Flags.Set("config", dataDir+"/test-config.yaml"); err != nil {
 		t.Error(err)
 	}
 	testsDir := filepath.Join(dataDir, "src/example.com/tests")

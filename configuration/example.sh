@@ -5,7 +5,7 @@ GB=$(go env GOBIN) GB=${GB:-$(go env GOPATH)/bin}
 # go vet dislikes relative pathing.
 SCRIPT_DIR=$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )
 # analysis arguments
-CONFIG_FILE=${SCRIPT_DIR}/example-config.json
+CONFIG_FILE=${SCRIPT_DIR}/example-config.yaml
 PKGS=$(pwd)/...
 
 set -x
