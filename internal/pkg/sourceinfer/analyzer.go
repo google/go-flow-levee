@@ -35,11 +35,11 @@ import (
 // ResultType is a set of types.Object that are inferred Sources.
 type ResultType map[types.Object]bool
 
-type inferredSource struct{}
+type inferredSourceFact struct{}
 
-func (i inferredSource) AFact() {}
+func (i inferredSourceFact) AFact() {}
 
-func (i inferredSource) String() string {
+func (i inferredSourceFact) String() string {
 	return "inferred source"
 }
 
@@ -76,7 +76,7 @@ type Quux Qux
 		buildssa.Analyzer,
 	},
 	ResultType: reflect.TypeOf(new(ResultType)).Elem(),
-	FactTypes:  []analysis.Fact{new(inferredSource)},
+	FactTypes:  []analysis.Fact{new(inferredSourceFact)},
 }
 
 type objectGraph map[types.Object][]types.Object
@@ -227,7 +227,7 @@ func inferSources(pass *analysis.Pass, conf *config.Config, objGraph objectGraph
 		if seen[o] {
 			continue
 		}
-		if !(isSourceType(conf, o.Type()) || pass.ImportObjectFact(o, &inferredSource{})) {
+		if !(isSourceType(conf, o.Type()) || pass.ImportObjectFact(o, &inferredSourceFact{})) {
 			continue
 		}
 		seen[o] = true
@@ -236,7 +236,7 @@ func inferSources(pass *analysis.Pass, conf *config.Config, objGraph objectGraph
 			current := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
 			if current.Pkg() == pass.Pkg && current != o {
-				pass.ExportObjectFact(current, &inferredSource{})
+				pass.ExportObjectFact(current, &inferredSourceFact{})
 				inferredSources[current] = true
 			}
 			for _, n := range objGraph[current] {
