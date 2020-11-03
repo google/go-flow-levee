@@ -12,20 +12,53 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package source
+package core
 
 import (
-	"testing"
-
-	"github.com/google/go-flow-levee/internal/pkg/config"
-	"golang.org/x/tools/go/analysis/analysistest"
+	"example.com/source"
 )
 
-func TestSourceAnalysis(t *testing.T) {
-	testdata := analysistest.TestData()
-	if err := config.FlagSet.Set("config", testdata+"/src/analyzertest/test-config.yaml"); err != nil {
-		t.Error(err)
+type (
+	A struct { // want A:"inferred source"
+		source.Source
+		b *B
 	}
 
-	analysistest.Run(t, testdata, Analyzer, "analyzertest/sourcetest")
+	B struct { // want B:"inferred source"
+		a *A
+	}
+)
+
+type (
+	C struct { // want C:"inferred source"
+		source.Source
+		d *D
+	}
+
+	D struct { // want D:"inferred source"
+		e *E
+	}
+
+	E struct { // want E:"inferred source"
+		c *C
+	}
+)
+
+type (
+	F struct {
+		g *G
+	}
+
+	G struct {
+		f *F
+	}
+)
+
+type SelfRecursive struct {
+	*SelfRecursive
+}
+
+type SelfRecursiveWithSource struct { // want SelfRecursiveWithSource:"inferred source"
+	*SelfRecursiveWithSource
+	s source.Source
 }

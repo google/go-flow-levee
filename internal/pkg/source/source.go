@@ -29,11 +29,11 @@ import (
 )
 
 type classifier interface {
-	IsSource(types.Type) bool
-	IsSanitizer(*ssa.Call) bool
-	IsSourceFieldAddr(*ssa.FieldAddr) bool
-	IsSinkFunction(fn *ssa.Function) bool
-	IsExcluded(fn *ssa.Function) bool
+	IsSourceType(path, typeName string) bool
+	IsSourceField(path, typeName, fieldName string) bool
+	IsSanitizer(path, recv, name string) bool
+	IsSink(path, recv, name string) bool
+	IsExcluded(path, recv, name string) bool
 }
 
 // Source represents a Source in an SSA call tree.
@@ -97,9 +97,6 @@ func (s *Source) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBl
 	}
 
 	if instr, ok := n.(ssa.Instruction); ok {
-		if !s.reachableFromSource(instr) {
-			return
-		}
 		// If the referrer is in a different block from the one we last visited,
 		// and it can't be reached from the block we are visiting, then stop visiting.
 		if ib := instr.Block(); lastBlockVisited != nil &&
@@ -128,7 +125,7 @@ func (s *Source) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]
 	for _, r := range referrers {
 		switch v := r.(type) {
 		case *ssa.Call:
-			if s.config.IsSanitizer(v) {
+			if callee := v.Call.StaticCallee(); callee != nil && s.config.IsSanitizer(utils.DecomposeFunction(callee)) {
 				s.sanitizers = append(s.sanitizers, &sanitizer.Sanitizer{Call: v})
 			}
 		}
@@ -148,7 +145,7 @@ func (s *Source) referrersToVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBloc
 		if c, ok := r.(*ssa.Call); ok {
 			// This is to avoid attaching calls where the source is the receiver, ex:
 			// core.Sinkf("Source id: %v", wrapper.Source.GetID())
-			if recv := c.Call.Signature().Recv(); recv != nil && s.config.IsSource(utils.Dereference(recv.Type())) {
+			if recv := c.Call.Signature().Recv(); recv != nil && s.config.IsSourceType(utils.DecomposeType(utils.Dereference(recv.Type()))) {
 				continue
 			}
 
@@ -163,40 +160,19 @@ func (s *Source) referrersToVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBloc
 			}
 		}
 
-		if fa, ok := r.(*ssa.FieldAddr); ok && !s.config.IsSourceFieldAddr(fa) {
-			continue
+		if fa, ok := r.(*ssa.FieldAddr); ok {
+			deref := utils.Dereference(fa.X.Type())
+			typPath, typName := utils.DecomposeType(deref)
+			fieldName := utils.FieldName(fa)
+
+			if !s.config.IsSourceField(typPath, typName, fieldName) {
+				continue
+			}
 		}
 
 		referrers = append(referrers, r)
 	}
 	return referrers
-}
-
-func (s *Source) reachableFromSource(target ssa.Instruction) bool {
-	// If the Source isn't produced by an instruction, be conservative and
-	// assume the target instruction is reachable.
-	sInstr, ok := s.node.(ssa.Instruction)
-	if !ok {
-		return true
-	}
-
-	// If these calls fail, be conservative and assume the target
-	// instruction is reachable.
-	sIndex, sOk := indexInBlock(sInstr)
-	targetIndex, targetOk := indexInBlock(target)
-	if !sOk || !targetOk {
-		return true
-	}
-
-	if sInstr.Block() == target.Block() && sIndex > targetIndex {
-		return false
-	}
-
-	if !s.canReach(sInstr.Block(), target.Block()) {
-		return false
-	}
-
-	return true
 }
 
 func (s *Source) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
@@ -222,7 +198,7 @@ func (s *Source) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
 	return false
 }
 
-func (s *Source) visitOperands(n ssa.Node, operands []*ssa.Value, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+func (s *Source) visitOperands(from ssa.Node, operands []*ssa.Value, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	// Do not visit Operands if the current node is an Extract.
 	// This is to avoid incorrectly tainting non-Source values that are
 	// produced by an Instruction that has a Source among the values it
@@ -230,7 +206,7 @@ func (s *Source) visitOperands(n ssa.Node, operands []*ssa.Value, maxInstrReache
 	// func NewSource() (*core.Source, error)
 	// Which leads to a flow like:
 	// Extract (*core.Source) --> Call (NewSource) --> error
-	if _, ok := n.(*ssa.Extract); ok {
+	if _, ok := from.(*ssa.Extract); ok {
 		return
 	}
 
@@ -251,6 +227,13 @@ func (s *Source) visitOperands(n ssa.Node, operands []*ssa.Value, maxInstrReache
 			if _, isArray := utils.Dereference(al.Type()).(*types.Array); !isArray {
 				continue
 			}
+		}
+
+		// Don't traverse to the key in a lookup.
+		// For example, if a map is tainted, looking up a value in the map
+		// doesn't taint the key, so we shouldn't traverse to the key.
+		if look, ok := from.(*ssa.Lookup); ok && *o == look.Index {
+			continue
 		}
 		s.dfs(n, maxInstrReached, lastBlockVisited)
 	}
@@ -307,7 +290,8 @@ func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Sour
 
 	for _, fn := range ssaInput.SrcFuncs {
 		// no need to analyze the body of sinks, nor of excluded functions
-		if conf.IsSinkFunction(fn) || conf.IsExcluded(fn) {
+		path, recv, name := utils.DecomposeFunction(fn)
+		if conf.IsSink(path, recv, name) || conf.IsExcluded(path, recv, name) {
 			continue
 		}
 
@@ -340,7 +324,7 @@ func sourcesFromClosure(fn *ssa.Function, conf classifier) []*Source {
 		case *types.Pointer:
 			// FreeVars (variables from a closure) appear as double-pointers
 			// Hence, the need to dereference them recursively.
-			if s, ok := utils.Dereference(t).(*types.Named); ok && conf.IsSource(s) {
+			if s, ok := utils.Dereference(t).(*types.Named); ok && conf.IsSourceType(utils.DecomposeType(s)) {
 				sources = append(sources, New(p, conf))
 			}
 		}
@@ -377,7 +361,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 			// have an Alloc and we'll miss it.
 			case *ssa.Extract:
 				t := v.Tuple.Type().(*types.Tuple).At(v.Index).Type()
-				if _, ok := t.(*types.Pointer); ok && conf.IsSource(utils.Dereference(t)) {
+				if _, ok := t.(*types.Pointer); ok && conf.IsSourceType(utils.DecomposeType(utils.Dereference(t))) {
 					sources = append(sources, New(v, conf))
 				}
 				continue
@@ -418,7 +402,7 @@ func isSourceType(c classifier, t types.Type) bool {
 	deref := utils.Dereference(t)
 	switch tt := deref.(type) {
 	case *types.Named:
-		return c.IsSource(tt) || isSourceType(c, tt.Underlying())
+		return c.IsSourceType(utils.DecomposeType(tt)) || isSourceType(c, tt.Underlying())
 	case *types.Array:
 		return isSourceType(c, tt.Elem())
 	case *types.Slice:
@@ -452,7 +436,7 @@ func isProducedBySanitizer(v ssa.Value, conf classifier) bool {
 		if !ok {
 			continue
 		}
-		if conf.IsSanitizer(call) {
+		if callee := call.Call.StaticCallee(); callee != nil && conf.IsSanitizer(utils.DecomposeFunction(callee)) {
 			return true
 		}
 	}

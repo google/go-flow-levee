@@ -23,10 +23,10 @@ import (
 func TestSourceAnalysis(t *testing.T) {
 	testdata := analysistest.TestData()
 
-	if err := Analyzer.Flags.Set("config", testdata+"/test-config.json"); err != nil {
+	if err := Analyzer.Flags.Set("config", testdata+"/test-config.yaml"); err != nil {
 		t.Error(err)
 		return
 	}
 
-	analysistest.Run(t, testdata, Analyzer, "sourcetype", "crosspkg")
+	analysistest.Run(t, testdata, Analyzer, "./...")
 }

@@ -1,4 +1,4 @@
-// Copyright 2019 Google LLC
+// Copyright 2020 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,25 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package internal
+package source
 
-import (
-	"flag"
-	"testing"
+type Source struct{}
 
-	"github.com/google/go-flow-levee/internal/pkg/debug"
-	"golang.org/x/tools/go/analysis/analysistest"
-)
-
-var debugging *bool = flag.Bool("debug", false, "run the debug analyzer")
-
-func TestLevee(t *testing.T) {
-	dataDir := analysistest.TestData()
-	if err := Analyzer.Flags.Set("config", dataDir+"/test-config.yaml"); err != nil {
-		t.Error(err)
-	}
-	if *debugging {
-		Analyzer.Requires = append(Analyzer.Requires, debug.Analyzer)
-	}
-	analysistest.Run(t, dataDir, Analyzer, "./...")
-}
+type NotSource struct{}
