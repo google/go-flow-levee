@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ---
-
 Sources:
 - TypeRE: "^Secret$|Token"
 - PackageRE: "k8s.io/client-go/tools/clientcmd/api(?:/v1)?"
