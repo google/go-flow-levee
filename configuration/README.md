@@ -73,7 +73,7 @@ As just two examples, this may be used to avoid analyzing test code, or to suppr
 
 The following configuration could be used to identify possible instances of credential logging in Kubernetes.
 
-[example-config.json](example-config.json)
+[example-config.yaml](example-config.yaml)
 
 ## Execution
 
