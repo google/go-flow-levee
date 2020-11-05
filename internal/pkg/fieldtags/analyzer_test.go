@@ -31,7 +31,7 @@ func TestFieldTagsAnalysis(t *testing.T) {
 		t.Error(err)
 	}
 
-	results := analysistest.Run(t, testdata, Analyzer, "tests")
+	results := analysistest.Run(t, testdata, Analyzer, "./...")
 
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))

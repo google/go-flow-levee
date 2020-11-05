@@ -63,10 +63,5 @@ func TestConfig(t *testing.T) {
 	if err := FlagSet.Set("config", filepath.Join(testdata, "test-config.yaml")); err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range []string{"core", "crosspkg", "exclusion", "notcore"} {
-		analysistest.Run(t, testdata, testAnalyzer, filepath.Join(testdata, "src/example.com", p))
-	}
-	for _, p := range []string{"core", "exclusion"} {
-		analysistest.Run(t, testdata, testAnalyzer, filepath.Join(testdata, "src/notexample.com", p))
-	}
+	analysistest.Run(t, testdata, testAnalyzer, "./...")
 }
