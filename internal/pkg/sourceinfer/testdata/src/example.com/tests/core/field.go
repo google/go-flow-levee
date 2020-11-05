@@ -47,6 +47,10 @@ type (
 	SourceHolderHolder struct { // want SourceHolderHolder:"inferred source"
 		sh SourceHolder
 	}
+
+	SourceByFieldTag struct { // want SourceByFieldTag:"inferred source"
+		secret string `levee:"source"`
+	}
 )
 
 type (
