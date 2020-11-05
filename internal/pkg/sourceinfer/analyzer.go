@@ -63,6 +63,11 @@ type Baz struct {
 Indeed, if Foo contains sensitive data, and Bar contains Foo, Bar also
 contains that data, via Foo.
 
+Baz could also be identified as a Source if it contained a tagged field, e.g.:
+type Baz struct {
+  f string "levee:\"source\""	
+}
+
 Types identified as sources during analysis are used to evaluate
 the sourceyness of types that depend on them. For example, in the
 below type definitions, both Qux and Quux will be identified as sources:
