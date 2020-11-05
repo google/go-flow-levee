@@ -23,7 +23,7 @@ import (
 
 func TestSourceAnalysis(t *testing.T) {
 	testdata := analysistest.TestData()
-	if err := config.FlagSet.Set("config", testdata+"/src/analyzertest/test-config.json"); err != nil {
+	if err := config.FlagSet.Set("config", testdata+"/src/analyzertest/test-config.yaml"); err != nil {
 		t.Error(err)
 	}
 

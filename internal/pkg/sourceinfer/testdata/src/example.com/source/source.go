@@ -12,20 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package fieldpropagator
+package source
 
-import (
-	"path/filepath"
-	"testing"
+type Source struct{}
 
-	"github.com/google/go-flow-levee/internal/pkg/config"
-	"golang.org/x/tools/go/analysis/analysistest"
-)
-
-func TestFieldPropagatorAnalysis(t *testing.T) {
-	testdata := analysistest.TestData()
-	if err := config.FlagSet.Set("config", filepath.Join(testdata, "test-config.yaml")); err != nil {
-		t.Error(err)
-	}
-	analysistest.Run(t, testdata, Analyzer, "source", "test")
-}
+type NotSource struct{}
