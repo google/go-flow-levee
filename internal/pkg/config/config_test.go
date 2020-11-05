@@ -49,8 +49,10 @@ func runTest(pass *analysis.Pass) (interface{}, error) {
 		}
 		for _, b := range f.Blocks {
 			for _, i := range b.Instrs {
-				if c, ok := i.(*ssa.Call); ok && conf.IsSink(utils.DecomposeFunction(c.Call.StaticCallee())) {
-					pass.Reportf(i.Pos(), "sink call")
+				if c, ok := i.(*ssa.Call); ok {
+					if callee := c.Call.StaticCallee(); callee != nil && conf.IsSink(utils.DecomposeFunction(callee)) {
+						pass.Reportf(i.Pos(), "sink call")
+					}
 				}
 			}
 		}

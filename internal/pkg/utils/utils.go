@@ -73,12 +73,9 @@ func unqualifiedName(v *types.Var) string {
 
 // DecomposeFunction returns the path, receiver, and name strings of a ssa.Function.
 // For functions that have no receiver, returns an empty string for recv.
-// If f is nil, returns empty strings for all return values.
+// For shared functions (wrappers and error.Error), returns an empty string for path.
+// Panics if provided a nil argument.
 func DecomposeFunction(f *ssa.Function) (path, recv, name string) {
-	if f == nil {
-		return
-	}
-
 	if f.Pkg != nil {
 		path = f.Pkg.Pkg.Path()
 	}

@@ -125,7 +125,7 @@ func (s *Source) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]
 	for _, r := range referrers {
 		switch v := r.(type) {
 		case *ssa.Call:
-			if s.config.IsSanitizer(utils.DecomposeFunction(v.Call.StaticCallee())) {
+			if callee := v.Call.StaticCallee(); callee != nil && s.config.IsSanitizer(utils.DecomposeFunction(callee)) {
 				s.sanitizers = append(s.sanitizers, &sanitizer.Sanitizer{Call: v})
 			}
 		}
@@ -436,7 +436,7 @@ func isProducedBySanitizer(v ssa.Value, conf classifier) bool {
 		if !ok {
 			continue
 		}
-		if conf.IsSanitizer(utils.DecomposeFunction(call.Call.StaticCallee())) {
+		if callee := call.Call.StaticCallee(); callee != nil && conf.IsSanitizer(utils.DecomposeFunction(callee)) {
 			return true
 		}
 	}
