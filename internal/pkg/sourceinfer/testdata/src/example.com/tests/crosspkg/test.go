@@ -12,20 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package fieldpropagator
+package infer
 
 import (
-	"path/filepath"
-	"testing"
-
-	"github.com/google/go-flow-levee/internal/pkg/config"
-	"golang.org/x/tools/go/analysis/analysistest"
+	"example.com/tests/core"
 )
 
-func TestFieldPropagatorAnalysis(t *testing.T) {
-	testdata := analysistest.TestData()
-	if err := config.FlagSet.Set("config", filepath.Join(testdata, "test-config.yaml")); err != nil {
-		t.Error(err)
-	}
-	analysistest.Run(t, testdata, Analyzer, "source", "test")
-}
+type (
+	RedefinedSource core.DefinedSource // want RedefinedSource:"inferred source"
+)
+
+type (
+	NotRedefinedSource core.NotDefinedSource
+)

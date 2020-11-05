@@ -12,20 +12,53 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package fieldpropagator
+package core
 
 import (
-	"path/filepath"
-	"testing"
-
-	"github.com/google/go-flow-levee/internal/pkg/config"
-	"golang.org/x/tools/go/analysis/analysistest"
+	"example.com/source"
 )
 
-func TestFieldPropagatorAnalysis(t *testing.T) {
-	testdata := analysistest.TestData()
-	if err := config.FlagSet.Set("config", filepath.Join(testdata, "test-config.yaml")); err != nil {
-		t.Error(err)
+type (
+	A struct { // want A:"inferred source"
+		source.Source
+		b *B
 	}
-	analysistest.Run(t, testdata, Analyzer, "source", "test")
+
+	B struct { // want B:"inferred source"
+		a *A
+	}
+)
+
+type (
+	C struct { // want C:"inferred source"
+		source.Source
+		d *D
+	}
+
+	D struct { // want D:"inferred source"
+		e *E
+	}
+
+	E struct { // want E:"inferred source"
+		c *C
+	}
+)
+
+type (
+	F struct {
+		g *G
+	}
+
+	G struct {
+		f *F
+	}
+)
+
+type SelfRecursive struct {
+	*SelfRecursive
+}
+
+type SelfRecursiveWithSource struct { // want SelfRecursiveWithSource:"inferred source"
+	*SelfRecursiveWithSource
+	s source.Source
 }

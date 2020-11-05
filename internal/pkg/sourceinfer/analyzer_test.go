@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package fieldpropagator
+package infer
 
 import (
 	"path/filepath"
@@ -22,10 +22,14 @@ import (
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
-func TestFieldPropagatorAnalysis(t *testing.T) {
+func TestInferAnalysis(t *testing.T) {
 	testdata := analysistest.TestData()
+
 	if err := config.FlagSet.Set("config", filepath.Join(testdata, "test-config.yaml")); err != nil {
 		t.Error(err)
 	}
-	analysistest.Run(t, testdata, Analyzer, "source", "test")
+
+	for _, testPkg := range []string{"core", "crosspkg", "samepkg", "nosource"} {
+		analysistest.Run(t, testdata, Analyzer, filepath.Join(testdata, "src/example.com/tests", testPkg))
+	}
 }

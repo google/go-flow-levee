@@ -43,11 +43,6 @@ var Analyzer = &analysis.Analyzer{
 	ResultType: reflect.TypeOf(new(ResultType)).Elem(),
 }
 
-type fieldTag struct {
-	key string
-	val string
-}
-
 func run(pass *analysis.Pass) (interface{}, error) {
 	conf, err := config.ReadConfig()
 	if err != nil {

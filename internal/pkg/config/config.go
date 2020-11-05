@@ -33,7 +33,7 @@ var FlagSet flag.FlagSet
 var configFile string
 
 func init() {
-	FlagSet.StringVar(&configFile, "config", "config.json", "path to analysis configuration file")
+	FlagSet.StringVar(&configFile, "config", "config.yaml", "path to analysis configuration file")
 }
 
 // config contains matchers and analysis scope information

@@ -97,9 +97,6 @@ func (s *Source) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBl
 	}
 
 	if instr, ok := n.(ssa.Instruction); ok {
-		if !s.reachableFromSource(instr) {
-			return
-		}
 		// If the referrer is in a different block from the one we last visited,
 		// and it can't be reached from the block we are visiting, then stop visiting.
 		if ib := instr.Block(); lastBlockVisited != nil &&
@@ -178,33 +175,6 @@ func (s *Source) referrersToVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBloc
 	return referrers
 }
 
-func (s *Source) reachableFromSource(target ssa.Instruction) bool {
-	// If the Source isn't produced by an instruction, be conservative and
-	// assume the target instruction is reachable.
-	sInstr, ok := s.node.(ssa.Instruction)
-	if !ok {
-		return true
-	}
-
-	// If these calls fail, be conservative and assume the target
-	// instruction is reachable.
-	sIndex, sOk := indexInBlock(sInstr)
-	targetIndex, targetOk := indexInBlock(target)
-	if !sOk || !targetOk {
-		return true
-	}
-
-	if sInstr.Block() == target.Block() && sIndex > targetIndex {
-		return false
-	}
-
-	if !s.canReach(sInstr.Block(), target.Block()) {
-		return false
-	}
-
-	return true
-}
-
 func (s *Source) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
 	if start.Dominates(dest) {
 		return true
@@ -228,7 +198,7 @@ func (s *Source) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
 	return false
 }
 
-func (s *Source) visitOperands(n ssa.Node, operands []*ssa.Value, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+func (s *Source) visitOperands(from ssa.Node, operands []*ssa.Value, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	// Do not visit Operands if the current node is an Extract.
 	// This is to avoid incorrectly tainting non-Source values that are
 	// produced by an Instruction that has a Source among the values it
@@ -236,7 +206,7 @@ func (s *Source) visitOperands(n ssa.Node, operands []*ssa.Value, maxInstrReache
 	// func NewSource() (*core.Source, error)
 	// Which leads to a flow like:
 	// Extract (*core.Source) --> Call (NewSource) --> error
-	if _, ok := n.(*ssa.Extract); ok {
+	if _, ok := from.(*ssa.Extract); ok {
 		return
 	}
 
@@ -257,6 +227,13 @@ func (s *Source) visitOperands(n ssa.Node, operands []*ssa.Value, maxInstrReache
 			if _, isArray := utils.Dereference(al.Type()).(*types.Array); !isArray {
 				continue
 			}
+		}
+
+		// Don't traverse to the key in a lookup.
+		// For example, if a map is tainted, looking up a value in the map
+		// doesn't taint the key, so we shouldn't traverse to the key.
+		if look, ok := from.(*ssa.Lookup); ok && *o == look.Index {
+			continue
 		}
 		s.dfs(n, maxInstrReached, lastBlockVisited)
 	}

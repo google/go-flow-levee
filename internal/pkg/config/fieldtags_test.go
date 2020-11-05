@@ -19,7 +19,7 @@ import (
 )
 
 func TestFieldTagsIdentification(t *testing.T) {
-	if err := FlagSet.Set("config", "testdata/test-config.json"); err != nil {
+	if err := FlagSet.Set("config", "testdata/test-config.yaml"); err != nil {
 		t.Error(err)
 	}
 
