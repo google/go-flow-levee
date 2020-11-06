@@ -17,6 +17,7 @@ package utils
 
 import (
 	"go/types"
+	"strings"
 
 	"golang.org/x/tools/go/ssa"
 )
@@ -44,4 +45,43 @@ func FieldName(fa *ssa.FieldAddr) string {
 		return ""
 	}
 	return st.Field(fa.Field).Name()
+}
+
+// DecomposeType returns the path and name of a Named type
+// Returns empty strings if the type is not *types.Named
+func DecomposeType(t types.Type) (path, name string) {
+	n, ok := t.(*types.Named)
+	if !ok {
+		return
+	}
+
+	if pkg := n.Obj().Pkg(); pkg != nil {
+		path = pkg.Path()
+	}
+
+	return path, n.Obj().Name()
+}
+
+func unqualifiedName(v *types.Var) string {
+	packageQualifiedName := v.Type().String()
+	dotPos := strings.LastIndexByte(packageQualifiedName, '.')
+	if dotPos == -1 {
+		return packageQualifiedName
+	}
+	return packageQualifiedName[dotPos+1:]
+}
+
+// DecomposeFunction returns the path, receiver, and name strings of a ssa.Function.
+// For functions that have no receiver, returns an empty string for recv.
+// For shared functions (wrappers and error.Error), returns an empty string for path.
+// Panics if provided a nil argument.
+func DecomposeFunction(f *ssa.Function) (path, recv, name string) {
+	if f.Pkg != nil {
+		path = f.Pkg.Pkg.Path()
+	}
+	name = f.Name()
+	if recvVar := f.Signature.Recv(); recvVar != nil {
+		recv = unqualifiedName(recvVar)
+	}
+	return
 }

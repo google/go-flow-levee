@@ -224,7 +224,7 @@ func topoSort(graph objectGraph) []types.Object {
 
 func isSourceType(c *config.Config, t types.Type) bool {
 	for nt := range findNamedTypes(t) {
-		if c.IsSource(nt) {
+		if c.IsSourceType(utils.DecomposeType(nt)) {
 			return true
 		}
 	}

@@ -35,4 +35,13 @@ script:
       false
     fi
   )
+- go install honnef.co/go/tools/cmd/staticcheck
+- >
+  echo "Checking staticcheck..." && (
+    if [[ -n $(staticcheck ./... 2>&1) ]]; then
+      staticcheck ./...
+      echo 'Please run `staticcheck` and fix the issues.'
+      false
+    fi
+  )
 - echo "Checking yaml..." && find . -name '*.yaml' -exec yamllint {} + &>/dev/null
