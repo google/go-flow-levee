@@ -29,22 +29,24 @@ import (
 )
 
 // ResultType can be used to determine if a given field is a
-// tagged field, or if a given object is a Source due to
+// tagged field, or if a given object is a source due to
 // holding a tagged field.
 type ResultType struct {
 	sources      map[types.Object]bool
 	taggedFields map[types.Object]bool
 }
 
-// hasTaggedFields is a Fact that indicates that a type is identified
-// as a Source due to having at least one tagged field.
-type hasTaggedFields struct{}
+// hasTaggedField is a Fact that indicates that a given object
+// has at least one tagged field.
+type hasTaggedField struct{}
 
-func (hasTaggedFields) AFact() {}
-func (hasTaggedFields) String() string {
+func (hasTaggedField) AFact() {}
+func (hasTaggedField) String() string {
 	return "source"
 }
 
+// isTaggedField is a Fact that indicates that a given object
+// is itself a tagged field.
 type isTaggedField struct{}
 
 func (isTaggedField) AFact() {}
@@ -60,7 +62,7 @@ var Analyzer = &analysis.Analyzer{
 		inspect.Analyzer,
 	},
 	ResultType: reflect.TypeOf(new(ResultType)).Elem(),
-	FactTypes:  []analysis.Fact{new(hasTaggedFields), new(isTaggedField)},
+	FactTypes:  []analysis.Fact{new(hasTaggedField), new(isTaggedField)},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -89,18 +91,18 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if !ok || s.Fields == nil {
 			return
 		}
-		isSource := false
+		hasTagged := false
 		for _, f := range (*s).Fields.List {
 			if f.Tag == nil || len(f.Names) == 0 || !conf.IsSourceFieldTag(f.Tag.Value) {
 				continue
 			}
-			isSource = true
+			hasTagged = true
 			for _, ident := range f.Names {
 				pass.ExportObjectFact(pass.TypesInfo.ObjectOf(ident), &isTaggedField{})
 			}
 		}
-		if isSource {
-			pass.ExportObjectFact(pass.TypesInfo.ObjectOf(t.Name), &hasTaggedFields{})
+		if hasTagged {
+			pass.ExportObjectFact(pass.TypesInfo.ObjectOf(t.Name), &hasTaggedField{})
 		}
 
 	})
@@ -109,7 +111,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		switch f.Fact.(type) {
 		case *isTaggedField:
 			rt.taggedFields[f.Object] = true
-		case *hasTaggedFields:
+		case *hasTaggedField:
 			rt.sources[f.Object] = true
 		}
 	}
@@ -117,6 +119,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return rt, nil
 }
 
+// IsSouce determines whether a types.Object is a Source, that is whether it refers to an object previously identified as a source.
 func (rt ResultType) IsSource(o types.Object) bool {
 	return rt.sources[o]
 }
