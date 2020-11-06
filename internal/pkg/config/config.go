@@ -17,7 +17,6 @@ package config
 import (
 	"flag"
 	"fmt"
-	"go/types"
 	"io/ioutil"
 	"reflect"
 	"strconv"
@@ -27,8 +26,6 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/google/go-flow-levee/internal/pkg/config/regexp"
-	"github.com/google/go-flow-levee/internal/pkg/utils"
-	"golang.org/x/tools/go/ssa"
 )
 
 // FlagSet should be used by analyzers to reuse -config flag.
@@ -78,93 +75,45 @@ func (c Config) IsSourceFieldTag(tag string) bool {
 }
 
 // IsExcluded determines if a function matches one of the exclusion patterns.
-func (c Config) IsExcluded(fn *ssa.Function) bool {
+func (c Config) IsExcluded(path, recv, name string) bool {
 	for _, pm := range c.Exclude {
-		if pm.Match(fn) {
+		if pm.MatchFunction(path, recv, name) {
 			return true
 		}
 	}
 	return false
 }
 
-func (c Config) IsSinkCall(call *ssa.Call) bool {
-	callee := call.Call.StaticCallee()
-	if callee == nil {
-		return false
-	}
-	return c.IsSinkFunction(callee)
-}
-
-func (c Config) IsSinkFunction(f *ssa.Function) bool {
-	// according to the documentation for ssa.Function, this can happen if
-	// f is a "shared func", e.g. "wrappers and error.Error"
-	if f.Pkg == nil {
-		return false
-	}
-
+func (c Config) IsSink(path, recv, name string) bool {
 	for _, p := range c.Sinks {
-		if p.Match(f) {
+		if p.MatchFunction(path, recv, name) {
 			return true
 		}
 	}
 	return false
 }
 
-func (c Config) IsSanitizer(call *ssa.Call) bool {
-	callee := call.Call.StaticCallee()
-	if callee == nil {
-		return false
-	}
-
+func (c Config) IsSanitizer(path, recv, name string) bool {
 	for _, p := range c.Sanitizers {
-		if p.Match(callee) {
+		if p.MatchFunction(path, recv, name) {
 			return true
 		}
 	}
 	return false
 }
 
-func (c Config) IsSource(t types.Type) bool {
-	n, ok := t.(*types.Named)
-	if !ok {
-		return false
-	}
-
+func (c Config) IsSourceType(path, name string) bool {
 	for _, p := range c.Sources {
-		if p.match(n) {
+		if p.MatchType(path, name) {
 			return true
 		}
 	}
 	return false
 }
 
-func (c Config) IsSourceField(typ types.Type, fld *types.Var) bool {
-	n, ok := typ.(*types.Named)
-	if !ok {
-		return false
-	}
-
+func (c Config) IsSourceField(path, typeName, fieldName string) bool {
 	for _, p := range c.Sources {
-		if p.match(n) && p.FieldRE.MatchString(fld.Name()) {
-			return true
-		}
-	}
-	return false
-}
-
-func (c Config) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
-	// fa.Type() refers to the accessed field's type.
-	// fa.X.Type() refers to the surrounding struct's type.
-	deref := utils.Dereference(fa.X.Type())
-	fieldName := utils.FieldName(fa)
-
-	n, ok := deref.(*types.Named)
-	if !ok {
-		return false
-	}
-
-	for _, p := range c.Sources {
-		if p.match(n) && p.FieldRE.MatchString(fieldName) {
+		if p.MatchField(path, typeName, fieldName) {
 			return true
 		}
 	}
@@ -180,13 +129,12 @@ type sourceMatcher struct {
 	FieldRE   regexp.Regexp
 }
 
-func (s sourceMatcher) match(n *types.Named) bool {
-	if types.IsInterface(n) {
-		// In our context, both sources and sanitizers are concrete types.
-		return false
-	}
+func (s sourceMatcher) MatchType(path, typeName string) bool {
+	return s.PackageRE.MatchString(path) && s.TypeRE.MatchString(typeName)
+}
 
-	return s.PackageRE.MatchString(n.Obj().Pkg().Path()) && s.TypeRE.MatchString(n.Obj().Name())
+func (s sourceMatcher) MatchField(path, typeName, fieldName string) bool {
+	return s.PackageRE.MatchString(path) && s.TypeRE.MatchString(typeName) && s.FieldRE.MatchString(fieldName)
 }
 
 type funcMatcher struct {
@@ -195,33 +143,8 @@ type funcMatcher struct {
 	MethodRE   regexp.Regexp
 }
 
-func (fm funcMatcher) matchPackage(p *types.Package) bool {
-	return fm.PackageRE.MatchString(p.Path())
-}
-
-// Match matches methods based on package, method, and receiver regexp.
-// To explicitly match a method with no receiver (i.e., a top-level function),
-// provide the ReceiverRE regexp `^$`.
-func (fm funcMatcher) Match(f *ssa.Function) bool {
-	if !fm.matchPackage(f.Pkg.Pkg) || !fm.MethodRE.MatchString(f.Name()) {
-		return false
-	}
-
-	recv := f.Signature.Recv()
-	var recvName string
-	if recv != nil {
-		recvName = unqualifiedName(recv)
-	}
-	return fm.ReceiverRE.MatchString(recvName)
-}
-
-func unqualifiedName(v *types.Var) string {
-	packageQualifiedName := v.Type().String()
-	dotPos := strings.LastIndexByte(packageQualifiedName, '.')
-	if dotPos == -1 {
-		return packageQualifiedName
-	}
-	return packageQualifiedName[dotPos+1:]
+func (fm funcMatcher) MatchFunction(path, receiver, name string) bool {
+	return fm.PackageRE.MatchString(path) && fm.ReceiverRE.MatchString(receiver) && fm.MethodRE.MatchString(name)
 }
 
 var readFileOnce sync.Once

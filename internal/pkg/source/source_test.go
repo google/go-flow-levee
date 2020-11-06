@@ -15,16 +15,12 @@
 package source
 
 import (
-	"go/types"
 	"regexp"
 	"testing"
-
-	"github.com/google/go-flow-levee/internal/pkg/utils"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
-	"golang.org/x/tools/go/ssa"
 )
 
 type testConfig struct {
@@ -34,33 +30,27 @@ type testConfig struct {
 	sinkPattern      string
 }
 
-func (c *testConfig) IsSource(t types.Type) bool {
-	d := utils.Dereference(t)
-	_, ok := d.(*types.Named)
-	if !ok {
-		return false
-	}
-
-	match, _ := regexp.MatchString(c.sourcePattern, d.String())
+func (c *testConfig) IsSourceType(path, typename string) bool {
+	match, _ := regexp.MatchString(c.sourcePattern, typename)
 	return match
 }
 
-func (c *testConfig) IsSanitizer(call *ssa.Call) bool {
-	match, _ := regexp.MatchString(c.sanitizerPattern, call.String())
+func (c *testConfig) IsSanitizer(path, recv, name string) bool {
+	match, _ := regexp.MatchString(c.sanitizerPattern, name)
 	return match
 }
 
-func (c *testConfig) IsSourceFieldAddr(field *ssa.FieldAddr) bool {
-	match, _ := regexp.MatchString(c.fieldsPattern, utils.FieldName(field))
+func (c *testConfig) IsSourceField(path, typeName, fieldName string) bool {
+	match, _ := regexp.MatchString(c.fieldsPattern, fieldName)
 	return match
 }
 
-func (c *testConfig) IsSinkFunction(f *ssa.Function) bool {
-	match, _ := regexp.MatchString(c.sinkPattern, f.Name())
+func (c *testConfig) IsSink(path, recv, name string) bool {
+	match, _ := regexp.MatchString(c.sinkPattern, name)
 	return match
 }
 
-func (c *testConfig) IsExcluded(f *ssa.Function) bool {
+func (c *testConfig) IsExcluded(path, recv, name string) bool {
 	return false
 }
 
@@ -74,7 +64,7 @@ var testAnalyzer = &analysis.Analyzer{
 func runTest(pass *analysis.Pass) (interface{}, error) {
 	in := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	config := &testConfig{
-		sourcePattern:    `\.foo`,
+		sourcePattern:    "foo",
 		sanitizerPattern: "sanitizer",
 		fieldsPattern:    "name",
 		sinkPattern:      "sink",
