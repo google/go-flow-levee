@@ -14,12 +14,12 @@
 
 package fieldtags
 
-type Person struct { // want Person:"source"
-	password, creds          string      `levee:"source"`               // want password:"tagged field" creds:"tagged field"
-	secret                   string      `json:"secret" levee:"source"` // want secret:"tagged field"
-	another                  interface{} "levee:\"source\""             // want another:"tagged field"
-	hasCustomFieldTag        string      `example:"sensitive"`          // want hasCustomFieldTag:"tagged field"
-	hasTagWithMultipleValues string      `example:"val,sensitive,long"` // want hasTagWithMultipleValues:"tagged field"
+type Person struct {
+	password, creds          string      `levee:"source"`               // want "tagged field: password, creds"
+	secret                   string      `json:"secret" levee:"source"` // want "tagged field: secret"
+	another                  interface{} "levee:\"source\""             // want "tagged field: another"
+	hasCustomFieldTag        string      `example:"sensitive"`          // want "tagged field: hasCustomFieldTag"
+	hasTagWithMultipleValues string      `example:"val,sensitive,long"` // want "tagged field: hasTagWithMultipleValues"
 	name                     string      `some_key:"non_secret"`
 	spaceAfterFinalQuote     string      `key:"value" `
 	someNotTaggedField       int

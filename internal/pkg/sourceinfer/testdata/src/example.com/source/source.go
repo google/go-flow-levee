@@ -16,7 +16,7 @@ package source
 
 type Source struct{}
 
-type Tagged struct {
+type Tagged struct { // want Tagged:"inferred source"
 	secret string `levee:"source"`
 }
 

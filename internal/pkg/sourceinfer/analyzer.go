@@ -227,7 +227,7 @@ func inferSources(pass *analysis.Pass, conf *config.Config, ft fieldtags.ResultT
 		if seen[o] {
 			continue
 		}
-		if !(isSourceType(conf, o.Type()) || ft.IsSource(o) || pass.ImportObjectFact(o, &inferredSourceFact{})) {
+		if !(isSourceType(conf, o.Type()) || isTaggedField(ft, o) || pass.ImportObjectFact(o, &inferredSourceFact{})) {
 			continue
 		}
 
@@ -251,6 +251,13 @@ func inferSources(pass *analysis.Pass, conf *config.Config, ft fieldtags.ResultT
 	}
 
 	return inferredSources
+}
+
+func isTaggedField(ft fieldtags.ResultType, o types.Object) bool {
+	if v, ok := o.(*types.Var); ok {
+		return ft.IsSource(v)
+	}
+	return false
 }
 
 // topoSort produces the topological order of a given graph.

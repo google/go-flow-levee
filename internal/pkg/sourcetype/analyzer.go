@@ -98,9 +98,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	// Members contains all named entities
 	for _, mem := range ssaInput.Pkg.Members {
 		if ssaType, ok := mem.(*ssa.Type); ok &&
-			(conf.IsSourceType(utils.DecomposeType(ssaType.Type())) || taggedFields.IsSource(mem.Object())) {
+			(conf.IsSourceType(utils.DecomposeType(ssaType.Type())) || hasTaggedField(mem, taggedFields)) {
 			exportSourceFacts(pass, ssaType, conf, taggedFields)
-
 		}
 	}
 
@@ -112,6 +111,23 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return classifier, nil
 }
 
+func hasTaggedField(mem ssa.Member, taggedFields fieldtags.ResultType) bool {
+	n, ok := mem.Type().(*types.Named)
+	if !ok {
+		return false
+	}
+	s, ok := n.Underlying().(*types.Struct)
+	if !ok {
+		return false
+	}
+	var has bool
+	for i := 0; i < s.NumFields(); i++ {
+		f := s.Field(i)
+		has = has || taggedFields.IsSource(f)
+	}
+	return has
+}
+
 func exportSourceFacts(pass *analysis.Pass, ssaType *ssa.Type, conf *config.Config, taggedFields fieldtags.ResultType) {
 	pass.ExportObjectFact(ssaType.Object(), &typeDeclFact{})
 	if under, ok := ssaType.Type().Underlying().(*types.Struct); ok {
@@ -120,8 +136,9 @@ func exportSourceFacts(pass *analysis.Pass, ssaType *ssa.Type, conf *config.Conf
 			if fld.Pkg() != pass.Pkg {
 				continue
 			}
+
 			typPath, typName := utils.DecomposeType(ssaType.Type())
-			if conf.IsSourceField(typPath, typName, fld.Name()) || taggedFields.IsSourceField(fld) {
+			if conf.IsSourceField(typPath, typName, fld.Name()) || taggedFields.IsSource(fld) {
 				pass.ExportObjectFact(fld, &fieldDeclFact{})
 			}
 		}
