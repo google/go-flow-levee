@@ -114,72 +114,16 @@ func createObjectGraph(pass *analysis.Pass, ins *inspector.Inspector) objectGrap
 
 		typeBeingDefined := pass.TypesInfo.ObjectOf(ts.Name)
 
-		// Find selector expressions and add them to the graph.
-		// We need to look at SelectorExprs first, because they
-		// contain identifiers, e.g. foo.Bar contains the identifiers
-		// foo (qualifying package) and Bar (unqualified type).
-		// We need to look at the whole expression in order to resolve
-		// the type correctly.
-		selectorFinder := &selectorFinder{nil, map[*ast.Ident]bool{}}
-		ast.Walk(selectorFinder, (ast.Node)(ts.Type))
-		for _, sel := range selectorFinder.foundSelectors {
-			named, ok := pass.TypesInfo.TypeOf(sel).(*types.Named)
-			if !ok {
-				continue
-			}
-			obj := named.Obj()
-			objGraph[obj] = append(objGraph[obj], typeBeingDefined)
-		}
-
-		// Find identifiers that aren't in selector expressions
-		// and add them to the graph.
-		idFinder := &identFinder{}
-		ast.Walk(idFinder, (ast.Node)(ts.Type))
-		for _, id := range idFinder.foundIdentifiers {
-			// identifier is part of a SelectorExpr and has already been handled
-			if selectorFinder.foundIdentifiers[id] {
-				continue
-			}
-			obj := pass.TypesInfo.ObjectOf(id)
-			objGraph[obj] = append(objGraph[obj], typeBeingDefined)
+		for n := range findNamedTypes(pass.TypesInfo.TypeOf(ts.Type)) {
+			objGraph[n.Obj()] = append(objGraph[n.Obj()], typeBeingDefined)
 		}
 	})
 
 	return objGraph
 }
 
-type selectorFinder struct {
-	foundSelectors   []*ast.SelectorExpr
-	foundIdentifiers map[*ast.Ident]bool
-}
-
-func (sf *selectorFinder) Visit(n ast.Node) ast.Visitor {
-	sel, ok := n.(*ast.SelectorExpr)
-	if !ok {
-		return sf
-	}
-	pkg, ok := sel.X.(*ast.Ident)
-	if !ok {
-		return nil
-	}
-	sf.foundSelectors = append(sf.foundSelectors, sel)
-	sf.foundIdentifiers[pkg] = true
-	sf.foundIdentifiers[sel.Sel] = true
-	return nil
-}
-
-type identFinder struct {
-	foundIdentifiers []*ast.Ident
-}
-
-func (i *identFinder) Visit(n ast.Node) ast.Visitor {
-	if id, ok := n.(*ast.Ident); ok {
-		i.foundIdentifiers = append(i.foundIdentifiers, id)
-		return nil
-	}
-	return i
-}
-
+// findNamedTypes finds named types within a type that can potentially be sources.
+// Among other things, this excludes basic types and functions (Signatures).
 func findNamedTypes(t types.Type) map[*types.Named]bool {
 	namedTypes := map[*types.Named]bool{}
 
@@ -198,8 +142,12 @@ func findNamedTypes(t types.Type) map[*types.Named]bool {
 		case *types.Map:
 			find(tt.Key())
 			find(tt.Elem())
-		case *types.Basic, *types.Struct, *types.Tuple, *types.Interface, *types.Signature:
-			// these types cannot hold named types
+		case *types.Struct:
+			for i := 0; i < tt.NumFields(); i++ {
+				find(tt.Field(i).Type())
+			}
+		case *types.Basic, *types.Tuple, *types.Interface, *types.Signature:
+			// these do not contain relevant named types
 		case *types.Pointer:
 			// this should be unreachable due to the dereference above
 		default:
