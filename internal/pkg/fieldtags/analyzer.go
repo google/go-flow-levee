@@ -28,6 +28,9 @@ import (
 	"golang.org/x/tools/go/ssa"
 )
 
+// ResultType can be used to determine if a given field is a
+// tagged field, or if a given object is a Source due to
+// holding a tagged field.
 type ResultType struct {
 	sources      map[types.Object]bool
 	taggedFields map[types.Object]bool
