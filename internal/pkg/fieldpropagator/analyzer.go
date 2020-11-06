@@ -22,6 +22,7 @@ import (
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
+	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
@@ -68,7 +69,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	ssaProg := ssaInput.Pkg.Prog
 	for _, mem := range ssaInput.Pkg.Members {
 		ssaType, ok := mem.(*ssa.Type)
-		if !ok || !conf.IsSource(ssaType.Type()) {
+		if !ok || !conf.IsSourceType(utils.DecomposeType(ssaType.Type())) {
 			continue
 		}
 		methods := ssaProg.MethodSets.MethodSet(ssaType.Type())
@@ -109,7 +110,11 @@ func analyzeResults(pass *analysis.Pass, conf *config.Config, tf fieldtags.Resul
 		if !ok {
 			continue
 		}
-		if conf.IsSourceFieldAddr(fa) || tf.IsSourceFieldAddr(fa) {
+
+		deref := utils.Dereference(fa.X.Type())
+		path, typeName := utils.DecomposeType(deref)
+		fieldName := utils.FieldName(fa)
+		if conf.IsSourceField(path, typeName, fieldName) || tf.IsSourceFieldAddr(fa) {
 			pass.ExportObjectFact(meth.Object(), &isFieldPropagator{})
 		}
 	}
