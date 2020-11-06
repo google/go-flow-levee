@@ -125,8 +125,8 @@ func (rt ResultType) IsSource(o types.Object) bool {
 }
 
 // IsSource determines whether a types.Var is a source, that is whether it refers to a field previously identified as a source.
-func (rt ResultType) IsSourceField(field *types.Var) bool {
-	return rt.taggedFields[field]
+func (rt ResultType) IsSourceField(f *types.Var) bool {
+	return rt.taggedFields[f]
 }
 
 // IsSourceFieldAddr determines whether a ssa.FieldAddr is a source, that is whether it refers to a field previously identified as a source.
