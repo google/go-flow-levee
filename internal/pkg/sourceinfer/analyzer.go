@@ -25,6 +25,7 @@ import (
 	"reflect"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
+	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -70,6 +71,7 @@ type Quux Qux
 `,
 	Run: run,
 	Requires: []*analysis.Analyzer{
+		fieldtags.Analyzer,
 		inspect.Analyzer,
 	},
 	ResultType: reflect.TypeOf(new(ResultType)).Elem(),
@@ -85,10 +87,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	ins := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+	ft := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 
 	objectGraph := createObjectGraph(pass, ins)
 
-	inferredSources := inferSources(pass, conf, objectGraph)
+	inferredSources := inferSources(pass, conf, ft, objectGraph)
 
 	return inferredSources, nil
 }
@@ -213,7 +216,7 @@ func findNamedTypes(t types.Type) map[*types.Named]bool {
 	return namedTypes
 }
 
-func inferSources(pass *analysis.Pass, conf *config.Config, objGraph objectGraph) ResultType {
+func inferSources(pass *analysis.Pass, conf *config.Config, ft fieldtags.ResultType, objGraph objectGraph) ResultType {
 	inferredSources := ResultType{}
 
 	order := topoSort(objGraph)
@@ -224,9 +227,10 @@ func inferSources(pass *analysis.Pass, conf *config.Config, objGraph objectGraph
 		if seen[o] {
 			continue
 		}
-		if !(isSourceType(conf, o.Type()) || pass.ImportObjectFact(o, &inferredSourceFact{})) {
+		if !(isSourceType(conf, o.Type()) || isTaggedField(ft, o) || pass.ImportObjectFact(o, &inferredSourceFact{})) {
 			continue
 		}
+
 		seen[o] = true
 		stack := []types.Object{o}
 		for len(stack) > 0 {
@@ -247,6 +251,13 @@ func inferSources(pass *analysis.Pass, conf *config.Config, objGraph objectGraph
 	}
 
 	return inferredSources
+}
+
+func isTaggedField(ft fieldtags.ResultType, o types.Object) bool {
+	if v, ok := o.(*types.Var); ok {
+		return ft.IsSource(v)
+	}
+	return false
 }
 
 // topoSort produces the topological order of a given graph.
