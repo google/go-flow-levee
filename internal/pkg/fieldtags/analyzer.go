@@ -109,10 +109,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 	for _, f := range pass.AllObjectFacts() {
 		switch f.Fact.(type) {
-		case *isTaggedField:
-			rt.taggedFields[f.Object] = true
 		case *hasTaggedField:
 			rt.sources[f.Object] = true
+		case *isTaggedField:
+			rt.taggedFields[f.Object] = true
 		}
 	}
 
