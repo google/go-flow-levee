@@ -48,8 +48,8 @@ type (
 		sh SourceHolder
 	}
 
-	SourceByFieldTag struct { // want SourceByFieldTag:"inferred source"
-		secret string `levee:"source"`
+	TaggedHolder struct { // want TaggedHolder:"inferred source"
+		t source.Tagged
 	}
 )
 

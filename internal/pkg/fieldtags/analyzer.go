@@ -20,7 +20,6 @@ import (
 	"go/ast"
 	"go/types"
 	"reflect"
-	"strings"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"golang.org/x/tools/go/analysis"
@@ -29,18 +28,41 @@ import (
 	"golang.org/x/tools/go/ssa"
 )
 
-// ResultType is a map from types.Object to bool.
-// It can be used to determine whether a field is a tagged Source field.
-type ResultType map[types.Object]bool
+// ResultType can be used to determine if a given field is a
+// tagged field, or if a given object is a source due to
+// holding a tagged field.
+type ResultType struct {
+	sources      map[types.Object]bool
+	taggedFields map[types.Object]bool
+}
+
+// hasTaggedField is a Fact that indicates that a given object
+// has at least one tagged field.
+type hasTaggedField struct{}
+
+func (hasTaggedField) AFact() {}
+func (hasTaggedField) String() string {
+	return "source"
+}
+
+// isTaggedField is a Fact that indicates that a given object
+// is itself a tagged field.
+type isTaggedField struct{}
+
+func (isTaggedField) AFact() {}
+func (isTaggedField) String() string {
+	return "tagged field"
+}
 
 var Analyzer = &analysis.Analyzer{
 	Name: "fieldtags",
-	Doc:  "This analyzer identifies Source fields based on their tags. Tags are expected to satisfy the `go vet -structtag` format.",
+	Doc:  "This analyzer identifies Sources based on their field tags. Tags are expected to satisfy the `go vet -structtag` format.",
 	Run:  run,
 	Requires: []*analysis.Analyzer{
 		inspect.Analyzer,
 	},
 	ResultType: reflect.TypeOf(new(ResultType)).Elem(),
+	FactTypes:  []analysis.Fact{new(hasTaggedField), new(isTaggedField)},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -50,10 +72,14 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	inspectResult := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	taggedFields := map[types.Object]bool{}
 
 	nodeFilter := []ast.Node{
 		(*ast.TypeSpec)(nil),
+	}
+
+	rt := ResultType{
+		sources:      map[types.Object]bool{},
+		taggedFields: map[types.Object]bool{},
 	}
 
 	inspectResult.Preorder(nodeFilter, func(n ast.Node) {
@@ -65,30 +91,47 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if !ok || s.Fields == nil {
 			return
 		}
+		hasTagged := false
 		for _, f := range (*s).Fields.List {
 			if f.Tag == nil || len(f.Names) == 0 || !conf.IsSourceFieldTag(f.Tag.Value) {
 				continue
 			}
-			fNames := make([]string, len(f.Names))
-			for i, ident := range f.Names {
-				fNames[i] = ident.Name
-				taggedFields[pass.TypesInfo.ObjectOf(ident)] = true
+			hasTagged = true
+			for _, ident := range f.Names {
+				pass.ExportObjectFact(pass.TypesInfo.ObjectOf(ident), &isTaggedField{})
 			}
-			pass.Reportf(f.Pos(), "tagged field: %s", strings.Join(fNames, ", "))
 		}
+		if hasTagged {
+			pass.ExportObjectFact(pass.TypesInfo.ObjectOf(t.Name), &hasTaggedField{})
+		}
+
 	})
 
-	return ResultType(taggedFields), nil
+	for _, f := range pass.AllObjectFacts() {
+		switch f.Fact.(type) {
+		case *isTaggedField:
+			rt.taggedFields[f.Object] = true
+		case *hasTaggedField:
+			rt.sources[f.Object] = true
+		}
+	}
+
+	return rt, nil
 }
 
-// IsSourceFieldAddr determines whether a ssa.FieldAddr is a source, that is whether it refers to a field previously identified as a source.
-func (r ResultType) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
-	// incantation plundered from the docstring for ssa.FieldAddr.Field
-	field := fa.X.Type().Underlying().(*types.Pointer).Elem().Underlying().(*types.Struct).Field(fa.Field)
-	return r.IsSource(field)
+// IsSouce determines whether a types.Object is a Source, that is whether it refers to an object previously identified as a source.
+func (rt ResultType) IsSource(o types.Object) bool {
+	return rt.sources[o]
 }
 
 // IsSource determines whether a types.Var is a source, that is whether it refers to a field previously identified as a source.
-func (r ResultType) IsSource(field *types.Var) bool {
-	return r[(types.Object)(field)]
+func (rt ResultType) IsSourceField(field *types.Var) bool {
+	return rt.taggedFields[field]
+}
+
+// IsSourceFieldAddr determines whether a ssa.FieldAddr is a source, that is whether it refers to a field previously identified as a source.
+func (rt ResultType) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
+	// incantation plundered from the docstring for ssa.FieldAddr.Field
+	field := fa.X.Type().Underlying().(*types.Pointer).Elem().Underlying().(*types.Struct).Field(fa.Field)
+	return rt.IsSourceField(field)
 }

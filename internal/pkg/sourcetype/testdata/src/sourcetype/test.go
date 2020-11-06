@@ -27,7 +27,7 @@ type SourceContainingTaggedField struct { // want SourceContainingTaggedField:"s
 
 type AliasStruct = Source // want AliasStruct:"source type"
 
-type NamedType Source // want NamedType:"source type"
+type NamedType Source // TODO want NamedType:"source type"
 
 type SliceContainer []Source
 type ArrayContainer [5]Source
