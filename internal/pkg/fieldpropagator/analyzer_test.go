@@ -27,5 +27,5 @@ func TestFieldPropagatorAnalysis(t *testing.T) {
 	if err := config.FlagSet.Set("config", filepath.Join(testdata, "test-config.yaml")); err != nil {
 		t.Error(err)
 	}
-	analysistest.Run(t, testdata, Analyzer, "source", "test")
+	analysistest.Run(t, testdata, Analyzer, "./...")
 }

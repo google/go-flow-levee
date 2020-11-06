@@ -16,10 +16,6 @@ package internal
 
 import (
 	"flag"
-	"fmt"
-	"io/ioutil"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/google/go-flow-levee/internal/pkg/debug"
@@ -33,43 +29,8 @@ func TestLevee(t *testing.T) {
 	if err := Analyzer.Flags.Set("config", dataDir+"/test-config.yaml"); err != nil {
 		t.Error(err)
 	}
-	testsDir := filepath.Join(dataDir, "src/example.com/tests")
-	patterns := findTestPatterns(t, testsDir)
 	if *debugging {
 		Analyzer.Requires = append(Analyzer.Requires, debug.Analyzer)
 	}
-	analysistest.Run(t, dataDir, Analyzer, patterns...)
-}
-
-func findTestPatterns(t *testing.T, testsDir string) (patterns []string) {
-	t.Helper()
-	files, err := ioutil.ReadDir(testsDir)
-	if err != nil {
-		t.Fatalf("Failed to read tests dir (%s): %v", testsDir, err)
-	}
-	for _, f := range files {
-		path := filepath.Join(testsDir, f.Name())
-		// Make sure the directory contains a go file to avoid failure on empty directories.
-		if err := checkForGoFiles(path); err != nil {
-			t.Fatalf("Could not verify presence of Go files in test directory: %v", err)
-		}
-
-		patterns = append(patterns, path)
-	}
-	return
-}
-
-func checkForGoFiles(path string) error {
-	pkgFiles, err := ioutil.ReadDir(path)
-	if err != nil {
-		return fmt.Errorf("failed to examine test directory (%s): %v", path, err)
-	}
-
-	for _, file := range pkgFiles {
-		if strings.HasSuffix(file.Name(), ".go") {
-			return nil
-		}
-	}
-	return fmt.Errorf("found no Go files in test directory (%s)", path)
-
+	analysistest.Run(t, dataDir, Analyzer, "./...")
 }
