@@ -47,6 +47,10 @@ type (
 	SourceHolderHolder struct { // want SourceHolderHolder:"inferred source"
 		sh SourceHolder
 	}
+
+	TaggedHolder struct { // want TaggedHolder:"inferred source"
+		t source.Tagged
+	}
 )
 
 type (

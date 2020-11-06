@@ -16,4 +16,8 @@ package source
 
 type Source struct{}
 
+type Tagged struct {
+	secret string `levee:"source"`
+}
+
 type NotSource struct{}
