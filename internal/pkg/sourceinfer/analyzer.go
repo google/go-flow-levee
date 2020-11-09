@@ -115,27 +115,30 @@ func createObjectGraph(pass *analysis.Pass, ins *inspector.Inspector) objectGrap
 			return
 		}
 
-		typeBeingDefined := pass.TypesInfo.ObjectOf(ts.Name)
+		objectBeingDefined := pass.TypesInfo.ObjectOf(ts.Name)
 
-		for n := range findNamedTypes(pass.TypesInfo.TypeOf(ts.Type)) {
-			objGraph[n.Obj()] = append(objGraph[n.Obj()], typeBeingDefined)
+		for o := range findObjects(pass.TypesInfo.TypeOf(ts.Type)) {
+			objGraph[o] = append(objGraph[o], objectBeingDefined)
 		}
 	})
 
 	return objGraph
 }
 
-// findNamedTypes finds named types within a type that can potentially be sources.
-// Among other things, this excludes basic types and functions (Signatures).
-func findNamedTypes(t types.Type) map[*types.Named]bool {
-	namedTypes := map[*types.Named]bool{}
+// Given a type, findObjects finds objects associated with types
+// within that type that could be sources.
+// This includes named types and struct fields.
+// Functions (Signatures) and Interface types are avoided, because
+// those cannot be sources.
+func findObjects(t types.Type) map[types.Object]bool {
+	objects := map[types.Object]bool{}
 
 	var find func(t types.Type)
 	find = func(t types.Type) {
 		deref := utils.Dereference(t)
 		switch tt := deref.(type) {
 		case *types.Named:
-			namedTypes[tt] = true
+			objects[tt.Obj()] = true
 		case *types.Array:
 			find(tt.Elem())
 		case *types.Slice:
@@ -147,10 +150,12 @@ func findNamedTypes(t types.Type) map[*types.Named]bool {
 			find(tt.Elem())
 		case *types.Struct:
 			for i := 0; i < tt.NumFields(); i++ {
+				// the field itself could be a source, e.g. in the case of a tagged field
+				objects[tt.Field(i)] = true
 				find(tt.Field(i).Type())
 			}
 		case *types.Basic, *types.Tuple, *types.Interface, *types.Signature:
-			// these do not contain relevant named types
+			// these do not contain relevant objects
 		case *types.Pointer:
 			// this should be unreachable due to the dereference above
 		default:
@@ -161,7 +166,7 @@ func findNamedTypes(t types.Type) map[*types.Named]bool {
 
 	find(t)
 
-	return namedTypes
+	return objects
 }
 
 func inferSources(pass *analysis.Pass, conf *config.Config, ft fieldtags.ResultType, objGraph objectGraph) ResultType {
@@ -232,8 +237,8 @@ func topoSort(graph objectGraph) []types.Object {
 }
 
 func isSourceType(c *config.Config, t types.Type) bool {
-	for nt := range findNamedTypes(t) {
-		if c.IsSourceType(utils.DecomposeType(nt)) {
+	for o := range findObjects(t) {
+		if c.IsSourceType(utils.DecomposeType(o.Type())) {
 			return true
 		}
 	}
