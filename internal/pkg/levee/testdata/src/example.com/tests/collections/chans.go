@@ -39,3 +39,9 @@ func TestChannelIsNoLongerTaintedWhenNilledOut(sources chan core.Source) {
 	sources = nil
 	core.Sink(sources)
 }
+
+func TestRangeOverChan(sources chan core.Source) {
+	for s := range sources {
+		core.Sink(s) // want "a source has reached a sink"
+	}
+}
