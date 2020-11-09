@@ -87,10 +87,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	ins := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	ft := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
-
 	objectGraph := createObjectGraph(pass, ins)
 
+	ft := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 	inferredSources := inferSources(pass, conf, ft, objectGraph)
 
 	return inferredSources, nil
