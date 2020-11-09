@@ -26,6 +26,7 @@ type (
 	SourceMap          map[string]source.Source                // want SourceMap:"inferred source"
 	SourceNested       map[string][]map[string][]source.Source // want SourceNested:"inferred source"
 	DefinedSourceSlice []DefinedSource                         // want DefinedSourceSlice:"inferred source"
+	DefinedFromTagged  source.Tagged                           // want DefinedFromTagged:"inferred source"
 )
 
 type (
