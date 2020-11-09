@@ -29,7 +29,8 @@ type (
 )
 
 type (
-	NotDefinedSource source.NotSource
+	NotDefinedSource       source.NotSource
+	FunctionsAreNotSources func() map[string]source.Source
 )
 
 func Typedef() {
