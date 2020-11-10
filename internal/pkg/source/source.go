@@ -208,7 +208,7 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 		// TODO: add missing test (check that the key is not tainted, e.g.)
 		s.dfs(t.Map.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 
-	// The only Operand that can be tainted by a Send is the Chan itself.
+	// The only Operand that can be tainted by a Send is the Chan.
 	// The Value can propagate taint to the Chan, but not receive it.
 	case *ssa.Send:
 		s.dfs(t.Chan.(ssa.Node), maxInstrReached, lastBlockVisited, false)
