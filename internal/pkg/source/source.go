@@ -36,6 +36,9 @@ type classifier interface {
 	IsExcluded(path, recv, name string) bool
 }
 
+// TODO: go over each instruction type and make sure the traversals
+// make sense, consider adding tests
+
 // Source represents a Source in an SSA call tree.
 // It is based on ssa.Node, with the added functionality of computing the recursive graph of
 // its referrers.
@@ -75,14 +78,14 @@ func New(in ssa.Node, config classifier) *Source {
 		marked: make(map[ssa.Node]bool),
 		config: config,
 	}
-	s.dfs(in, map[*ssa.BasicBlock]int{}, nil)
+	s.dfs(in, map[*ssa.BasicBlock]int{}, nil, false)
 	return s
 }
 
 // dfs performs Depth-First-Search on the def-use graph of the input Source.
 // While traversing the graph we also look for potential sanitizers of this Source.
 // If the Source passes through a sanitizer, dfs does not continue through that Node.
-func (s *Source) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+func (s *Source) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, isReferrer bool) {
 	if s.marked[n] {
 		return
 	}
@@ -97,82 +100,151 @@ func (s *Source) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBl
 	}
 
 	if instr, ok := n.(ssa.Instruction); ok {
+		b := instr.Block()
+
 		// If the referrer is in a different block from the one we last visited,
 		// and it can't be reached from the block we are visiting, then stop visiting.
-		if ib := instr.Block(); lastBlockVisited != nil &&
-			ib != lastBlockVisited &&
-			!s.canReach(lastBlockVisited, ib) {
+		if lastBlockVisited != nil && b != lastBlockVisited && !s.canReach(lastBlockVisited, b) {
 			return
 		}
 
-		b := instr.Block()
-		if i, ok := indexInBlock(instr); ok && mirCopy[b] < i {
-			mirCopy[b] = i
+		ix, ok := indexInBlock(instr)
+		if !ok {
+			return
 		}
+
+		// If this call's index is lower than the highest in its block,
+		// then this call is "in the past". If this call is a referrer,
+		// then we would be propagating taint backwards in time, so stop traversing.
+		// (If the call is an operand, then it is being used as a value, so it does
+		// not matter when the call occurred.)
+		if _, ok := instr.(*ssa.Call); ok && ix < maxInstrReached[b] && isReferrer {
+			return
+		}
+
+		if mirCopy[b] < ix {
+			mirCopy[b] = ix
+		}
+
 		lastBlockVisited = b
 	}
+
 	s.preOrder = append(s.preOrder, n)
 	s.marked[n] = true
 
-	s.visitReferrers(n, mirCopy, lastBlockVisited)
-
-	s.visitOperands(n, n.Operands(nil), mirCopy, lastBlockVisited)
+	s.visit(n, mirCopy, lastBlockVisited)
 }
 
-func (s *Source) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
-	referrers := s.referrersToVisit(n, maxInstrReached)
+func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+	if s.node == n {
+		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
+		return
+	}
 
-	for _, r := range referrers {
-		switch v := r.(type) {
-		case *ssa.Call:
-			if callee := v.Call.StaticCallee(); callee != nil && s.config.IsSanitizer(utils.DecomposeFunction(callee)) {
-				s.sanitizers = append(s.sanitizers, &sanitizer.Sanitizer{Call: v})
-			}
+	switch t := n.(type) {
+	case *ssa.Alloc:
+		// An Alloc represents the allocation of space for a variable. If a Node is an Alloc,
+		// and the thing being allocated is not an array, then either:
+		// a) it is a Source value, in which case it will get its own traversal when sourcesFromBlocks
+		//    finds this Alloc
+		// b) it is not a Source value, in which case we should not visit it.
+		// However, if the Alloc is an array, then that means the source that we are visiting from
+		// is being placed into an array, slice or varags, so we do need to keep visiting.
+		if _, isArray := utils.Dereference(t.Type()).(*types.Array); isArray {
+			s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		}
 
-		s.dfs(r.(ssa.Node), maxInstrReached, lastBlockVisited)
+	case *ssa.Call:
+		if callee := t.Call.StaticCallee(); callee != nil && s.config.IsSanitizer(utils.DecomposeFunction(callee)) {
+			s.sanitizers = append(s.sanitizers, &sanitizer.Sanitizer{Call: t})
+		}
+
+		// This is to avoid attaching calls where the source is the receiver, ex:
+		// core.Sinkf("Source id: %v", wrapper.Source.GetID())
+		if recv := t.Call.Signature().Recv(); recv != nil && s.config.IsSourceType(utils.DecomposeType(utils.Dereference(recv.Type()))) {
+			return
+		}
+
+		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
+		s.visitOperands(n, maxInstrReached, lastBlockVisited)
+
+	case *ssa.Lookup:
+		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
+
+	case *ssa.FieldAddr:
+		deref := utils.Dereference(t.X.Type())
+		typPath, typName := utils.DecomposeType(deref)
+		fieldName := utils.FieldName(t)
+		if !s.config.IsSourceField(typPath, typName, fieldName) {
+			return
+		}
+		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
+		s.visitOperands(n, maxInstrReached, lastBlockVisited)
+
+	case *ssa.Field:
+		// TODO: this should be the same as the FieldAddr branch
+		// don't forget to add the missing tests
+		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
+		s.visitOperands(n, maxInstrReached, lastBlockVisited)
+
+	// TODO: add missing tests for each of these if applicable
+	// BinOp: tainted string concatenated with non-tainted string
+	// Phi: tainted in one possibility, sinked in both
+
+	// These nodes' operands should not be visited, because they can only receive
+	// taint from their operands, not propagate taint to them.
+	case *ssa.BinOp, *ssa.ChangeInterface, *ssa.ChangeType, *ssa.Convert, *ssa.Extract, *ssa.MakeChan, *ssa.MakeMap, *ssa.MakeSlice, *ssa.Phi, *ssa.Range, *ssa.Slice, *ssa.UnOp:
+		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
+
+	// These nodes don't have operands; they are Values, not Instructions.
+	case *ssa.Const, *ssa.Global, *ssa.Parameter:
+		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
+
+	// These nodes don't have referrers; they are Instructions, not Values.
+	case *ssa.Go, *ssa.Store:
+		s.visitOperands(n, maxInstrReached, lastBlockVisited)
+
+	// Only the Map itself can be tainted by an Update.
+	// The Key can't be tainted.
+	// The Value can propagate taint to the Map, but not receive it.
+	case *ssa.MapUpdate:
+		// TODO: add missing test (check that the key is not tainted, e.g.)
+		s.dfs(t.Map.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+
+	// The only Operand that can be tainted by a Send is the Chan itself.
+	// The Value can propagate taint to the Chan, but not receive it.
+	case *ssa.Send:
+		s.dfs(t.Chan.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+
+	// These nodes are both Instructions and Values, and have no special restrictions.
+	case *ssa.Index, *ssa.IndexAddr, *ssa.MakeInterface, *ssa.Select, *ssa.TypeAssert:
+		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
+		s.visitOperands(n, maxInstrReached, lastBlockVisited)
+
+	// These nodes cannot propagate taint
+	case *ssa.Builtin, *ssa.DebugRef, *ssa.Defer, *ssa.FreeVar, *ssa.Function, *ssa.If, *ssa.Jump, *ssa.MakeClosure, *ssa.Next, *ssa.Panic, *ssa.Return, *ssa.RunDefers:
+
+	default:
+		fmt.Printf("unexpected node received: %T %v; please report this issue\n", n, n)
 	}
 }
 
-// referrersToVisit produces a filtered list of Referrers for an ssa.Node.
-// Specifically, we want to avoid referrers that shouldn't be visited, e.g.
-// because they would not be reachable in an actual execution of the program.
-func (s *Source) referrersToVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int) (referrers []ssa.Instruction) {
+func (s *Source) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	if n.Referrers() == nil {
 		return
 	}
 	for _, r := range *n.Referrers() {
-		if c, ok := r.(*ssa.Call); ok {
-			// This is to avoid attaching calls where the source is the receiver, ex:
-			// core.Sinkf("Source id: %v", wrapper.Source.GetID())
-			if recv := c.Call.Signature().Recv(); recv != nil && s.config.IsSourceType(utils.DecomposeType(utils.Dereference(recv.Type()))) {
-				continue
-			}
-
-			// If this call's index is lower than the highest in its block,
-			// then this call is "in the past" and we should stop traversing.
-			i, ok := indexInBlock(r)
-			if !ok {
-				continue
-			}
-			if i < maxInstrReached[r.Block()] {
-				continue
-			}
-		}
-
-		if fa, ok := r.(*ssa.FieldAddr); ok {
-			deref := utils.Dereference(fa.X.Type())
-			typPath, typName := utils.DecomposeType(deref)
-			fieldName := utils.FieldName(fa)
-
-			if !s.config.IsSourceField(typPath, typName, fieldName) {
-				continue
-			}
-		}
-
-		referrers = append(referrers, r)
+		s.dfs(r.(ssa.Node), maxInstrReached, lastBlockVisited, true)
 	}
-	return referrers
+}
+
+func (s *Source) visitOperands(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+	for _, o := range n.Operands(nil) {
+		if *o == nil {
+			continue
+		}
+		s.dfs((*o).(ssa.Node), maxInstrReached, lastBlockVisited, false)
+	}
 }
 
 func (s *Source) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
@@ -196,47 +268,6 @@ func (s *Source) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
 		}
 	}
 	return false
-}
-
-func (s *Source) visitOperands(from ssa.Node, operands []*ssa.Value, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
-	// Do not visit Operands if the current node is an Extract.
-	// This is to avoid incorrectly tainting non-Source values that are
-	// produced by an Instruction that has a Source among the values it
-	// produces, e.g. a call to a function with a signature like:
-	// func NewSource() (*core.Source, error)
-	// Which leads to a flow like:
-	// Extract (*core.Source) --> Call (NewSource) --> error
-	if _, ok := from.(*ssa.Extract); ok {
-		return
-	}
-
-	for _, o := range operands {
-		n, ok := (*o).(ssa.Node)
-		if !ok {
-			continue
-		}
-
-		// An Alloc represents the allocation of space for a variable. If a Node is an Alloc,
-		// and the thing being allocated is not an array, then either:
-		// a) it is a Source value, in which case it will get its own traversal when sourcesFromBlocks
-		//    finds this Alloc
-		// b) it is not a Source value, in which case we should not visit it.
-		// However, if the Alloc is an array, then that means the source that we are visiting from
-		// is being placed into an array, slice or varags, so we do need to keep visiting.
-		if al, isAlloc := (*o).(*ssa.Alloc); isAlloc {
-			if _, isArray := utils.Dereference(al.Type()).(*types.Array); !isArray {
-				continue
-			}
-		}
-
-		// Don't traverse to the key in a lookup.
-		// For example, if a map is tainted, looking up a value in the map
-		// doesn't taint the key, so we shouldn't traverse to the key.
-		if look, ok := from.(*ssa.Lookup); ok && *o == look.Index {
-			continue
-		}
-		s.dfs(n, maxInstrReached, lastBlockVisited)
-	}
 }
 
 // compress removes the elements from the graph that are not required by the
