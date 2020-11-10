@@ -36,9 +36,6 @@ type classifier interface {
 	IsExcluded(path, recv, name string) bool
 }
 
-// TODO: go over each instruction type and make sure the traversals
-// make sense, consider adding tests
-
 // Source represents a Source in an SSA call tree.
 // It is based on ssa.Node, with the added functionality of computing the recursive graph of
 // its referrers.
