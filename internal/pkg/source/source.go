@@ -209,8 +209,11 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		s.visitOperands(n, maxInstrReached, lastBlockVisited)
 
+	// FreeVars are handled by sourcesFromClosure.
+	case *ssa.FreeVar:
+
 	// These nodes cannot propagate taint.
-	case *ssa.Builtin, *ssa.DebugRef, *ssa.Defer, *ssa.FreeVar, *ssa.Function, *ssa.If, *ssa.Jump, *ssa.MakeClosure, *ssa.Next, *ssa.Panic, *ssa.Return, *ssa.RunDefers:
+	case *ssa.Builtin, *ssa.DebugRef, *ssa.Defer, *ssa.Function, *ssa.If, *ssa.Jump, *ssa.MakeClosure, *ssa.Next, *ssa.Panic, *ssa.Return, *ssa.RunDefers:
 
 	default:
 		fmt.Printf("unexpected node received: %T %v; please report this issue\n", n, n)
