@@ -20,7 +20,7 @@ import (
 	"example.com/core"
 )
 
-func TestConcatenatingTaintedAndNonTainteStrings(prefix string) {
+func TestConcatenatingTaintedAndNonTaintedStrings(prefix string) {
 	s := core.Source{Data: "password1234"}
 	message := fmt.Sprintf("source: %v", s)
 	fullMessage := prefix + message
