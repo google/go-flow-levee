@@ -170,9 +170,6 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		s.visitOperands(n, maxInstrReached, lastBlockVisited)
 
-	case *ssa.Lookup:
-		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
-
 	case *ssa.FieldAddr:
 		deref := utils.Dereference(t.X.Type())
 		typPath, typName := utils.DecomposeType(deref)
@@ -183,40 +180,29 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		s.visitOperands(n, maxInstrReached, lastBlockVisited)
 
-	case *ssa.Field:
-		// TODO: this should be the same as the FieldAddr branch
-		// don't forget to add the missing tests
-		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
-		s.visitOperands(n, maxInstrReached, lastBlockVisited)
-
-	// TODO: add missing tests for each of these if applicable
-	// BinOp: tainted string concatenated with non-tainted string
-	// Phi: tainted in one possibility, sinked in both
-
-	// These nodes' operands should not be visited, because they can only receive
-	// taint from their operands, not propagate taint to them.
-	case *ssa.BinOp, *ssa.ChangeInterface, *ssa.ChangeType, *ssa.Convert, *ssa.Extract, *ssa.MakeChan, *ssa.MakeMap, *ssa.MakeSlice, *ssa.Phi, *ssa.Range, *ssa.Slice, *ssa.UnOp:
-		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
-
-	// These nodes don't have operands; they are Values, not Instructions.
-	case *ssa.Const, *ssa.Global, *ssa.Parameter:
-		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
-
-	// These nodes don't have referrers; they are Instructions, not Values.
-	case *ssa.Go, *ssa.Store:
-		s.visitOperands(n, maxInstrReached, lastBlockVisited)
-
 	// Only the Map itself can be tainted by an Update.
 	// The Key can't be tainted.
 	// The Value can propagate taint to the Map, but not receive it.
 	case *ssa.MapUpdate:
-		// TODO: add missing test (check that the key is not tainted, e.g.)
 		s.dfs(t.Map.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 
 	// The only Operand that can be tainted by a Send is the Chan.
 	// The Value can propagate taint to the Chan, but not receive it.
 	case *ssa.Send:
 		s.dfs(t.Chan.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+
+	// These nodes' operands should not be visited, because they can only receive
+	// taint from their operands, not propagate taint to them.
+	case *ssa.BinOp, *ssa.ChangeInterface, *ssa.ChangeType, *ssa.Convert, *ssa.Extract, *ssa.Field, *ssa.MakeChan, *ssa.MakeMap, *ssa.MakeSlice, *ssa.Phi, *ssa.Range, *ssa.Slice, *ssa.UnOp:
+		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
+
+	// These nodes don't have operands; they are Values, not Instructions.
+	case *ssa.Const, *ssa.Global, *ssa.Lookup, *ssa.Parameter:
+		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
+
+	// These nodes don't have referrers; they are Instructions, not Values.
+	case *ssa.Go, *ssa.Store:
+		s.visitOperands(n, maxInstrReached, lastBlockVisited)
 
 	// These nodes are both Instructions and Values, and have no special restrictions.
 	case *ssa.Index, *ssa.IndexAddr, *ssa.MakeInterface, *ssa.Select, *ssa.TypeAssert:
