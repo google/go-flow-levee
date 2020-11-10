@@ -91,34 +91,41 @@ func (s *Source) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBl
 		return
 	}
 
-	mirCopy := map[*ssa.BasicBlock]int{}
-	for m, i := range maxInstrReached {
-		mirCopy[m] = i
-	}
-
 	if instr, ok := n.(ssa.Instruction); ok {
+		instrIndex, ok := indexInBlock(instr)
+		if !ok {
+			return
+		}
+
 		// If the referrer is in a different block from the one we last visited,
 		// and it can't be reached from the block we are visiting, then stop visiting.
 		if lastBlockVisited != nil && instr.Block() != lastBlockVisited && !s.canReach(lastBlockVisited, instr.Block()) {
 			return
 		}
 
-		instIndex, ok := indexInBlock(instr)
-		if !ok {
-			return
-		}
-
-		// If this call's index is lower than the highest in its block,
+		// If this call's index is lower than the highest seen so far in its block,
 		// then this call is "in the past". If this call is a referrer,
 		// then we would be propagating taint backwards in time, so stop traversing.
 		// (If the call is an operand, then it is being used as a value, so it does
 		// not matter when the call occurred.)
-		if _, ok := instr.(*ssa.Call); ok && instIndex < maxInstrReached[instr.Block()] && isReferrer {
+		if _, ok := instr.(*ssa.Call); ok && instrIndex < maxInstrReached[instr.Block()] && isReferrer {
+			return
+		}
+	}
+
+	mirCopy := map[*ssa.BasicBlock]int{}
+	for m, i := range maxInstrReached {
+		mirCopy[m] = i
+	}
+
+	if instr, ok := n.(ssa.Instruction); ok {
+		instrIndex, ok := indexInBlock(instr)
+		if !ok {
 			return
 		}
 
-		if mirCopy[instr.Block()] < instIndex {
-			mirCopy[instr.Block()] = instIndex
+		if mirCopy[instr.Block()] < instrIndex {
+			mirCopy[instr.Block()] = instrIndex
 		}
 
 		lastBlockVisited = instr.Block()
