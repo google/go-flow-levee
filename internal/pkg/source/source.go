@@ -97,15 +97,13 @@ func (s *Source) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBl
 	}
 
 	if instr, ok := n.(ssa.Instruction); ok {
-		b := instr.Block()
-
 		// If the referrer is in a different block from the one we last visited,
 		// and it can't be reached from the block we are visiting, then stop visiting.
-		if lastBlockVisited != nil && b != lastBlockVisited && !s.canReach(lastBlockVisited, b) {
+		if lastBlockVisited != nil && instr.Block() != lastBlockVisited && !s.canReach(lastBlockVisited, instr.Block()) {
 			return
 		}
 
-		ix, ok := indexInBlock(instr)
+		instIndex, ok := indexInBlock(instr)
 		if !ok {
 			return
 		}
@@ -115,15 +113,15 @@ func (s *Source) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBl
 		// then we would be propagating taint backwards in time, so stop traversing.
 		// (If the call is an operand, then it is being used as a value, so it does
 		// not matter when the call occurred.)
-		if _, ok := instr.(*ssa.Call); ok && ix < maxInstrReached[b] && isReferrer {
+		if _, ok := instr.(*ssa.Call); ok && instIndex < maxInstrReached[instr.Block()] && isReferrer {
 			return
 		}
 
-		if mirCopy[b] < ix {
-			mirCopy[b] = ix
+		if mirCopy[instr.Block()] < instIndex {
+			mirCopy[instr.Block()] = instIndex
 		}
 
-		lastBlockVisited = b
+		lastBlockVisited = instr.Block()
 	}
 
 	s.preOrder = append(s.preOrder, n)
