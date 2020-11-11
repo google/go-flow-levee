@@ -137,27 +137,26 @@ func createObjectGraph(pass *analysis.Pass, ins *inspector.Inspector) objectGrap
 func findObjects(t types.Type) map[types.Object]bool {
 	objects := map[types.Object]bool{}
 
-	// find traverses a type to add relevant objects to the objects map.
-	var find func(t types.Type)
-	find = func(t types.Type) {
+	var traverse func(t types.Type)
+	traverse = func(t types.Type) {
 		deref := utils.Dereference(t)
 		switch tt := deref.(type) {
 		case *types.Named:
 			objects[tt.Obj()] = true
 		case *types.Array:
-			find(tt.Elem())
+			traverse(tt.Elem())
 		case *types.Slice:
-			find(tt.Elem())
+			traverse(tt.Elem())
 		case *types.Chan:
-			find(tt.Elem())
+			traverse(tt.Elem())
 		case *types.Map:
-			find(tt.Key())
-			find(tt.Elem())
+			traverse(tt.Key())
+			traverse(tt.Elem())
 		case *types.Struct:
 			for i := 0; i < tt.NumFields(); i++ {
 				// The field itself could be a source, e.g. in the case of a tagged field.
 				objects[tt.Field(i)] = true
-				find(tt.Field(i).Type())
+				traverse(tt.Field(i).Type())
 			}
 		case *types.Basic, *types.Tuple, *types.Interface, *types.Signature:
 			// these do not contain relevant objects
@@ -169,7 +168,7 @@ func findObjects(t types.Type) map[types.Object]bool {
 		}
 	}
 
-	find(t)
+	traverse(t)
 
 	return objects
 }
