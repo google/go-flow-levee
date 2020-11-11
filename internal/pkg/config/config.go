@@ -15,6 +15,7 @@
 package config
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -120,31 +121,95 @@ func (c Config) IsSourceField(path, typeName, fieldName string) bool {
 	return false
 }
 
-// A sourceMatcher defines what types are or contain sources.
-// Within a given type, specific field access can be specified as the actual source data
-// via the fieldRE.
+// A sourceMatcher matches by package, type, and field.
+// Matching may be done against string literals Package, Type, Field,
+// or against regexp PackageRE, TypeRE, FieldRE.
 type sourceMatcher struct {
-	PackageRE regexp.Regexp
-	TypeRE    regexp.Regexp
-	FieldRE   regexp.Regexp
+	Package   *string
+	Type      *string
+	Field     *string
+	PackageRE *regexp.Regexp
+	TypeRE    *regexp.Regexp
+	FieldRE   *regexp.Regexp
+}
+
+// this type uses the default unmarshaler
+type rawSourceMatcher sourceMatcher
+
+func (s *sourceMatcher) UnmarshalJSON(bytes []byte) error {
+	raw := rawSourceMatcher{}
+	if err := json.Unmarshal(bytes, &raw); err != nil {
+		return err
+	}
+
+	// validation: do not double-specify any attribute with literal and regexp
+	if raw.Package != nil && raw.PackageRE != nil {
+		return fmt.Errorf("expected only one of Package, PackageRE to be configured")
+	}
+	if raw.Type != nil && raw.TypeRE != nil {
+		return fmt.Errorf("expected only one of Type, TypeRE to be configured")
+	}
+	if raw.Field != nil && raw.FieldRE != nil {
+		return fmt.Errorf("expected only one of Field, FieldRE to be configured")
+	}
+
+	// Copy all fields from raw
+	*s = sourceMatcher(raw)
+	return nil
 }
 
 func (s sourceMatcher) MatchType(path, typeName string) bool {
-	return s.PackageRE.MatchString(path) && s.TypeRE.MatchString(typeName)
+	return matchEither(s.Package, s.PackageRE, path) && matchEither(s.Type, s.TypeRE, typeName)
 }
 
 func (s sourceMatcher) MatchField(path, typeName, fieldName string) bool {
-	return s.PackageRE.MatchString(path) && s.TypeRE.MatchString(typeName) && s.FieldRE.MatchString(fieldName)
+	return s.MatchType(path, typeName) && matchEither(s.Field, s.FieldRE, fieldName)
 }
 
 type funcMatcher struct {
-	PackageRE  regexp.Regexp
-	ReceiverRE regexp.Regexp
-	MethodRE   regexp.Regexp
+	Package    *string
+	Receiver   *string
+	Method     *string
+	PackageRE  *regexp.Regexp
+	ReceiverRE *regexp.Regexp
+	MethodRE   *regexp.Regexp
+}
+
+type rawFuncMatcher funcMatcher
+
+func (fm *funcMatcher) UnmarshalJSON(bytes []byte) error {
+	raw := rawFuncMatcher{}
+	if err := json.Unmarshal(bytes, &raw); err != nil {
+		return err
+	}
+
+	// validation: do not double-specify any attribute with literal and regexp
+	if raw.Package != nil && raw.PackageRE != nil {
+		return fmt.Errorf("expected at most one of Package, PackageRE to be configured")
+	}
+	if raw.Receiver != nil && raw.ReceiverRE != nil {
+		return fmt.Errorf("expected at most one of Receiver, ReceiverRE to be configured")
+	}
+	if raw.Method != nil && raw.MethodRE != nil {
+		return fmt.Errorf("expected at most one of Method, MethodRE to be configured")
+	}
+
+	// copy all fields from raw
+	*fm = funcMatcher(raw)
+	return nil
 }
 
 func (fm funcMatcher) MatchFunction(path, receiver, name string) bool {
-	return fm.PackageRE.MatchString(path) && fm.ReceiverRE.MatchString(receiver) && fm.MethodRE.MatchString(name)
+	return matchEither(fm.Package, fm.PackageRE, path) &&
+		matchEither(fm.Receiver, fm.ReceiverRE, receiver) &&
+		matchEither(fm.Method, fm.MethodRE, name)
+}
+
+// TODO This is a terrible name.  matchAnyOrNil is not better.
+// Matches match against a string literal or regexp.
+// Returns vacuous true when both matchers are nil.
+func matchEither(literal *string, r *regexp.Regexp, match string) bool {
+	return literal == nil && r == nil || literal != nil && *literal == match || r != nil && r.MatchString(match)
 }
 
 var readFileOnce sync.Once
