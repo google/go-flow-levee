@@ -154,9 +154,10 @@ func findObjects(t types.Type) map[types.Object]bool {
 			traverse(tt.Elem())
 		case *types.Struct:
 			for i := 0; i < tt.NumFields(); i++ {
+				f := tt.Field(i)
 				// The field itself could be a source, e.g. in the case of a tagged field.
-				objects[tt.Field(i)] = true
-				traverse(tt.Field(i).Type())
+				objects[f] = true
+				traverse(f.Type())
 			}
 		case *types.Basic, *types.Tuple, *types.Interface, *types.Signature:
 			// these do not contain relevant objects
