@@ -18,15 +18,17 @@ import (
 	"example.com/core"
 )
 
-func TestPhiNodeWithTaintedAndNonTaintedOperands(i *core.Innocuous) {
+func TestPhiNodeDoesntPropagateTaintToOperands(i *core.Innocuous) {
 	for {
 		s := core.Source{}
-		var x, y interface{} = s, i
+		var ss, ii interface{} = s, i
 		if true {
-			x = y
+			ss = ii
 		}
+		// TODO: no report should be produced for ii
+		core.Sink(ii) // want "a source has reached a sink"
 		// TODO: no report should be produced for i
-		core.Sink(i) // want "a source has reached a sink"
-		core.Sink(x) // want "a source has reached a sink"
+		core.Sink(i)  // want "a source has reached a sink"
+		core.Sink(ss) // want "a source has reached a sink"
 	}
 }
