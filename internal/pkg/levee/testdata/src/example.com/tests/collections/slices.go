@@ -33,3 +33,9 @@ func TestRangeOverSlice() {
 		core.Sink(s) // want "a source has reached a sink"
 	}
 }
+
+func TestRangeOverInterfaceSlice() {
+	for _, s := range []interface{}{core.Source{Data: "password1235"}} {
+		core.Sink(s) // want "a source has reached a sink"
+	}
+}
