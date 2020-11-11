@@ -125,14 +125,19 @@ func createObjectGraph(pass *analysis.Pass, ins *inspector.Inspector) objectGrap
 	return objGraph
 }
 
-// Given a type, findObjects finds objects associated with types
-// within that type that could be sources.
-// This includes named types and struct fields.
-// Functions (Signatures) and Interface types are avoided, because
-// those cannot be sources.
+// findObjects traverses a type to find objects of interest within that type.
+// Objects of interest are objects that could be sources, either via configuration
+// or via inference. Specifically, this includes:
+// 1. objects related to named types,
+// 2. objects related to struct fields.
+// Some types whose objects cannot be sources are avoided.
+// In particular, functions (Signatures) are avoided because they can't be sources, but
+// their types can contain types that are tied to relevant objects, e.g. func(s Source) contains
+// a named type "Source" that would be relevant if it did not occur within a function type.
 func findObjects(t types.Type) map[types.Object]bool {
 	objects := map[types.Object]bool{}
 
+	// find traverses a type to add relevant objects to the objects map.
 	var find func(t types.Type)
 	find = func(t types.Type) {
 		deref := utils.Dereference(t)
@@ -150,7 +155,7 @@ func findObjects(t types.Type) map[types.Object]bool {
 			find(tt.Elem())
 		case *types.Struct:
 			for i := 0; i < tt.NumFields(); i++ {
-				// the field itself could be a source, e.g. in the case of a tagged field
+				// The field itself could be a source, e.g. in the case of a tagged field.
 				objects[tt.Field(i)] = true
 				find(tt.Field(i).Type())
 			}
