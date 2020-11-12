@@ -32,3 +32,13 @@ func TestPhiNodeDoesntPropagateTaintToOperands(i *core.Innocuous) {
 		core.Sink(ss) // want "a source has reached a sink"
 	}
 }
+
+func TestPhiNodeIsTaintedByTaintedOperand(s core.Source, i *core.Innocuous) {
+	var ss, ii interface{} = s, i
+	if true {
+		ii = ss
+	}
+	core.Sink(ss) // want "a source has reached a sink"
+	core.Sink(ii) // want "a source has reached a sink"
+	core.Sink(i)
+}
