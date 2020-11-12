@@ -203,15 +203,20 @@ func (s sourceMatcher) MatchField(path, typeName, fieldName string) bool {
 }
 
 type funcMatcher struct {
-	Package    *string
-	Receiver   *string
-	Method     *string
+	Package  stringMatcher
+	Receiver stringMatcher
+	Method   stringMatcher
+}
+
+// this type uses the default unmarshaler and mirrors configuration key-value pairs
+type rawFuncMatcher struct {
+	Package    *literalMatcher
+	Receiver   *literalMatcher
+	Method     *literalMatcher
 	PackageRE  *regexp.Regexp
 	ReceiverRE *regexp.Regexp
 	MethodRE   *regexp.Regexp
 }
-
-type rawFuncMatcher funcMatcher
 
 func (fm *funcMatcher) UnmarshalJSON(bytes []byte) error {
 	raw := rawFuncMatcher{}
@@ -230,15 +235,17 @@ func (fm *funcMatcher) UnmarshalJSON(bytes []byte) error {
 		return fmt.Errorf("expected at most one of Method, MethodRE to be configured")
 	}
 
-	// copy all fields from raw
-	*fm = funcMatcher(raw)
+	// Unpack raw object into funcMatcher
+	*fm = funcMatcher{
+		Package:  matcherFrom(raw.Package, raw.PackageRE),
+		Receiver: matcherFrom(raw.Receiver, raw.ReceiverRE),
+		Method:   matcherFrom(raw.Method, raw.MethodRE),
+	}
 	return nil
 }
 
 func (fm funcMatcher) MatchFunction(path, receiver, name string) bool {
-	return matchEither(fm.Package, fm.PackageRE, path) &&
-		matchEither(fm.Receiver, fm.ReceiverRE, receiver) &&
-		matchEither(fm.Method, fm.MethodRE, name)
+	return fm.Package.MatchString(path) && fm.Receiver.MatchString(receiver) && fm.Method.MatchString(name)
 }
 
 // TODO This is a terrible name.  matchAnyOrNil is not better.
