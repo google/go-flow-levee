@@ -16,6 +16,8 @@
 package fields
 
 import (
+	"fmt"
+
 	"example.com/core"
 )
 
@@ -41,7 +43,12 @@ func TestProtoStyleFieldAccessorPIISecondLevel(wrapper struct{ *core.Source }) {
 	core.Sinkf("Source id: %v", wrapper.Source.GetID())
 }
 
-func tesDirectFieldAccessorPIISecondLevel(wrapper struct{ *core.Source }) {
+func TestDirectFieldAccessorPIISecondLevel(wrapper struct{ *core.Source }) {
 	core.Sinkf("Source data: %v", wrapper.Source.Data) // want "a source has reached a sink"
 	core.Sinkf("Source id: %v", wrapper.Source.ID)
+}
+
+func TestField(s core.Source) {
+	data := s.Data
+	fmt.Printf(data)
 }
