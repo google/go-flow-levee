@@ -248,13 +248,6 @@ func (fm funcMatcher) MatchFunction(path, receiver, name string) bool {
 	return fm.Package.MatchString(path) && fm.Receiver.MatchString(receiver) && fm.Method.MatchString(name)
 }
 
-// TODO This is a terrible name.  matchAnyOrNil is not better.
-// Matches match against a string literal or regexp.
-// Returns vacuous true when both matchers are nil.
-func matchEither(literal *string, r *regexp.Regexp, match string) bool {
-	return literal == nil && r == nil || literal != nil && *literal == match || r != nil && r.MatchString(match)
-}
-
 var readFileOnce sync.Once
 var readConfigCached *Config
 var readConfigCachedErr error
