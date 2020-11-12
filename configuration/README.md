@@ -55,8 +55,8 @@ Sinks:
   Method: "Sink"  # Match only functions named exactly "Sink"
 Sanitizers:
 - # Neither Package nor PackageRE is provided - match any package
-  ReceiverRE: "Safe
-  Method: "mySanitizer"
+  ReceiverRE: "^Safe"  # Match any receiver beginning with "Safe"
+  Method: "sanitize"  # Match methods named exactly "sanitize"
 ```
 
 To explicitly match an empty string, such as top-level functions without a receiver, explicitly configure an empty string matcher, e.g., `Receiver: ""`.
@@ -73,7 +73,7 @@ Exclude:
   MethodRE: "^my.*"
 ```
 
-The above will match the function beginning with "my" in the `myproject/mypackage` package.
+The above will match any function beginning with "my" in the `myproject/mypackage` package.
 Since no receiver matcher was provided, it will match any method beginning with "my" bound to any (or no) receiver.
 
 As just two examples, this may be used to avoid analyzing test code, or to suppress "false positive" reports.
