@@ -183,11 +183,13 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 	// Only the Map itself can be tainted by an Update.
 	// The Key can't be tainted.
 	// The Value can propagate taint to the Map, but not receive it.
+	// MapUpdate has no referrers, it is only an Instruction, not a Value.
 	case *ssa.MapUpdate:
 		s.dfs(t.Map.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 
 	// The only Operand that can be tainted by a Send is the Chan.
 	// The Value can propagate taint to the Chan, but not receive it.
+	// Send has no referrers, it is only an Instruction, not a Value.
 	case *ssa.Send:
 		s.dfs(t.Chan.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 
@@ -204,15 +206,18 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 	case *ssa.Go, *ssa.Store:
 		s.visitOperands(n, maxInstrReached, lastBlockVisited)
 
+	// Everything but the actual integer Index should be visited.
 	case *ssa.Index:
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		s.dfs(t.X.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 
+	// The actual integer Index should not be visited.
+	// Everything but the actual integer Index should be visited.
 	case *ssa.IndexAddr:
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		s.dfs(t.X.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 
-	// These nodes are both Instructions and Values, and have no special restrictions.
+	// These nodes are both Instructions and Values, and currently have no special restrictions.
 	case *ssa.Field, *ssa.FreeVar, *ssa.MakeInterface, *ssa.Select, *ssa.TypeAssert:
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		s.visitOperands(n, maxInstrReached, lastBlockVisited)
