@@ -73,8 +73,7 @@ func TestRangeOverMapWithSourceAsValue() {
 	m := map[string]core.Source{"secret": core.Source{Data: "password1234"}}
 	for k, s := range m {
 		core.Sink(s) // want "a source has reached a sink"
-		// TODO want no diagnostic reported for string key
-		core.Sink(k) // want "a source has reached a sink"
+		core.Sink(k)
 	}
 }
 
@@ -82,7 +81,6 @@ func TestRangeOverMapWithSourceAsKey() {
 	m := map[core.Source]string{core.Source{Data: "password1234"}: "don't sink me"}
 	for src, str := range m {
 		core.Sink(src) // want "a source has reached a sink"
-		// TODO want no diagnostic reported for string value
-		core.Sink(str) // want "a source has reached a sink"
+		core.Sink(str)
 	}
 }
