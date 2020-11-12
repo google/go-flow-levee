@@ -204,8 +204,16 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 	case *ssa.Go, *ssa.Store:
 		s.visitOperands(n, maxInstrReached, lastBlockVisited)
 
+	case *ssa.Index:
+		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
+		s.dfs(t.X.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+
+	case *ssa.IndexAddr:
+		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
+		s.dfs(t.X.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+
 	// These nodes are both Instructions and Values, and have no special restrictions.
-	case *ssa.Index, *ssa.IndexAddr, *ssa.MakeInterface, *ssa.Select, *ssa.TypeAssert:
+	case *ssa.MakeInterface, *ssa.Select, *ssa.TypeAssert:
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		s.visitOperands(n, maxInstrReached, lastBlockVisited)
 
@@ -396,7 +404,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 				}
 
 			// source obtained through a field or an index operation
-			case *ssa.Field, *ssa.FieldAddr, *ssa.IndexAddr, *ssa.Lookup:
+			case *ssa.Field, *ssa.FieldAddr, *ssa.Index, *ssa.IndexAddr, *ssa.Lookup:
 
 			// source chan or map (arrays and slices have regular Allocs)
 			case *ssa.MakeMap, *ssa.MakeChan:

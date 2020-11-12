@@ -31,15 +31,13 @@ func TestRangeOverSlice() {
 	sources := []core.Source{core.Source{Data: "password1234"}}
 	for i, s := range sources {
 		core.Sink(s) // want "a source has reached a sink"
-		// TODO want no diagnostic reported for string value
-		core.Sink(i) // want "a source has reached a sink"
+		core.Sink(i)
 	}
 }
 
 func TestRangeOverInterfaceSlice() {
 	for i, s := range []interface{}{core.Source{Data: "password1235"}} {
 		core.Sink(s) // want "a source has reached a sink"
-		// TODO want no diagnostic reported for string value
-		core.Sink(i) // want "a source has reached a sink"
+		core.Sink(i)
 	}
 }
