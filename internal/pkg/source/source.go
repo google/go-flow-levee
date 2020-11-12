@@ -193,7 +193,7 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 
 	// These nodes' operands should not be visited, because they can only receive
 	// taint from their operands, not propagate taint to them.
-	case *ssa.BinOp, *ssa.ChangeInterface, *ssa.ChangeType, *ssa.Convert, *ssa.Extract, *ssa.Field, *ssa.MakeChan, *ssa.MakeMap, *ssa.MakeSlice, *ssa.Phi, *ssa.Range, *ssa.Slice, *ssa.UnOp:
+	case *ssa.BinOp, *ssa.ChangeInterface, *ssa.ChangeType, *ssa.Convert, *ssa.Extract, *ssa.MakeChan, *ssa.MakeMap, *ssa.MakeSlice, *ssa.Phi, *ssa.Range, *ssa.Slice, *ssa.UnOp:
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 
 	// These nodes don't have operands; they are Values, not Instructions.
@@ -213,12 +213,9 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 		s.dfs(t.X.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 
 	// These nodes are both Instructions and Values, and have no special restrictions.
-	case *ssa.MakeInterface, *ssa.Select, *ssa.TypeAssert:
+	case *ssa.Field, *ssa.FreeVar, *ssa.MakeInterface, *ssa.Select, *ssa.TypeAssert:
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		s.visitOperands(n, maxInstrReached, lastBlockVisited)
-
-	// FreeVars are handled by sourcesFromClosure.
-	case *ssa.FreeVar:
 
 	// These nodes cannot propagate taint.
 	case *ssa.Builtin, *ssa.DebugRef, *ssa.Defer, *ssa.Function, *ssa.If, *ssa.Jump, *ssa.MakeClosure, *ssa.Next, *ssa.Panic, *ssa.Return, *ssa.RunDefers:
