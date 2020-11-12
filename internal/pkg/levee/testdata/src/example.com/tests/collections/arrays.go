@@ -43,7 +43,9 @@ func TestArrayRemainsTaintedWhenSourceIsOverwritten(s core.Source) {
 
 func TestRangeOverArray() {
 	sources := [1]core.Source{core.Source{Data: "password1234"}}
-	for _, s := range sources {
+	for i, s := range sources {
 		core.Sink(s) // want "a source has reached a sink"
+		// TODO want no diagnostic reported for string value
+		core.Sink(i) // want "a source has reached a sink"
 	}
 }
