@@ -40,3 +40,10 @@ func TestArrayRemainsTaintedWhenSourceIsOverwritten(s core.Source) {
 	arr[0] = nil
 	core.Sink(arr) // want "a source has reached a sink"
 }
+
+func TestRangeOverArray() {
+	sources := [1]core.Source{core.Source{Data: "password1234"}}
+	for _, s := range sources {
+		core.Sink(s) // want "a source has reached a sink"
+	}
+}

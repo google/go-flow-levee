@@ -74,8 +74,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 		methods := ssaProg.MethodSets.MethodSet(ssaType.Type())
 		for i := 0; i < methods.Len(); i++ {
-			meth := ssaProg.MethodValue(methods.At(i))
-			analyzeBlocks(pass, conf, taggedFields, meth)
+			if meth := ssaProg.MethodValue(methods.At(i)); meth != nil {
+				analyzeBlocks(pass, conf, taggedFields, meth)
+			}
 		}
 	}
 
