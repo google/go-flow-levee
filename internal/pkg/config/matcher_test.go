@@ -127,13 +127,10 @@ Method: bar`,
 	}
 }
 
-func TestSourceMatcher(t *testing.T) {
+func TestSourceMatcherUnmarshaling(t *testing.T) {
 	testCases := []struct {
-		desc, yaml           string
-		path, typ, fieldName string
-		shouldErrorOnLoad    bool
-		shouldMatchType      bool
-		shouldMatchField     bool
+		desc, yaml        string
+		shouldErrorOnLoad bool
 	}{
 		{
 			desc: "Garbage in garbage out",
@@ -163,6 +160,27 @@ Field: foo
 FieldRE: bar`,
 			shouldErrorOnLoad: true,
 		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			sm := sourceMatcher{}
+			err := yaml.UnmarshalStrict([]byte(tc.yaml), &sm)
+
+			if (err != nil) != tc.shouldErrorOnLoad {
+				t.Errorf("error expectation = %v, but got err=%v", tc.shouldErrorOnLoad, err)
+			}
+		})
+	}
+}
+
+func TestSourceMatcherMatching(t *testing.T) {
+	testCases := []struct {
+		desc, yaml           string
+		path, typ, fieldName string
+		shouldMatchType      bool
+		shouldMatchField     bool
+	}{
 		{
 			desc: "Literal foo.bar (no field args) should match foo.bar and foo.bar.baz",
 			yaml: `
@@ -225,18 +243,8 @@ Field: qux`,
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			sm := sourceMatcher{}
-			err := yaml.UnmarshalStrict([]byte(tc.yaml), &sm)
-
-			if tc.shouldErrorOnLoad {
-				if err == nil {
-					t.Errorf("Expected yaml to fail on load, got err = nil")
-				}
-				return
-			}
-
-			if !tc.shouldErrorOnLoad && err != nil {
-				t.Error(err)
-				return
+			if err := yaml.UnmarshalStrict([]byte(tc.yaml), &sm); err != nil {
+				t.Errorf("Unexpected error unmarshalling sourceMatcher: %v", err)
 			}
 
 			if tc.shouldMatchType != sm.MatchType(tc.path, tc.typ) {
