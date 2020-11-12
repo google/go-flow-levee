@@ -18,6 +18,15 @@ import (
 	"example.com/core"
 )
 
+func Test(s core.Source, str string, strptr *string) {
+	taint(s, str, strptr)
+	core.Sink(s) // want "a source has reached a sink"
+	core.Sink(str)
+	core.Sink(strptr) // want "a source has reached a sink"
+}
+
+func taint(s core.Source, str string, strptr *string) {}
+
 func TestNonReferencesAreNotTainted(s core.Source, i core.Innocuous) {
 	cannotTaint(s, i)
 	core.Sink(s) // want "a source has reached a sink"
