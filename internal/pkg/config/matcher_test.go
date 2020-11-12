@@ -6,15 +6,13 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func TestFuncMatcher(t *testing.T) {
+func TestFuncMatcherUnmarshaling(t *testing.T) {
 	testCases := []struct {
 		desc, yaml        string
-		path, recv, name  string
 		shouldErrorOnLoad bool
-		shouldMatch       bool
 	}{
 		{
-			desc: "Garbage in garbage out",
+			desc: "Unmarshaling is strict",
 			yaml: `
 Blahblah: foo
 PackageRE: bar`,
@@ -41,6 +39,26 @@ Method: foo
 MethodRE: bar`,
 			shouldErrorOnLoad: true,
 		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			fm := funcMatcher{}
+			err := yaml.UnmarshalStrict([]byte(tc.yaml), &fm)
+
+			if (err != nil) != tc.shouldErrorOnLoad {
+				t.Errorf("error expectation = %v, but got err=%v", tc.shouldErrorOnLoad, err)
+			}
+		})
+	}
+}
+
+func TestFuncMatcherMatching(t *testing.T) {
+	testCases := []struct {
+		desc, yaml       string
+		path, recv, name string
+		shouldMatch      bool
+	}{
 		{
 			desc: "Literal foo.bar should match foo.bar; no receiver arg",
 			yaml: `
@@ -98,18 +116,8 @@ Method: bar`,
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			fm := funcMatcher{}
-			err := yaml.UnmarshalStrict([]byte(tc.yaml), &fm)
-
-			if tc.shouldErrorOnLoad {
-				if err == nil {
-					t.Errorf("Expected yaml to fail on load, got err = nil")
-				}
-				return
-			}
-
-			if !tc.shouldErrorOnLoad && err != nil {
-				t.Error(err)
-				return
+			if err := yaml.UnmarshalStrict([]byte(tc.yaml), &fm); err != nil {
+				t.Errorf("Unexpected error unmarshalling funcMatcher: %v", err)
 			}
 
 			if tc.shouldMatch != fm.MatchFunction(tc.path, tc.recv, tc.name) {
