@@ -28,7 +28,7 @@ type Regexp struct {
 
 // MatchString delegates matching to the regex package.
 func (mr *Regexp) MatchString(s string) bool {
-	return mr == nil || mr.r == nil || mr.r.MatchString(s)
+	return mr.r == nil || mr.r.MatchString(s)
 }
 
 // UnmarshalJSON implementation of json.UnmarshalJSON interface.
