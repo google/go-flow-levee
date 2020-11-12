@@ -83,34 +83,8 @@ func New(in ssa.Node, config classifier) *Source {
 // While traversing the graph we also look for potential sanitizers of this Source.
 // If the Source passes through a sanitizer, dfs does not continue through that Node.
 func (s *Source) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, isReferrer bool) {
-	if s.marked[n] {
+	if s.shouldNotVisit(n, maxInstrReached, lastBlockVisited, isReferrer) {
 		return
-	}
-	// booleans can't meaningfully be tainted
-	if isBoolean(n) {
-		return
-	}
-
-	if instr, ok := n.(ssa.Instruction); ok {
-		instrIndex, ok := indexInBlock(instr)
-		if !ok {
-			return
-		}
-
-		// If the referrer is in a different block from the one we last visited,
-		// and it can't be reached from the block we are visiting, then stop visiting.
-		if lastBlockVisited != nil && instr.Block() != lastBlockVisited && !s.canReach(lastBlockVisited, instr.Block()) {
-			return
-		}
-
-		// If this call's index is lower than the highest seen so far in its block,
-		// then this call is "in the past". If this call is a referrer,
-		// then we would be propagating taint backwards in time, so stop traversing.
-		// (If the call is an operand, then it is being used as a value, so it does
-		// not matter when the call occurred.)
-		if _, ok := instr.(*ssa.Call); ok && instrIndex < maxInstrReached[instr.Block()] && isReferrer {
-			return
-		}
 	}
 
 	mirCopy := map[*ssa.BasicBlock]int{}
@@ -135,6 +109,41 @@ func (s *Source) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBl
 	s.marked[n] = true
 
 	s.visit(n, mirCopy, lastBlockVisited)
+}
+
+func (s *Source) shouldNotVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, isReferrer bool) bool {
+	if s.marked[n] {
+		return true
+	}
+
+	// booleans can't meaningfully be tainted
+	if isBoolean(n) {
+		return true
+	}
+
+	if instr, ok := n.(ssa.Instruction); ok {
+		instrIndex, ok := indexInBlock(instr)
+		if !ok {
+			return true
+		}
+
+		// If the referrer is in a different block from the one we last visited,
+		// and it can't be reached from the block we are visiting, then stop visiting.
+		if lastBlockVisited != nil && instr.Block() != lastBlockVisited && !s.canReach(lastBlockVisited, instr.Block()) {
+			return true
+		}
+
+		// If this call's index is lower than the highest seen so far in its block,
+		// then this call is "in the past". If this call is a referrer,
+		// then we would be propagating taint backwards in time, so stop traversing.
+		// (If the call is an operand, then it is being used as a value, so it does
+		// not matter when the call occurred.)
+		if _, ok := instr.(*ssa.Call); ok && instrIndex < maxInstrReached[instr.Block()] && isReferrer {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
