@@ -25,6 +25,7 @@ import (
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
+	"golang.org/x/tools/go/pointer"
 	"golang.org/x/tools/go/ssa"
 )
 
@@ -168,7 +169,9 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 		}
 
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
-		s.visitOperands(n, maxInstrReached, lastBlockVisited)
+		s.visitOperands(n, maxInstrReached, lastBlockVisited, func(v ssa.Value) bool {
+			return !pointer.CanPoint(v.Type())
+		})
 
 	case *ssa.FieldAddr:
 		deref := utils.Dereference(t.X.Type())
@@ -178,7 +181,7 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 			return
 		}
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
-		s.visitOperands(n, maxInstrReached, lastBlockVisited)
+		s.visitOperands(n, maxInstrReached, lastBlockVisited, nil)
 
 	// Only the Map itself can be tainted by an Update.
 	// The Key can't be tainted.
@@ -202,12 +205,12 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 
 	// These nodes don't have referrers; they are Instructions, not Values.
 	case *ssa.Go, *ssa.Store:
-		s.visitOperands(n, maxInstrReached, lastBlockVisited)
+		s.visitOperands(n, maxInstrReached, lastBlockVisited, nil)
 
 	// These nodes are both Instructions and Values, and have no special restrictions.
 	case *ssa.Index, *ssa.IndexAddr, *ssa.MakeInterface, *ssa.Select, *ssa.TypeAssert:
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
-		s.visitOperands(n, maxInstrReached, lastBlockVisited)
+		s.visitOperands(n, maxInstrReached, lastBlockVisited, nil)
 
 	// FreeVars are handled by sourcesFromClosure.
 	case *ssa.FreeVar:
@@ -229,9 +232,9 @@ func (s *Source) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]
 	}
 }
 
-func (s *Source) visitOperands(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+func (s *Source) visitOperands(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, shouldSkip func(ssa.Value) bool) {
 	for _, o := range n.Operands(nil) {
-		if *o == nil {
+		if *o == nil || (shouldSkip != nil && shouldSkip(*o)) {
 			continue
 		}
 		s.dfs((*o).(ssa.Node), maxInstrReached, lastBlockVisited, false)
