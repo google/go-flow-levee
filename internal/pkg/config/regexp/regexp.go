@@ -26,8 +26,9 @@ type Regexp struct {
 	r *regexp.Regexp
 }
 
-func New(s string) *Regexp {
-	return &Regexp{r: regexp.MustCompile(s)}
+func New(s string) (*Regexp, error) {
+	r, err := regexp.Compile(s)
+	return &Regexp{r: r}, err
 }
 
 // MatchString delegates matching to the regex package.

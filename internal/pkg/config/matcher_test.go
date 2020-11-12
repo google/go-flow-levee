@@ -34,6 +34,18 @@ PackageRE: bar`,
 			shouldErrorOnLoad: false, // TODO true
 		},
 		{
+			desc: "Malformed YAML errors gracefully",
+			yaml: `
+PackageRE: "No ending quote`,
+			shouldErrorOnLoad: true,
+		},
+		{
+			desc: "Malformed regexp errors gracefully",
+			yaml: `
+PackageRE: "(?:NoEndingParen"`,
+			shouldErrorOnLoad: true,
+		},
+		{
 			desc: "Do not permit both Package and PackageRE",
 			yaml: `
 Package: foo
@@ -148,11 +160,23 @@ func TestSourceMatcherUnmarshaling(t *testing.T) {
 		shouldErrorOnLoad bool
 	}{
 		{
-			desc: "Garbage in garbage out",
+			desc: "Unmarshaling is strict",
 			yaml: `
 Blahblah: foo
 PackageRE: bar`,
 			shouldErrorOnLoad: false, // TODO true
+		},
+		{
+			desc: "Malformed YAML errors gracefully",
+			yaml: `
+PackageRE: "No ending quote`,
+			shouldErrorOnLoad: true,
+		},
+		{
+			desc: "Malformed regexp errors gracefully",
+			yaml: `
+PackageRE: "(?:NoEndingParen"`,
+			shouldErrorOnLoad: true,
 		},
 		{
 			desc: "Do not permit both Package and PackageRE",
@@ -299,19 +323,19 @@ func TestMatcherTypes(t *testing.T) {
 		},
 		{
 			desc:        "regexp matcher /foo/ matches foo",
-			matcher:     regexp.New("foo"),
+			matcher:     func() stringMatcher { r, _ := regexp.New("foo"); return r }(),
 			s:           "foo",
 			shouldMatch: true,
 		},
 		{
 			desc:        "regexp matcher /foo/ matches food",
-			matcher:     regexp.New("foo"),
+			matcher:     func() stringMatcher { r, _ := regexp.New("foo"); return r }(),
 			s:           "food",
 			shouldMatch: true,
 		},
 		{
 			desc:        "regexp matcher /foo/ does not match bar",
-			matcher:     regexp.New("foo"),
+			matcher:     func() stringMatcher { r, _ := regexp.New("foo"); return r }(),
 			s:           "bar",
 			shouldMatch: false,
 		},
