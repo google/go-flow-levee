@@ -57,6 +57,14 @@ type (
 	NotSourceHolder struct {
 		ns source.NotSource
 	}
+
+	FieldFuncWithSourceArg struct {
+		f func(s source.Source)
+	}
+
+	FieldFuncWithSourceRetval struct {
+		f func() source.Source
+	}
 )
 
 func Field() {

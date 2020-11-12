@@ -115,94 +115,52 @@ func createObjectGraph(pass *analysis.Pass, ins *inspector.Inspector) objectGrap
 			return
 		}
 
-		typeBeingDefined := pass.TypesInfo.ObjectOf(ts.Name)
+		objectBeingDefined := pass.TypesInfo.ObjectOf(ts.Name)
 
-		// Find selector expressions and add them to the graph.
-		// We need to look at SelectorExprs first, because they
-		// contain identifiers, e.g. foo.Bar contains the identifiers
-		// foo (qualifying package) and Bar (unqualified type).
-		// We need to look at the whole expression in order to resolve
-		// the type correctly.
-		selectorFinder := &selectorFinder{nil, map[*ast.Ident]bool{}}
-		ast.Walk(selectorFinder, (ast.Node)(ts.Type))
-		for _, sel := range selectorFinder.foundSelectors {
-			named, ok := pass.TypesInfo.TypeOf(sel).(*types.Named)
-			if !ok {
-				continue
-			}
-			obj := named.Obj()
-			objGraph[obj] = append(objGraph[obj], typeBeingDefined)
-		}
-
-		// Find identifiers that aren't in selector expressions
-		// and add them to the graph.
-		idFinder := &identFinder{}
-		ast.Walk(idFinder, (ast.Node)(ts.Type))
-		for _, id := range idFinder.foundIdentifiers {
-			// identifier is part of a SelectorExpr and has already been handled
-			if selectorFinder.foundIdentifiers[id] {
-				continue
-			}
-			obj := pass.TypesInfo.ObjectOf(id)
-			objGraph[obj] = append(objGraph[obj], typeBeingDefined)
+		for o := range findObjects(pass.TypesInfo.TypeOf(ts.Type)) {
+			objGraph[o] = append(objGraph[o], objectBeingDefined)
 		}
 	})
 
 	return objGraph
 }
 
-type selectorFinder struct {
-	foundSelectors   []*ast.SelectorExpr
-	foundIdentifiers map[*ast.Ident]bool
-}
+// findObjects traverses a type to find objects of interest within that type.
+// Objects of interest are objects that could be sources, either via configuration
+// or via inference. Specifically, this includes:
+// 1. objects related to named types,
+// 2. objects related to struct fields.
+// Some types whose objects cannot be sources are avoided.
+// In particular, functions (Signatures) are avoided because they can't be sources, but
+// their types can contain types that are tied to relevant objects, e.g. func(s Source) contains
+// a named type "Source" that would be relevant if it did not occur within a function type.
+func findObjects(t types.Type) map[types.Object]bool {
+	objects := map[types.Object]bool{}
 
-func (sf *selectorFinder) Visit(n ast.Node) ast.Visitor {
-	sel, ok := n.(*ast.SelectorExpr)
-	if !ok {
-		return sf
-	}
-	pkg, ok := sel.X.(*ast.Ident)
-	if !ok {
-		return nil
-	}
-	sf.foundSelectors = append(sf.foundSelectors, sel)
-	sf.foundIdentifiers[pkg] = true
-	sf.foundIdentifiers[sel.Sel] = true
-	return nil
-}
-
-type identFinder struct {
-	foundIdentifiers []*ast.Ident
-}
-
-func (i *identFinder) Visit(n ast.Node) ast.Visitor {
-	if id, ok := n.(*ast.Ident); ok {
-		i.foundIdentifiers = append(i.foundIdentifiers, id)
-		return nil
-	}
-	return i
-}
-
-func findNamedTypes(t types.Type) map[*types.Named]bool {
-	namedTypes := map[*types.Named]bool{}
-
-	var find func(t types.Type)
-	find = func(t types.Type) {
+	var traverse func(t types.Type)
+	traverse = func(t types.Type) {
 		deref := utils.Dereference(t)
 		switch tt := deref.(type) {
 		case *types.Named:
-			namedTypes[tt] = true
+			objects[tt.Obj()] = true
 		case *types.Array:
-			find(tt.Elem())
+			traverse(tt.Elem())
 		case *types.Slice:
-			find(tt.Elem())
+			traverse(tt.Elem())
 		case *types.Chan:
-			find(tt.Elem())
+			traverse(tt.Elem())
 		case *types.Map:
-			find(tt.Key())
-			find(tt.Elem())
-		case *types.Basic, *types.Struct, *types.Tuple, *types.Interface, *types.Signature:
-			// these types cannot hold named types
+			traverse(tt.Key())
+			traverse(tt.Elem())
+		case *types.Struct:
+			for i := 0; i < tt.NumFields(); i++ {
+				f := tt.Field(i)
+				// The field itself could be a source, e.g. in the case of a tagged field.
+				objects[f] = true
+				traverse(f.Type())
+			}
+		case *types.Basic, *types.Tuple, *types.Interface, *types.Signature:
+			// these do not contain relevant objects
 		case *types.Pointer:
 			// this should be unreachable due to the dereference above
 		default:
@@ -211,9 +169,9 @@ func findNamedTypes(t types.Type) map[*types.Named]bool {
 		}
 	}
 
-	find(t)
+	traverse(t)
 
-	return namedTypes
+	return objects
 }
 
 func inferSources(pass *analysis.Pass, conf *config.Config, ft fieldtags.ResultType, objGraph objectGraph) ResultType {
@@ -284,8 +242,8 @@ func topoSort(graph objectGraph) []types.Object {
 }
 
 func isSourceType(c *config.Config, t types.Type) bool {
-	for nt := range findNamedTypes(t) {
-		if c.IsSourceType(utils.DecomposeType(nt)) {
+	for o := range findObjects(t) {
+		if c.IsSourceType(utils.DecomposeType(o.Type())) {
 			return true
 		}
 	}
