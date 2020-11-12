@@ -53,6 +53,24 @@ func TestMapRemainsTaintedWhenSourceIsDeleted(s core.Source) {
 	core.Sink(m) // want "a source has reached a sink"
 }
 
+func TestDeletingFromTaintedMapDoesNotTaintTheKey(key string, sources map[string]core.Source) {
+	delete(sources, key)
+	// TODO: no report should be produced here
+	core.Sink(key) // want "a source has reached a sink"
+}
+
+func TestMapUpdateWithTaintedValueDoesNotTaintTheKey(key string, value core.Source, sources map[string]core.Source) {
+	sources[key] = value
+	// TODO: no report should be produced here
+	core.Sink(key) // want "a source has reached a sink"
+}
+
+func TestMapUpdateWithTaintedKeyDoesNotTaintTheValue(key core.Source, value string, sources map[core.Source]string) {
+	sources[key] = value
+	// TODO: no report should be produced here
+	core.Sink(value) // want "a source has reached a sink"
+}
+
 func TestRangeOverMap() {
 	m := map[string]core.Source{"secret": core.Source{Data: "password1234"}}
 	for _, s := range m {
