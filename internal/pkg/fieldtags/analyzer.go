@@ -53,15 +53,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	taggedFields := map[types.Object]bool{}
 
 	nodeFilter := []ast.Node{
-		(*ast.TypeSpec)(nil),
+		(*ast.StructType)(nil),
 	}
 
 	inspectResult.Preorder(nodeFilter, func(n ast.Node) {
-		t, ok := n.(*ast.TypeSpec)
-		if !ok {
-			return
-		}
-		s, ok := t.Type.(*ast.StructType)
+		s, ok := n.(*ast.StructType)
 		if !ok || s.Fields == nil {
 			return
 		}
