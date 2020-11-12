@@ -15,6 +15,8 @@
 package colocation
 
 import (
+	"encoding/json"
+
 	"example.com/core"
 )
 
@@ -30,6 +32,18 @@ func TestTaintIsPropagatedToColocatedPointerArgumentsThroughEface(s core.Source,
 	core.Sink(s)  // want "a source has reached a sink"
 	core.Sink(i)  // TODO want "a source has reached a sink"
 	core.Sink(ip) // want "a source has reached a sink"
+}
+
+// CVE-2020-8564
+func TestTaintIsPropagatedToDataBeingUnmarshalled(contents []byte) (src core.Source, err error) {
+	if err = json.Unmarshal(contents, &src); err != nil {
+		core.Sink(src)      // want "a source has reached a sink"
+		core.Sink(contents) // want "a source has reached a sink"
+		return
+	}
+	core.Sink(src)      // want "a source has reached a sink"
+	core.Sink(contents) // want "a source has reached a sink"
+	return
 }
 
 func taintColocated(s core.Source, i *core.Innocuous, ip *core.Innocuous) {

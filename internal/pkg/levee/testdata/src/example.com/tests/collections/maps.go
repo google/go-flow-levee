@@ -52,3 +52,10 @@ func TestMapRemainsTaintedWhenSourceIsDeleted(s core.Source) {
 	delete(m, s)
 	core.Sink(m) // want "a source has reached a sink"
 }
+
+func TestRangeOverMap() {
+	m := map[string]core.Source{"secret": core.Source{Data: "password1234"}}
+	for _, s := range m {
+		core.Sink(s) // want "a source has reached a sink"
+	}
+}
