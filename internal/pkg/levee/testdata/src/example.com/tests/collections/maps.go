@@ -69,9 +69,20 @@ func TestMapUpdateWithTaintedKeyDoesNotTaintTheValue(key core.Source, value stri
 	core.Sink(value)
 }
 
-func TestRangeOverMap() {
+func TestRangeOverMapWithSourceAsValue() {
 	m := map[string]core.Source{"secret": core.Source{Data: "password1234"}}
-	for _, s := range m {
+	for k, s := range m {
 		core.Sink(s) // want "a source has reached a sink"
+		// TODO want no diagnostic reported for string key
+		core.Sink(k) // want "a source has reached a sink"
+	}
+}
+
+func TestRangeOverMapWithSourceAsKey() {
+	m := map[core.Source]string{core.Source{Data: "password1234"}: "don't sink me"}
+	for src, str := range m {
+		core.Sink(src) // want "a source has reached a sink"
+		// TODO want no diagnostic reported for string value
+		core.Sink(str) // want "a source has reached a sink"
 	}
 }
