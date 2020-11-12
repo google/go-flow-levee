@@ -121,20 +121,52 @@ func (c Config) IsSourceField(path, typeName, fieldName string) bool {
 	return false
 }
 
+type stringMatcher interface {
+	MatchString(string) bool
+}
+
+type literalMatcher string
+
+func (lm literalMatcher) MatchString(s string) bool {
+	return string(lm) == s
+}
+
+type vacuousMatcher struct{}
+
+func (vacuousMatcher) MatchString(s string) bool {
+	return true
+}
+
+// Returns the first non-nil matcher.  If all are nil, returns a vacuousMatcher.
+func matcherFrom(lm *literalMatcher, r *regexp.Regexp) stringMatcher {
+	switch {
+	case lm != nil:
+		return lm
+	case r != nil:
+		return r
+	default:
+		return vacuousMatcher{}
+	}
+}
+
 // A sourceMatcher matches by package, type, and field.
 // Matching may be done against string literals Package, Type, Field,
 // or against regexp PackageRE, TypeRE, FieldRE.
 type sourceMatcher struct {
-	Package   *string
-	Type      *string
-	Field     *string
+	Package stringMatcher
+	Type    stringMatcher
+	Field   stringMatcher
+}
+
+// this type uses the default unmarshaler and mirrors configuration key-value pairs
+type rawSourceMatcher struct {
+	Package   *literalMatcher
+	Type      *literalMatcher
+	Field     *literalMatcher
 	PackageRE *regexp.Regexp
 	TypeRE    *regexp.Regexp
 	FieldRE   *regexp.Regexp
 }
-
-// this type uses the default unmarshaler
-type rawSourceMatcher sourceMatcher
 
 func (s *sourceMatcher) UnmarshalJSON(bytes []byte) error {
 	raw := rawSourceMatcher{}
@@ -153,17 +185,21 @@ func (s *sourceMatcher) UnmarshalJSON(bytes []byte) error {
 		return fmt.Errorf("expected only one of Field, FieldRE to be configured")
 	}
 
-	// Copy all fields from raw
-	*s = sourceMatcher(raw)
+	// Unpack raw object into sourceMatcher
+	*s = sourceMatcher{
+		Package: matcherFrom(raw.Package, raw.PackageRE),
+		Type:    matcherFrom(raw.Type, raw.TypeRE),
+		Field:   matcherFrom(raw.Field, raw.FieldRE),
+	}
 	return nil
 }
 
 func (s sourceMatcher) MatchType(path, typeName string) bool {
-	return matchEither(s.Package, s.PackageRE, path) && matchEither(s.Type, s.TypeRE, typeName)
+	return s.Package.MatchString(path) && s.Type.MatchString(typeName)
 }
 
 func (s sourceMatcher) MatchField(path, typeName, fieldName string) bool {
-	return s.MatchType(path, typeName) && matchEither(s.Field, s.FieldRE, fieldName)
+	return s.Package.MatchString(path) && s.Type.MatchString(typeName) && s.Field.MatchString(fieldName)
 }
 
 type funcMatcher struct {
