@@ -86,6 +86,8 @@ func (s *Source) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBl
 	if s.shouldNotVisit(n, maxInstrReached, lastBlockVisited, isReferrer) {
 		return
 	}
+	s.preOrder = append(s.preOrder, n)
+	s.marked[n] = true
 
 	mirCopy := map[*ssa.BasicBlock]int{}
 	for m, i := range maxInstrReached {
@@ -104,9 +106,6 @@ func (s *Source) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBl
 
 		lastBlockVisited = instr.Block()
 	}
-
-	s.preOrder = append(s.preOrder, n)
-	s.marked[n] = true
 
 	s.visit(n, mirCopy, lastBlockVisited)
 }
