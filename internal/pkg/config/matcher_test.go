@@ -18,7 +18,6 @@ func TestFuncMatcher(t *testing.T) {
 			yaml: `
 Blahblah: foo
 PackageRE: bar`,
-			// TODO Discuss loss of strict loading
 			shouldErrorOnLoad: false, // TODO true
 		},
 		{
@@ -133,7 +132,6 @@ func TestSourceMatcher(t *testing.T) {
 			yaml: `
 Blahblah: foo
 PackageRE: bar`,
-			// TODO Discuss loss of strict loading
 			shouldErrorOnLoad: false, // TODO true
 		},
 		{

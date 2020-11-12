@@ -133,7 +133,7 @@ func (lm literalMatcher) MatchString(s string) bool {
 
 type vacuousMatcher struct{}
 
-func (vacuousMatcher) MatchString(s string) bool {
+func (vacuousMatcher) MatchString(string) bool {
 	return true
 }
 
