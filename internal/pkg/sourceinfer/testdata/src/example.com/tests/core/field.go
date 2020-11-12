@@ -48,6 +48,18 @@ type (
 		sh SourceHolder
 	}
 
+	SourceWrapperHolder struct { // want SourceWrapperHolder:"inferred source"
+		Wrapped struct {
+			s source.Source
+		}
+	}
+
+	TaggedWrapperHolder struct { // want TaggedWrapperHolder:"inferred source"
+		Wrapped struct {
+			s string `levee:"source"`
+		}
+	}
+
 	TaggedHolder struct { // want TaggedHolder:"inferred source"
 		t source.Tagged
 	}
