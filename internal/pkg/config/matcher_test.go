@@ -3,6 +3,7 @@ package config
 import (
 	"testing"
 
+	"github.com/google/go-flow-levee/internal/pkg/config/regexp"
 	"sigs.k8s.io/yaml"
 )
 
@@ -252,6 +253,78 @@ Field: qux`,
 			}
 			if tc.shouldMatchField != sm.MatchField(tc.path, tc.typ, tc.fieldName) {
 				t.Errorf("MatchField(%q, %q, %q) = %v; got %v", tc.path, tc.typ, tc.fieldName, tc.shouldMatchType, !tc.shouldMatchType)
+			}
+		})
+	}
+}
+
+func TestMatcherTypes(t *testing.T) {
+	testCases := []struct {
+		desc        string
+		matcher     stringMatcher
+		s           string
+		shouldMatch bool
+	}{
+		{
+			desc:        "literal matcher foo == foo",
+			matcher:     literalMatcher("foo"),
+			s:           "foo",
+			shouldMatch: true,
+		},
+		{
+			desc:        "literal matcher foo != food",
+			matcher:     literalMatcher("foo"),
+			s:           "food",
+			shouldMatch: false,
+		},
+		{
+			desc:        "literal matcher foo != bar",
+			matcher:     literalMatcher("foo"),
+			s:           "bar",
+			shouldMatch: false,
+		},
+		{
+			desc:        "regexp matcher /foo/ matches foo",
+			matcher:     regexp.New("foo"),
+			s:           "foo",
+			shouldMatch: true,
+		},
+		{
+			desc:        "regexp matcher /foo/ matches food",
+			matcher:     regexp.New("foo"),
+			s:           "food",
+			shouldMatch: true,
+		},
+		{
+			desc:        "regexp matcher /foo/ does not match bar",
+			matcher:     regexp.New("foo"),
+			s:           "bar",
+			shouldMatch: false,
+		},
+		{
+			desc:        "vacuous matcher matches foo",
+			matcher:     vacuousMatcher{},
+			s:           "foo",
+			shouldMatch: true,
+		},
+		{
+			desc:        "vacuous matcher matches food",
+			matcher:     vacuousMatcher{},
+			s:           "food",
+			shouldMatch: true,
+		},
+		{
+			desc:        "vacuous matcher matches bar",
+			matcher:     vacuousMatcher{},
+			s:           "bar",
+			shouldMatch: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			if tc.matcher.MatchString(tc.s) != tc.shouldMatch {
+				t.Errorf("Expected matcher (%T) %v to return MatchString(%q) == %v, got %v", tc.matcher, tc.matcher, tc.s, tc.shouldMatch, !tc.shouldMatch)
 			}
 		})
 	}
