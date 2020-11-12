@@ -17,22 +17,14 @@ Sources are identified by package, type, and field names.
 You may specify these with a combination of string literals or regexp.
 Use `Package`, `Type`, and `Field` to specify by string literal.
 Use `PackageRE`, `TypeRE`, and `FieldRE` to specify by regexp.
-You may use a combination as needed.
+If neither a literal nor a regexp is provided, a wildcard matcher is assumed.
+Providing both a literal and a regexp matcher is considered misconfiguration and will error.
 
 ```yaml
 Sources:
-# Specify using string literals
-- Package: "literal/package/path"
-  Type: "typeName"
-  Field: "fieldName"
-# Specify using regexp
-- PackageRE: "<package path regexp>"
-  TypeRE: "<type name regexp>"
-  FieldRE: "<field name regexp>"
-# Specify using string literals and regexp
-- Package: "literal/package/path"
-  TypeRE: ".*"
-  Field: "fieldName"
+- Package: "full/package/path"
+  # Neither Type nor TypeRE are specified - match all type names
+  FieldRE: "Token|Password|Secret" 
 ```
 
 Sources may also be identified via field tags:
@@ -49,37 +41,27 @@ FieldTags:
   Val: source
 ```
 
-Sinks and sanitizers are identified by package, method, and (optional) receiver name.
-Again, these may be specified by either a provided string literal or regexp.
+Sinks and sanitizers are identified by package, method, and (if applicable) receiver name.
+As with source configuration, these may be specified by either a provided string literal or regexp.
+Use `Package`, `Receiver`, and `Method` to specify by string literal.
+Use `PackageRE`, `ReceiverRE`, and `MethodRE` to specify by regexp.
+If neither a literal nor a regexp is provided, a wildcard matcher is assumed.
+Providing both a literal and a regexp matcher is considered misconfiguration and will error.
 
 ```yaml
 Sinks:
-- Package:  "literal/package/path" 
-  ReceiverRE: <type name regexp>
-  MethodRE: <method name regexp>
+- PackageRE:  ".*/sinks(/v1)?"  # Regexp match a collection of packages 
+  # Neither Receiver nor ReceiverRE is provided - match any (or no) receiver
+  Method: "Sink"  # Match only functions named exactly "Sink"
 Sanitizers:
-- PackageRE: <package path regexp>
-  ReceiverRE: <type name regexp>
+- # Neither Package nor PackageRE is provided - match any package
+  ReceiverRE: "Safe
   Method: "mySanitizer"
 ```
 
+To explicitly match an empty string, such as top-level functions without a receiver, explicitly configure an empty string matcher, e.g., `Receiver: ""`.
+
 Taint propagation is performed automatically and does not need to be explicitly configured.
-
-### Important Note
-
-Configuration of the above matchers does not require listing of all arguments.
-E.g., the following is a valid source configuration:
-```yaml
-Sources:
-- Package: "literal/package/path"
-  Type: "MySourceType"
-```
-
-Neither `Field` nor `FieldRE` have been provided.
-In this case, we match all fields of `MySourceType`, assuming a wildcard matcher for `FieldRE`.
-Similar behavior exists in for all attributes, e.g. providing neither `Type` nor `TypeRE` will match all type names.
-
-To explicitly match an empty string, such as top-level functions without a receiver, explicitly define the attribute by the corresponding string literal, `Receiver: ""`, or an anchored regexp, `ReceiverRE: "^$"`.
 
 ### Restricting analysis scope
 
@@ -92,7 +74,7 @@ Exclude:
 ```
 
 The above will match the function beginning with "my" in the `myproject/mypackage` package.
-Since no receiver matcher was provided, it will match any method beginning with "my" bound to any receiver.
+Since no receiver matcher was provided, it will match any method beginning with "my" bound to any (or no) receiver.
 
 As just two examples, this may be used to avoid analyzing test code, or to suppress "false positive" reports.
 
