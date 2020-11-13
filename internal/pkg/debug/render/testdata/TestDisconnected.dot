@@ -1,0 +1,52 @@
+digraph {
+	subgraph cluster_0 {
+		color=black;
+		label="entry";
+		"jump 3\n(Jump)" [shape=diamond];
+	}
+	subgraph cluster_1 {
+		color=black;
+		label="for.body";
+		"t0 = t4 - 1:int\n(BinOp)" [shape=rectangle];
+		"t1 = t0 + 1:int\n(BinOp)" [shape=rectangle];
+		"jump 3\n(Jump)" [shape=diamond];
+	}
+	subgraph cluster_2 {
+		color=black;
+		label="for.done";
+		"t2 = \"error: \":string + \"unreachable code\":string\n(BinOp)" [shape=rectangle];
+		"t3 = fmt.Printf(t2, nil:[]interface{}...)\n(Call)" [shape=rectangle];
+		"return\n(Return)" [shape=diamond];
+	}
+	subgraph cluster_3 {
+		color=black;
+		label="for.loop";
+		"t4 = phi [0: 0:int, 1: t1] #i\n(Phi)" [shape=rectangle];
+		"t5 = 1:int * 2:int\n(BinOp)" [shape=rectangle];
+		"t6 = t4 < t5\n(BinOp)" [shape=rectangle];
+		"if t6 goto 1 else 2\n(If)" [shape=diamond];
+	}
+	"t0 = t4 - 1:int\n(BinOp)" -> "t1 = t0 + 1:int\n(BinOp)" [color=red];
+	"t0 = t4 - 1:int\n(BinOp)" -> "t4 = phi [0: 0:int, 1: t1] #i\n(Phi)" [color=orange];
+	"t0 = t4 - 1:int\n(BinOp)" -> "1:int\n(Const)" [color=orange];
+	"t1 = t0 + 1:int\n(BinOp)" -> "t4 = phi [0: 0:int, 1: t1] #i\n(Phi)" [color=red];
+	"t1 = t0 + 1:int\n(BinOp)" -> "t0 = t4 - 1:int\n(BinOp)" [color=orange];
+	"t1 = t0 + 1:int\n(BinOp)" -> "1:int\n(Const)" [color=orange];
+	"t2 = \"error: \":string + \"unreachable code\":string\n(BinOp)" -> "t3 = fmt.Printf(t2, nil:[]interface{}...)\n(Call)" [color=red];
+	"t2 = \"error: \":string + \"unreachable code\":string\n(BinOp)" -> "\"error: \":string\n(Const)" [color=orange];
+	"t2 = \"error: \":string + \"unreachable code\":string\n(BinOp)" -> "\"unreachable code\":string\n(Const)" [color=orange];
+	"t3 = fmt.Printf(t2, nil:[]interface{}...)\n(Call)" -> "Printf\n(Function)" [color=orange];
+	"t3 = fmt.Printf(t2, nil:[]interface{}...)\n(Call)" -> "t2 = \"error: \":string + \"unreachable code\":string\n(BinOp)" [color=orange];
+	"t3 = fmt.Printf(t2, nil:[]interface{}...)\n(Call)" -> "nil:[]interface{}\n(Const)" [color=orange];
+	"t4 = phi [0: 0:int, 1: t1] #i\n(Phi)" -> "t6 = t4 < t5\n(BinOp)" [color=red];
+	"t4 = phi [0: 0:int, 1: t1] #i\n(Phi)" -> "t0 = t4 - 1:int\n(BinOp)" [color=red];
+	"t4 = phi [0: 0:int, 1: t1] #i\n(Phi)" -> "0:int\n(Const)" [color=orange];
+	"t4 = phi [0: 0:int, 1: t1] #i\n(Phi)" -> "t1 = t0 + 1:int\n(BinOp)" [color=orange];
+	"t5 = 1:int * 2:int\n(BinOp)" -> "t6 = t4 < t5\n(BinOp)" [color=red];
+	"t5 = 1:int * 2:int\n(BinOp)" -> "1:int\n(Const)" [color=orange];
+	"t5 = 1:int * 2:int\n(BinOp)" -> "2:int\n(Const)" [color=orange];
+	"t6 = t4 < t5\n(BinOp)" -> "if t6 goto 1 else 2\n(If)" [color=red];
+	"t6 = t4 < t5\n(BinOp)" -> "t4 = phi [0: 0:int, 1: t1] #i\n(Phi)" [color=orange];
+	"t6 = t4 < t5\n(BinOp)" -> "t5 = 1:int * 2:int\n(BinOp)" [color=orange];
+	"if t6 goto 1 else 2\n(If)" -> "t6 = t4 < t5\n(BinOp)" [color=orange];
+}
