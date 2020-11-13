@@ -18,7 +18,7 @@ You may specify these with a combination of string literals or regexp.
 Use `Package`, `Type`, and `Field` to specify by string literal.
 Use `PackageRE`, `TypeRE`, and `FieldRE` to specify by regexp.
 If neither a literal nor a regexp is provided, a wildcard matcher is assumed.
-Providing both a literal and a regexp matcher is considered misconfiguration and will error.
+Providing both a literal and a regexp matcher is considered a misconfiguration and will error.
 
 ```yaml
 Sources:
@@ -46,7 +46,7 @@ As with source configuration, these may be specified by either a provided string
 Use `Package`, `Receiver`, and `Method` to specify by string literal.
 Use `PackageRE`, `ReceiverRE`, and `MethodRE` to specify by regexp.
 If neither a literal nor a regexp is provided, a wildcard matcher is assumed.
-Providing both a literal and a regexp matcher is considered misconfiguration and will error.
+Providing both a literal and a regexp matcher is considered a misconfiguration and will error.
 
 ```yaml
 Sinks:

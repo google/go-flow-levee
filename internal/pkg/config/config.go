@@ -185,7 +185,6 @@ func (s *sourceMatcher) UnmarshalJSON(bytes []byte) error {
 		return fmt.Errorf("expected only one of Field, FieldRE to be configured")
 	}
 
-	// Unpack raw object into sourceMatcher
 	*s = sourceMatcher{
 		Package: matcherFrom(raw.Package, raw.PackageRE),
 		Type:    matcherFrom(raw.Type, raw.TypeRE),
@@ -235,7 +234,6 @@ func (fm *funcMatcher) UnmarshalJSON(bytes []byte) error {
 		return fmt.Errorf("expected at most one of Method, MethodRE to be configured")
 	}
 
-	// Unpack raw object into funcMatcher
 	*fm = funcMatcher{
 		Package:  matcherFrom(raw.Package, raw.PackageRE),
 		Receiver: matcherFrom(raw.Receiver, raw.ReceiverRE),
