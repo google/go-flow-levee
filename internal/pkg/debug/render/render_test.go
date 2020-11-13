@@ -46,7 +46,8 @@ func testGolden(t *testing.T, fn func(f *ssa.Function) string, fnName, ext strin
 	testfile := filepath.Join(testdata, "tests.go")
 	ssaFuncs := extractSSAFuncs(t, testfile)
 	for _, f := range ssaFuncs {
-		bytes, err := ioutil.ReadFile(filepath.Join(testdata, f.Name()) + ext)
+		goldenFilename := filepath.Join(testdata, f.Name()) + ext
+		bytes, err := ioutil.ReadFile(goldenFilename)
 		if err != nil {
 			t.Fatal(err)
 		}
