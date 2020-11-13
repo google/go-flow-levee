@@ -18,23 +18,22 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/go-flow-levee/internal/pkg/debug/graph"
 	"github.com/google/go-flow-levee/internal/pkg/debug/node"
 	"golang.org/x/tools/go/ssa"
 )
 
 // DOT produces DOT source code representing the SSA graph for a function.
 func DOT(f *ssa.Function) string {
-	return renderDOT(graph.New(f))
+	return renderDOT(f)
 }
 
-func renderDOT(g *graph.FuncGraph) string {
-	return (&renderer{strings.Builder{}, g}).Render()
+func renderDOT(f *ssa.Function) string {
+	return (&renderer{strings.Builder{}, f}).Render()
 }
 
 type renderer struct {
 	strings.Builder
-	*graph.FuncGraph
+	f *ssa.Function
 }
 
 func (r *renderer) Render() string {
@@ -46,45 +45,51 @@ func (r *renderer) Render() string {
 }
 
 func (r *renderer) init() {
-	_, _ = r.WriteString("digraph {\n")
+	r.WriteString("digraph {\n")
 }
 
 func (r *renderer) writeSubgraphs() {
-	for bi, b := range r.F.Blocks {
-		_, _ = r.WriteString(fmt.Sprintf("\tsubgraph cluster_%d {\n\t\tcolor=black;\n\t\tlabel=%q;\n", bi, b.Comment))
+	for bi, b := range r.f.Blocks {
+		r.WriteString(fmt.Sprintf("\tsubgraph cluster_%d {\n\t\tcolor=black;\n\t\tlabel=%q;\n", bi, b.Comment))
 		for _, i := range b.Instrs {
 			n := i.(ssa.Node)
-			_, _ = r.WriteString(fmt.Sprintf("\t\t%q [shape=%s];\n", renderNode(n), nodeShape(n)))
+			r.WriteString(fmt.Sprintf("\t\t%q [shape=%s];\n", renderNode(n), nodeShape(n)))
 		}
-		_, _ = r.WriteString("\t}\n")
+		r.WriteString("\t}\n")
 	}
 }
 
 func (r *renderer) writeEdges() {
-	for from, children := range r.Children {
-		for _, to := range children {
-			switch to.R {
-			case graph.Referrer:
-				r.addReferrer(from, to.N)
-			case graph.Operand:
-				r.addOperand(from, to.N)
-			}
+	for _, b := range r.f.Blocks {
+		for _, i := range b.Instrs {
+			r.writeReferrers(i.(ssa.Node))
+			r.writeOperands(i.(ssa.Node))
 		}
 	}
 }
 
-func (r *renderer) addReferrer(n ssa.Node, ref ssa.Node) {
-	// Red as in R-eferrer
-	r.addEdge(n, ref, "red")
+func (r *renderer) writeReferrers(n ssa.Node) {
+	if n.Referrers() == nil {
+		return
+	}
+	for _, ref := range *n.Referrers() {
+		// Red as in R-eferrer
+		r.writeEdge(n, ref.(ssa.Node), "red")
+	}
 }
 
-func (r *renderer) addOperand(n ssa.Node, op ssa.Node) {
-	// Orange as in O-perand
-	r.addEdge(n, op, "orange")
+func (r *renderer) writeOperands(n ssa.Node) {
+	for _, o := range n.Operands(nil) {
+		if *o == nil {
+			continue
+		}
+		// Orange as in O-perand
+		r.writeEdge(n, (*o).(ssa.Node), "orange")
+	}
 }
 
-func (r *renderer) addEdge(from ssa.Node, to ssa.Node, color string) {
-	_, _ = r.WriteString(fmt.Sprintf("\t%q -> %q [color=%s];\n", renderNode(from), renderNode(to), color))
+func (r *renderer) writeEdge(from ssa.Node, to ssa.Node, color string) {
+	r.WriteString(fmt.Sprintf("\t%q -> %q [color=%s];\n", renderNode(from), renderNode(to), color))
 }
 
 func renderNode(n ssa.Node) string {
@@ -92,7 +97,7 @@ func renderNode(n ssa.Node) string {
 }
 
 func (r *renderer) finish() {
-	_, _ = r.WriteString("}\n")
+	r.WriteString("}\n")
 }
 
 func nodeShape(n ssa.Node) string {
