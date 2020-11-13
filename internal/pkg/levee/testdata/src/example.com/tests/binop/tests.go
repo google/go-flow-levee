@@ -24,8 +24,7 @@ func TestConcatenatingTaintedAndNonTaintedStrings(prefix string) {
 	s := core.Source{Data: "password1234"}
 	message := fmt.Sprintf("source: %v", s)
 	fullMessage := prefix + message
-	// TODO: no report should be produced for "prefix"
-	core.Sink(prefix)      // want "a source has reached a sink"
+	core.Sink(prefix)
 	core.Sink(message)     // want "a source has reached a sink"
 	core.Sink(fullMessage) // want "a source has reached a sink"
 }

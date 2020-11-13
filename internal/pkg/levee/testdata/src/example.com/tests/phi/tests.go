@@ -25,10 +25,8 @@ func TestPhiNodeDoesntPropagateTaintToOperands(i *core.Innocuous) {
 		if true {
 			ss = ii
 		}
-		// TODO: no report should be produced for ii
-		core.Sink(ii) // want "a source has reached a sink"
-		// TODO: no report should be produced for i
-		core.Sink(i)  // want "a source has reached a sink"
+		core.Sink(ii)
+		core.Sink(i)
 		core.Sink(ss) // want "a source has reached a sink"
 	}
 }

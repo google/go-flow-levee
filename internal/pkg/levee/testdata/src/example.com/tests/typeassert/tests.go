@@ -36,5 +36,5 @@ func TestSourcePointerAssertedFromParameterEface(e interface{}) {
 func TestSourcePointerAssertedFromParameterEfaceCommaOk(e interface{}) {
 	s, ok := e.(*core.Source)
 	core.Sink(s) // want "a source has reached a sink"
-	_ = ok
+	core.Sink(ok)
 }
