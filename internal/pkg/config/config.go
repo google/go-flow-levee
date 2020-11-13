@@ -15,6 +15,7 @@
 package config
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -120,31 +121,129 @@ func (c Config) IsSourceField(path, typeName, fieldName string) bool {
 	return false
 }
 
-// A sourceMatcher defines what types are or contain sources.
-// Within a given type, specific field access can be specified as the actual source data
-// via the fieldRE.
+type stringMatcher interface {
+	MatchString(string) bool
+}
+
+type literalMatcher string
+
+func (lm literalMatcher) MatchString(s string) bool {
+	return string(lm) == s
+}
+
+type vacuousMatcher struct{}
+
+func (vacuousMatcher) MatchString(string) bool {
+	return true
+}
+
+// Returns the first non-nil matcher.  If all are nil, returns a vacuousMatcher.
+func matcherFrom(lm *literalMatcher, r *regexp.Regexp) stringMatcher {
+	switch {
+	case lm != nil:
+		return lm
+	case r != nil:
+		return r
+	default:
+		return vacuousMatcher{}
+	}
+}
+
+// A sourceMatcher matches by package, type, and field.
+// Matching may be done against string literals Package, Type, Field,
+// or against regexp PackageRE, TypeRE, FieldRE.
 type sourceMatcher struct {
-	PackageRE regexp.Regexp
-	TypeRE    regexp.Regexp
-	FieldRE   regexp.Regexp
+	Package stringMatcher
+	Type    stringMatcher
+	Field   stringMatcher
+}
+
+// this type uses the default unmarshaler and mirrors configuration key-value pairs
+type rawSourceMatcher struct {
+	Package   *literalMatcher
+	Type      *literalMatcher
+	Field     *literalMatcher
+	PackageRE *regexp.Regexp
+	TypeRE    *regexp.Regexp
+	FieldRE   *regexp.Regexp
+}
+
+func (s *sourceMatcher) UnmarshalJSON(bytes []byte) error {
+	raw := rawSourceMatcher{}
+	if err := json.Unmarshal(bytes, &raw); err != nil {
+		return err
+	}
+
+	// validation: do not double-specify any attribute with literal and regexp
+	if raw.Package != nil && raw.PackageRE != nil {
+		return fmt.Errorf("expected only one of Package, PackageRE to be configured")
+	}
+	if raw.Type != nil && raw.TypeRE != nil {
+		return fmt.Errorf("expected only one of Type, TypeRE to be configured")
+	}
+	if raw.Field != nil && raw.FieldRE != nil {
+		return fmt.Errorf("expected only one of Field, FieldRE to be configured")
+	}
+
+	*s = sourceMatcher{
+		Package: matcherFrom(raw.Package, raw.PackageRE),
+		Type:    matcherFrom(raw.Type, raw.TypeRE),
+		Field:   matcherFrom(raw.Field, raw.FieldRE),
+	}
+	return nil
 }
 
 func (s sourceMatcher) MatchType(path, typeName string) bool {
-	return s.PackageRE.MatchString(path) && s.TypeRE.MatchString(typeName)
+	return s.Package.MatchString(path) && s.Type.MatchString(typeName)
 }
 
 func (s sourceMatcher) MatchField(path, typeName, fieldName string) bool {
-	return s.PackageRE.MatchString(path) && s.TypeRE.MatchString(typeName) && s.FieldRE.MatchString(fieldName)
+	return s.Package.MatchString(path) && s.Type.MatchString(typeName) && s.Field.MatchString(fieldName)
 }
 
 type funcMatcher struct {
-	PackageRE  regexp.Regexp
-	ReceiverRE regexp.Regexp
-	MethodRE   regexp.Regexp
+	Package  stringMatcher
+	Receiver stringMatcher
+	Method   stringMatcher
+}
+
+// this type uses the default unmarshaler and mirrors configuration key-value pairs
+type rawFuncMatcher struct {
+	Package    *literalMatcher
+	Receiver   *literalMatcher
+	Method     *literalMatcher
+	PackageRE  *regexp.Regexp
+	ReceiverRE *regexp.Regexp
+	MethodRE   *regexp.Regexp
+}
+
+func (fm *funcMatcher) UnmarshalJSON(bytes []byte) error {
+	raw := rawFuncMatcher{}
+	if err := json.Unmarshal(bytes, &raw); err != nil {
+		return err
+	}
+
+	// validation: do not double-specify any attribute with literal and regexp
+	if raw.Package != nil && raw.PackageRE != nil {
+		return fmt.Errorf("expected at most one of Package, PackageRE to be configured")
+	}
+	if raw.Receiver != nil && raw.ReceiverRE != nil {
+		return fmt.Errorf("expected at most one of Receiver, ReceiverRE to be configured")
+	}
+	if raw.Method != nil && raw.MethodRE != nil {
+		return fmt.Errorf("expected at most one of Method, MethodRE to be configured")
+	}
+
+	*fm = funcMatcher{
+		Package:  matcherFrom(raw.Package, raw.PackageRE),
+		Receiver: matcherFrom(raw.Receiver, raw.ReceiverRE),
+		Method:   matcherFrom(raw.Method, raw.MethodRE),
+	}
+	return nil
 }
 
 func (fm funcMatcher) MatchFunction(path, receiver, name string) bool {
-	return fm.PackageRE.MatchString(path) && fm.ReceiverRE.MatchString(receiver) && fm.MethodRE.MatchString(name)
+	return fm.Package.MatchString(path) && fm.Receiver.MatchString(receiver) && fm.Method.MatchString(name)
 }
 
 var readFileOnce sync.Once
