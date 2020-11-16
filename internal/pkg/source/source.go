@@ -115,6 +115,7 @@ func (s *Source) shouldNotVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]
 		return true
 	}
 
+	// booleans can't meaningfully be tainted
 	if isBoolean(n) {
 		return true
 	}
@@ -141,15 +142,6 @@ func (s *Source) shouldNotVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]
 		}
 	}
 
-	return false
-}
-
-func isBoolean(n ssa.Node) bool {
-	if v, ok := n.(ssa.Value); ok {
-		if t, ok := v.Type().(*types.Basic); ok {
-			return t.Info() == types.IsBoolean
-		}
-	}
 	return false
 }
 
@@ -437,6 +429,15 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 		}
 	}
 	return sources
+}
+
+func isBoolean(n ssa.Node) bool {
+	if v, ok := n.(ssa.Value); ok {
+		if basic, ok := v.Type().(*types.Basic); ok && basic.Info() == types.IsBoolean {
+			return true
+		}
+	}
+	return false
 }
 
 func isSourceType(c classifier, t types.Type) bool {
