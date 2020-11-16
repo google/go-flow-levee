@@ -177,8 +177,8 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		// A call's operands should only be visited if they are pointers.
-		s.visitOperands(n, maxInstrReached, lastBlockVisited, func(n ssa.Value) bool {
-			return canPoint(n.Type())
+		s.visitOperands(n, maxInstrReached, lastBlockVisited, func(v ssa.Value) bool {
+			return canPoint(v.Type())
 		})
 
 	case *ssa.FieldAddr:
@@ -468,7 +468,7 @@ func isSourceType(c classifier, t types.Type) bool {
 	}
 }
 
-// A type can point if it is itself a pointer or pointer-like type, or it contains
+// A type "can point if it is itself a pointer or pointer-like type, or it contains
 // a pointer or pointer-like type.
 func canPoint(t types.Type) bool {
 	switch tt := t.(type) {
@@ -478,10 +478,13 @@ func canPoint(t types.Type) bool {
 	case *types.Chan, *types.Interface, *types.Map, *types.Pointer, *types.Slice:
 		return true
 
+	case *types.Basic:
+		return tt.Kind() == types.UnsafePointer
+
 	// These types cannot point.
 	// Signatures represent functions, which for our purpose aren't pointers.
 	// Tuples only occur within functions.
-	case *types.Basic, *types.Signature, *types.Tuple:
+	case *types.Signature, *types.Tuple:
 		return false
 
 	case *types.Named:
