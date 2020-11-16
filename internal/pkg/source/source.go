@@ -295,10 +295,6 @@ func (s *Source) compress() []ssa.Node {
 	return compressed
 }
 
-func (s *Source) RefersTo(n ssa.Node) bool {
-	return s.HasPathTo(n)
-}
-
 // HasPathTo returns true when a Node is part of declaration-use graph.
 func (s *Source) HasPathTo(n ssa.Node) bool {
 	return s.marked[n]
