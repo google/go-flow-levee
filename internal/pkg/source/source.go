@@ -25,7 +25,6 @@ import (
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
-	"golang.org/x/tools/go/pointer"
 	"golang.org/x/tools/go/ssa"
 )
 
@@ -116,7 +115,6 @@ func (s *Source) shouldNotVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]
 		return true
 	}
 
-	// booleans can't meaningfully be tainted
 	if isBoolean(n) {
 		return true
 	}
@@ -143,6 +141,15 @@ func (s *Source) shouldNotVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]
 		}
 	}
 
+	return false
+}
+
+func isBoolean(n ssa.Node) bool {
+	if v, ok := n.(ssa.Value); ok {
+		if t, ok := v.Type().(*types.Basic); ok {
+			return t.Info() == types.IsBoolean
+		}
+	}
 	return false
 }
 
@@ -177,8 +184,9 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 		}
 
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
+		// A call's operands should only be visited if they are pointers.
 		s.visitOperands(n, maxInstrReached, lastBlockVisited, func(n ssa.Value) bool {
-			return pointer.CanPoint(n.Type())
+			return canPoint(n.Type())
 		})
 
 	case *ssa.FieldAddr:
@@ -196,7 +204,6 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		s.dfs(t.X.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 
-	// The actual integer Index should not be visited.
 	// Everything but the actual integer Index should be visited.
 	case *ssa.IndexAddr:
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
@@ -432,15 +439,6 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 	return sources
 }
 
-func isBoolean(n ssa.Node) bool {
-	if v, ok := n.(ssa.Value); ok {
-		if basic, ok := v.Type().(*types.Basic); ok && basic.Info() == types.IsBoolean {
-			return true
-		}
-	}
-	return false
-}
-
 func isSourceType(c classifier, t types.Type) bool {
 	deref := utils.Dereference(t)
 	switch tt := deref.(type) {
@@ -462,6 +460,44 @@ func isSourceType(c classifier, t types.Type) bool {
 	case *types.Pointer:
 		// This should be unreachable due to the dereference above
 		return false
+	default:
+		// The above should be exhaustive.  Reaching this default case is an error.
+		fmt.Printf("unexpected type received: %T %v; please report this issue\n", tt, tt)
+		return false
+	}
+}
+
+// A type can point if it is itself a pointer or pointer-like type, or it contains
+// a pointer or pointer-like type.
+func canPoint(t types.Type) bool {
+	switch tt := t.(type) {
+	// These types can point.
+	// Chan, Map and Slice are reference-like collections.
+	// Some interfaces can hold pointers.
+	case *types.Chan, *types.Interface, *types.Map, *types.Pointer, *types.Slice:
+		return true
+
+	// These types cannot point.
+	// Signatures represent functions, which for our purpose aren't pointers.
+	// Tuples only occur within functions.
+	case *types.Basic, *types.Signature, *types.Tuple:
+		return false
+
+	case *types.Named:
+		return canPoint(tt.Underlying())
+
+	// A struct can point if one of its fields can point.
+	case *types.Struct:
+		can := false
+		for i := 0; i < tt.NumFields(); i++ {
+			can = can || canPoint(tt.Field(i).Type())
+		}
+		return can
+
+	// An array can point if it holds a type that can point.
+	case *types.Array:
+		return canPoint(tt.Elem())
+
 	default:
 		// The above should be exhaustive.  Reaching this default case is an error.
 		fmt.Printf("unexpected type received: %T %v; please report this issue\n", tt, tt)
