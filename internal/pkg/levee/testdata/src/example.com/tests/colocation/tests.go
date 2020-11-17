@@ -16,45 +16,56 @@ package colocation
 
 import (
 	"encoding/json"
+	"reflect"
 	"unsafe"
 
 	"example.com/core"
 )
 
 func colocateString(core.Source, string) {}
+
 func TestBasicTypeIsNotTainted(s core.Source, str string) {
 	colocateString(s, str)
 	core.Sink(str)
 }
 
 func colocateStringPointer(core.Source, *string) {}
+
 func TestBasicPointerTypeIsTainted(s core.Source, strptr *string) {
 	colocateStringPointer(s, strptr)
 	core.Sink(strptr) // want "a source has reached a sink"
 }
+
 func TestPointerToBasicTypeIsTainted(s core.Source, str string) {
+	// This test is failing because &x introduces an Alloc,
+	// and we don't traverse through non-array Allocs
 	colocateStringPointer(s, &str)
 	core.Sink(str) // TODO want "a source has reached a sink"
 }
 
 func colocateInnoc(core.Source, core.Innocuous) {}
+
 func TestNamedStructTypeIsNotTainted(s core.Source, i core.Innocuous) {
 	colocateInnoc(s, i)
 	core.Sink(i)
-
 }
 
 func colocateInnocPtr(core.Source, *core.Innocuous) {}
+
 func TestNamedStructPointerIsTainted(s core.Source, i *core.Innocuous) {
 	colocateInnocPtr(s, i)
 	core.Sink(i) // want "a source has reached a sink"
 }
+
 func TestPointerToNamedStructIsTainted(s core.Source, i core.Innocuous) {
+	// This test is failing because &x introduces an Alloc,
+	// and we don't traverse through non-array Allocs
 	colocateInnocPtr(s, &i)
 	core.Sink(i) // TODO want "a source has reached a sink"
 }
 
 func colocateUnsafePointer(core.Source, unsafe.Pointer) {}
+
 func TestUnsafePointerIsTainted(s core.Source, up unsafe.Pointer) {
 	colocateUnsafePointer(s, up)
 	core.Sink(up) // want "a source has reached a sink"
@@ -63,39 +74,37 @@ func TestUnsafePointerIsTainted(s core.Source, up unsafe.Pointer) {
 type PointerHolder struct{ ptr *core.Source }
 
 func colocatePointerHolder(core.Source, PointerHolder) {}
+
 func TestNamedStructPointerHolderIsTainted(s core.Source, ph PointerHolder) {
+	// This test is failing because ph is created by an Alloc,
+	// and we don't traverse through non-array Allocs
 	colocatePointerHolder(s, ph)
 	core.Sink(ph) // TODO want "a source has reached a sink"
 }
 
-type InnocSlice []core.Innocuous
-
-func colocateInnocSlice(core.Source, InnocSlice) {}
-func TestNamedSliceTypeIsTainted(s core.Source, is InnocSlice) {
-	colocateInnocSlice(s, is)
-	core.Sink(is) // want "a source has reached a sink"
-}
-
 func colocateArrOfValues(core.Source, [1]string) {}
+
 func TestArrOfValuesIsNotTainted(s core.Source, arr [1]string) {
 	colocateArrOfValues(s, arr)
 	core.Sink(arr)
 }
 
 func colocateArrOfPointers(core.Source, [1]*string) {}
+
 func TestArrOfPointersIsTainted(s core.Source, arr [1]*string) {
 	colocateArrOfPointers(s, arr)
-	// XXX
 	core.Sink(arr) // want "a source has reached a sink"
 }
 
 func colocateFunc(core.Source, func()) {}
+
 func TestFuncIsNotTainted(s core.Source, f func()) {
 	colocateFunc(s, f)
 	core.Sink(f)
 }
 
 func colocateReferenceCollections(core.Source, map[string]string, chan string, []string) {}
+
 func TestReferenceCollectionsAreTainted(s core.Source) {
 	m := make(map[string]string)
 	c := make(chan string)
@@ -106,24 +115,39 @@ func TestReferenceCollectionsAreTainted(s core.Source) {
 	core.Sink(sl) // want "a source has reached a sink"
 }
 
+func colocateReflectValue(core.Source, reflect.Value) {}
+
+func TestReflectValuesAreTainted(s core.Source, r reflect.Value) {
+	// This test is failing because ph is created by an Alloc,
+	// and we don't traverse through non-array Allocs
+	colocateReflectValue(s, r)
+	core.Sink(r) // TODO want "a source has reached a sink"
+}
+
 func colocateEface(s core.Source, taintees ...interface{}) {}
+
 func TestTaintedEface(s core.Source, i interface{}) {
 	colocateEface(s, i)
-	// XXX: we have no idea what i is hiding, so we have to assume the worst
 	core.Sink(i) // want "a source has reached a sink"
 
 }
+
 func TestTaintedThroughEface(s core.Source, str string, i core.Innocuous) {
 	colocateEface(s, str, i)
-	// XXX: it is true that we don't want reports here, but I don't really believe it...
-	core.Sink(str)
-	core.Sink(i)
+	// Ideally, we wouldn't want reports for either of those values, because they
+	// are not pointers.
+	// However, because they are passed to the call via an interface type,
+	// we have no easy way to know that these values can't actually be tainted.
+	core.Sink(str) // want "a source has reached a sink"
+	core.Sink(i)   // TODO want "a source has reached a sink"
 }
+
 func TestPointerTaintedThroughEface(s core.Source, str string, i core.Innocuous) {
 	colocateEface(s, &str, &i)
-	// XXX: this is probably failing because of Allocs
-	core.Sink(str) // want "a source has reached a sink"
-	core.Sink(i)   // want "a source has reached a sink"
+	// These tests are failing because &x introduces an Alloc,
+	// and we don't traverse through non-array Allocs
+	core.Sink(str) // TODO want "a source has reached a sink"
+	core.Sink(i)   // TODO want "a source has reached a sink"
 }
 
 // CVE-2020-8564

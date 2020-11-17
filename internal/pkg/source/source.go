@@ -176,10 +176,11 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 		}
 
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
-		// A call's operands should only be visited if they are pointers.
-		s.visitOperands(n, maxInstrReached, lastBlockVisited, func(v ssa.Value) bool {
-			return canPoint(v.Type())
-		})
+		for _, a := range t.Call.Args {
+			if canPoint(a.Type()) {
+				s.dfs(a.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+			}
+		}
 
 	case *ssa.FieldAddr:
 		deref := utils.Dereference(t.X.Type())
@@ -189,7 +190,7 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 			return
 		}
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
-		s.visitOperands(n, maxInstrReached, lastBlockVisited, nil)
+		s.visitOperands(n, maxInstrReached, lastBlockVisited)
 
 	// Everything but the actual integer Index should be visited.
 	case *ssa.Index:
@@ -216,7 +217,7 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 
 	// These nodes' operands should not be visited, because they can only receive
 	// taint from their operands, not propagate taint to them.
-	case *ssa.BinOp, *ssa.ChangeInterface, *ssa.ChangeType, *ssa.Convert, *ssa.Extract, *ssa.MakeChan, *ssa.MakeMap, *ssa.MakeSlice, *ssa.Phi, *ssa.Range, *ssa.Slice, *ssa.UnOp:
+	case *ssa.BinOp, *ssa.ChangeInterface, *ssa.ChangeType, *ssa.Convert, *ssa.Extract, *ssa.MakeChan, *ssa.MakeMap, *ssa.MakeSlice, *ssa.Phi, *ssa.Range:
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 
 	// These nodes don't have operands; they are Values, not Instructions.
@@ -225,12 +226,12 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 
 	// These nodes don't have referrers; they are Instructions, not Values.
 	case *ssa.Go, *ssa.Store:
-		s.visitOperands(n, maxInstrReached, lastBlockVisited, nil)
+		s.visitOperands(n, maxInstrReached, lastBlockVisited)
 
 	// These nodes are both Instructions and Values, and currently have no special restrictions.
-	case *ssa.Field, *ssa.MakeInterface, *ssa.Select, *ssa.TypeAssert:
+	case *ssa.Field, *ssa.MakeInterface, *ssa.Select, *ssa.Slice, *ssa.TypeAssert, *ssa.UnOp:
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
-		s.visitOperands(n, maxInstrReached, lastBlockVisited, nil)
+		s.visitOperands(n, maxInstrReached, lastBlockVisited)
 
 	// These nodes cannot propagate taint.
 	case *ssa.Builtin, *ssa.DebugRef, *ssa.Defer, *ssa.Function, *ssa.If, *ssa.Jump, *ssa.MakeClosure, *ssa.Next, *ssa.Panic, *ssa.Return, *ssa.RunDefers:
@@ -249,9 +250,9 @@ func (s *Source) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]
 	}
 }
 
-func (s *Source) visitOperands(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, shouldVisit func(ssa.Value) bool) {
+func (s *Source) visitOperands(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	for _, o := range n.Operands(nil) {
-		if *o == nil || shouldVisit != nil && !shouldVisit(*o) {
+		if *o == nil {
 			continue
 		}
 		s.dfs((*o).(ssa.Node), maxInstrReached, lastBlockVisited, false)
@@ -295,10 +296,6 @@ func (s *Source) compress() []ssa.Node {
 	}
 
 	return compressed
-}
-
-func (s *Source) RefersTo(n ssa.Node) bool {
-	return s.HasPathTo(n)
 }
 
 // HasPathTo returns true when a Node is part of declaration-use graph.
@@ -468,13 +465,13 @@ func isSourceType(c classifier, t types.Type) bool {
 	}
 }
 
-// A type "can point if it is itself a pointer or pointer-like type, or it contains
+// A type "can point" if it is itself a pointer or pointer-like type, or it contains
 // a pointer or pointer-like type.
 func canPoint(t types.Type) bool {
 	switch tt := t.(type) {
 	// These types can point.
 	// Chan, Map and Slice are reference-like collections.
-	// Some interfaces can hold pointers.
+	// Interfaces can hold pointers.
 	case *types.Chan, *types.Interface, *types.Map, *types.Pointer, *types.Slice:
 		return true
 
@@ -488,6 +485,11 @@ func canPoint(t types.Type) bool {
 		return false
 
 	case *types.Named:
+		// This snippet is plundered from golang.org/x/tools/go/pointer.CanPoint
+		if obj := tt.Obj(); obj.Name() == "Value" && obj.Pkg().Path() == "reflect" {
+			return true // treat reflect.Value like interface{}
+		}
+
 		return canPoint(tt.Underlying())
 
 	// A struct can point if one of its fields can point.
