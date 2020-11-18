@@ -17,7 +17,6 @@ package colocation
 import (
 	"encoding/json"
 	"reflect"
-	"unsafe"
 
 	"example.com/core"
 )
@@ -64,13 +63,6 @@ func TestPointerToNamedStructIsTainted(s core.Source, i core.Innocuous) {
 	core.Sink(i) // TODO want "a source has reached a sink"
 }
 
-func colocateUnsafePointer(core.Source, unsafe.Pointer) {}
-
-func TestUnsafePointerIsTainted(s core.Source, up unsafe.Pointer) {
-	colocateUnsafePointer(s, up)
-	core.Sink(up) // want "a source has reached a sink"
-}
-
 type PointerHolder struct{ ptr *core.Source }
 
 func colocatePointerHolder(core.Source, PointerHolder) {}
@@ -94,13 +86,6 @@ func colocateArrOfPointers(core.Source, [1]*string) {}
 func TestArrOfPointersIsTainted(s core.Source, arr [1]*string) {
 	colocateArrOfPointers(s, arr)
 	core.Sink(arr) // want "a source has reached a sink"
-}
-
-func colocateFunc(core.Source, func()) {}
-
-func TestFuncIsNotTainted(s core.Source, f func()) {
-	colocateFunc(s, f)
-	core.Sink(f)
 }
 
 func colocateReferenceCollections(core.Source, map[string]string, chan string, []string) {}

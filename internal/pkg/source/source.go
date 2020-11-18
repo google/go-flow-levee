@@ -25,6 +25,7 @@ import (
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
+	"golang.org/x/tools/go/pointer"
 	"golang.org/x/tools/go/ssa"
 )
 
@@ -177,7 +178,7 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		for _, a := range t.Call.Args {
-			if canPoint(a.Type()) {
+			if canBeTaintedByCall(a.Type()) {
 				s.dfs(a.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 			}
 		}
@@ -465,50 +466,27 @@ func isSourceType(c classifier, t types.Type) bool {
 	}
 }
 
-// A type "can point" if it is itself a pointer or pointer-like type, or it contains
-// a pointer or pointer-like type.
-func canPoint(t types.Type) bool {
-	switch tt := t.(type) {
-	// These types can point.
-	// Chan, Map and Slice are reference-like collections.
-	// Interfaces can hold pointers.
-	case *types.Chan, *types.Interface, *types.Map, *types.Pointer, *types.Slice:
+// A type can be tainted by a call if it is itself a pointer or pointer-like type (according to
+// pointer.CanPoint), or it is an array/struct that holds an element that can be tainted by
+// a call.
+func canBeTaintedByCall(t types.Type) bool {
+	if pointer.CanPoint(t) {
 		return true
+	}
 
-	case *types.Basic:
-		return tt.Kind() == types.UnsafePointer
+	switch tt := t.(type) {
+	case *types.Array:
+		return canBeTaintedByCall(tt.Elem())
 
-	// These types cannot point.
-	// Signatures represent functions, which for our purpose aren't pointers.
-	// Tuples only occur within functions.
-	case *types.Signature, *types.Tuple:
-		return false
-
-	case *types.Named:
-		// This snippet is plundered from golang.org/x/tools/go/pointer.CanPoint
-		if obj := tt.Obj(); obj.Name() == "Value" && obj.Pkg().Path() == "reflect" {
-			return true // treat reflect.Value like interface{}
-		}
-
-		return canPoint(tt.Underlying())
-
-	// A struct can point if one of its fields can point.
 	case *types.Struct:
 		can := false
 		for i := 0; i < tt.NumFields(); i++ {
-			can = can || canPoint(tt.Field(i).Type())
+			can = can || canBeTaintedByCall(tt.Field(i).Type())
 		}
 		return can
-
-	// An array can point if it holds a type that can point.
-	case *types.Array:
-		return canPoint(tt.Elem())
-
-	default:
-		// The above should be exhaustive.  Reaching this default case is an error.
-		fmt.Printf("unexpected type received: %T %v; please report this issue\n", tt, tt)
-		return false
 	}
+
+	return false
 }
 
 func isProducedBySanitizer(v ssa.Value, conf classifier) bool {
