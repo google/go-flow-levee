@@ -182,7 +182,7 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 		deref := utils.Dereference(t.X.Type())
 		typPath, typName := utils.DecomposeType(deref)
 		fieldName := utils.FieldName(t)
-		if !s.config.IsSourceField(typPath, typName, fieldName) {
+		if s.config.IsSourceType(typPath, typName) && !s.config.IsSourceField(typPath, typName, fieldName) {
 			return
 		}
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)

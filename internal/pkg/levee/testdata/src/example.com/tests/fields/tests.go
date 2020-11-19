@@ -16,6 +16,8 @@
 package fields
 
 import (
+	"strconv"
+
 	"example.com/core"
 )
 
@@ -44,4 +46,15 @@ func TestProtoStyleFieldAccessorPIISecondLevel(wrapper struct{ *core.Source }) {
 func tesDirectFieldAccessorPIISecondLevel(wrapper struct{ *core.Source }) {
 	core.Sinkf("Source data: %v", wrapper.Source.Data) // want "a source has reached a sink"
 	core.Sinkf("Source id: %v", wrapper.Source.ID)
+}
+
+func TestTaintField(s core.Source, i *core.Innocuous) {
+	i.Data = s.Data
+	core.Sink(i)      // want "a source has reached a sink"
+	core.Sink(i.Data) // want "a source has reached a sink"
+}
+
+func TestTaintNonSourceFieldOnSourceType(s core.Source, i *core.Innocuous) {
+	s.ID, _ = strconv.Atoi(s.Data)
+	core.Sink(s.ID) // TODO want "a source has reached a sink"
 }
