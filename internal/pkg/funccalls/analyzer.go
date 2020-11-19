@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package funcs contains an analyzer that performs identification of
+// Package funccalls contains an analyzer that performs identification of
 // sink and sanitizer function definitions and calls. It also identifies
 // excluded functions.
 package funccalls

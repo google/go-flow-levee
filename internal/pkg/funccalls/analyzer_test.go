@@ -21,7 +21,7 @@ import (
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
-func TestLevee(t *testing.T) {
+func TestAnalyzer(t *testing.T) {
 	testData := analysistest.TestData()
 	if err := Analyzer.Flags.Set("config", filepath.Join(testData, "test-config.yaml")); err != nil {
 		t.Error(err)
