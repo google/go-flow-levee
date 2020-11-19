@@ -62,7 +62,7 @@ func DecomposeType(t types.Type) (path, name string) {
 	return path, n.Obj().Name()
 }
 
-func UnqualifiedName(v *types.Var) string {
+func unqualifiedName(v *types.Var) string {
 	packageQualifiedName := v.Type().String()
 	dotPos := strings.LastIndexByte(packageQualifiedName, '.')
 	if dotPos == -1 {
@@ -81,7 +81,7 @@ func DecomposeFunction(f *ssa.Function) (path, recv, name string) {
 	}
 	name = f.Name()
 	if recvVar := f.Signature.Recv(); recvVar != nil {
-		recv = UnqualifiedName(recvVar)
+		recv = unqualifiedName(recvVar)
 	}
 	return
 }
