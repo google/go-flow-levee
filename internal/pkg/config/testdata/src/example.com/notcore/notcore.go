@@ -23,11 +23,3 @@ type Sinker struct{}
 func (s Sinker) Do() {}
 
 func (s Sinker) DoNot() {}
-
-func Calls() {
-	Sink()
-	NotSink()
-	s := Sinker{}
-	s.Do()
-	s.DoNot()
-}

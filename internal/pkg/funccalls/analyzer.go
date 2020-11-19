@@ -12,49 +12,62 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+// Package funcs contains an analyzer that performs identification of
+// sink and sanitizer function definitions and calls. It also identifies
+// excluded functions.
+package funccalls
 
 import (
-	"path/filepath"
-	"testing"
-
+	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/analysistest"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
+	"golang.org/x/tools/go/ssa"
 )
 
-var testAnalyzer = &analysis.Analyzer{
-	Name:     "config",
+var Analyzer = &analysis.Analyzer{
+	Name:     "funccalls",
 	Run:      runTest,
-	Doc:      "test harness for the logic related to config",
+	Flags:    config.FlagSet,
+	Doc:      `The funccalls analyzer finds calls to sink and sanitizer functions.`,
 	Requires: []*analysis.Analyzer{buildssa.Analyzer},
 }
 
 func runTest(pass *analysis.Pass) (interface{}, error) {
 	in := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 
-	conf, err := ReadConfig()
+	conf, err := config.ReadConfig()
 	if err != nil {
 		return nil, err
 	}
 
 	for _, f := range in.SrcFuncs {
-		if conf.IsSink(utils.DecomposeFunction(f)) {
-			pass.Reportf(f.Pos(), "sink")
-		}
 		if conf.IsExcluded(utils.DecomposeFunction(f)) {
-			pass.Reportf(f.Pos(), "excluded")
+			continue
+		}
+		for _, b := range f.Blocks {
+			for _, i := range b.Instrs {
+				c, ok := i.(*ssa.Call)
+				if !ok {
+					continue
+				}
+				callee := c.Call.StaticCallee()
+				if callee == nil {
+					continue
+				}
+				switch {
+				case conf.IsSink(utils.DecomposeFunction(callee)):
+					reportCall(pass, c, callee, "sink")
+				case conf.IsSanitizer(utils.DecomposeFunction(callee)):
+					reportCall(pass, c, callee, "sanitizer")
+				}
+			}
 		}
 	}
 
 	return nil, nil
 }
 
-func TestConfig(t *testing.T) {
-	testdata := analysistest.TestData()
-	if err := FlagSet.Set("config", filepath.Join(testdata, "test-config.yaml")); err != nil {
-		t.Fatal(err)
-	}
-	analysistest.Run(t, testdata, testAnalyzer, "./...")
+func reportCall(pass *analysis.Pass, c *ssa.Call, f *ssa.Function, kind string) {
+	pass.Reportf(c.Pos(), "call to %s function %s", kind, f.RelString(pass.Pkg))
 }
