@@ -1,4 +1,4 @@
-// Copyright 2020 Google LLC
+// Copyright 2019 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,18 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package core
+package funccalls
 
-func Sink() {} // want "sink"
+import (
+	"path/filepath"
+	"testing"
 
-func NotSink() {}
+	"golang.org/x/tools/go/analysis/analysistest"
+)
 
-type Sinker struct{}
-
-func (s Sinker) Do() {} // want "sink"
-
-func (s Sinker) DoNot() {}
-
-type NotSinker struct{}
-
-func (ns NotSinker) Do() {}
+func TestLevee(t *testing.T) {
+	testData := analysistest.TestData()
+	if err := Analyzer.Flags.Set("config", filepath.Join(testData, "test-config.yaml")); err != nil {
+		t.Error(err)
+	}
+	analysistest.Run(t, testData, Analyzer, "./...")
+}
