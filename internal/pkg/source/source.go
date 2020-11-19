@@ -22,6 +22,7 @@ import (
 	"log"
 	"strings"
 
+	"github.com/google/go-flow-levee/internal/pkg/funccalls"
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
@@ -46,6 +47,7 @@ type Source struct {
 	preOrder   []ssa.Node
 	sanitizers []*sanitizer.Sanitizer
 	config     classifier
+	calls      funccalls.ResultType
 }
 
 // Pos returns the token position of the SSA Node associated with the Source.
@@ -69,11 +71,12 @@ func (s *Source) Pos() token.Pos {
 }
 
 // New constructs a Source
-func New(in ssa.Node, config classifier) *Source {
+func New(in ssa.Node, config classifier, calls funccalls.ResultType) *Source {
 	s := &Source{
 		node:   in,
 		marked: make(map[ssa.Node]bool),
 		config: config,
+		calls:  calls,
 	}
 	s.dfs(in, map[*ssa.BasicBlock]int{}, nil, false)
 	return s
@@ -165,7 +168,7 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 		}
 
 	case *ssa.Call:
-		if callee := t.Call.StaticCallee(); callee != nil && s.config.IsSanitizer(utils.DecomposeFunction(callee)) {
+		if s.calls.IsSanitizer(t) {
 			s.sanitizers = append(s.sanitizers, &sanitizer.Sanitizer{Call: t})
 		}
 
@@ -321,20 +324,19 @@ func (s *Source) String() string {
 	return b.String()
 }
 
-func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Source {
+func identify(conf classifier, ssaInput *buildssa.SSA, calls funccalls.ResultType) map[*ssa.Function][]*Source {
 	sourceMap := make(map[*ssa.Function][]*Source)
 
 	for _, fn := range ssaInput.SrcFuncs {
-		// no need to analyze the body of sinks, nor of excluded functions
 		path, recv, name := utils.DecomposeFunction(fn)
 		if conf.IsSink(path, recv, name) || conf.IsExcluded(path, recv, name) {
 			continue
 		}
 
 		var sources []*Source
-		sources = append(sources, sourcesFromParams(fn, conf)...)
-		sources = append(sources, sourcesFromClosure(fn, conf)...)
-		sources = append(sources, sourcesFromBlocks(fn, conf)...)
+		sources = append(sources, sourcesFromParams(fn, conf, calls)...)
+		sources = append(sources, sourcesFromClosure(fn, conf, calls)...)
+		sources = append(sources, sourcesFromBlocks(fn, conf, calls)...)
 
 		if len(sources) > 0 {
 			sourceMap[fn] = sources
@@ -343,17 +345,17 @@ func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Sour
 	return sourceMap
 }
 
-func sourcesFromParams(fn *ssa.Function, conf classifier) []*Source {
+func sourcesFromParams(fn *ssa.Function, conf classifier, calls funccalls.ResultType) []*Source {
 	var sources []*Source
 	for _, p := range fn.Params {
 		if isSourceType(conf, p.Type()) {
-			sources = append(sources, New(p, conf))
+			sources = append(sources, New(p, conf, calls))
 		}
 	}
 	return sources
 }
 
-func sourcesFromClosure(fn *ssa.Function, conf classifier) []*Source {
+func sourcesFromClosure(fn *ssa.Function, conf classifier, calls funccalls.ResultType) []*Source {
 	var sources []*Source
 	for _, p := range fn.FreeVars {
 		switch t := p.Type().(type) {
@@ -361,7 +363,7 @@ func sourcesFromClosure(fn *ssa.Function, conf classifier) []*Source {
 			// FreeVars (variables from a closure) appear as double-pointers
 			// Hence, the need to dereference them recursively.
 			if s, ok := utils.Dereference(t).(*types.Named); ok && conf.IsSourceType(utils.DecomposeType(s)) {
-				sources = append(sources, New(p, conf))
+				sources = append(sources, New(p, conf, calls))
 			}
 		}
 	}
@@ -369,7 +371,7 @@ func sourcesFromClosure(fn *ssa.Function, conf classifier) []*Source {
 }
 
 // sourcesFromBlocks finds Source values created by instructions within a function's body.
-func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
+func sourcesFromBlocks(fn *ssa.Function, conf classifier, calls funccalls.ResultType) []*Source {
 	var sources []*Source
 	for _, b := range fn.Blocks {
 		if b == fn.Recover {
@@ -388,7 +390,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 			// source defined as a local variable or returned from a call
 			case *ssa.Alloc, *ssa.Call:
 				// Allocs and Calls are values
-				if isProducedBySanitizer(v.(ssa.Value), conf) {
+				if isProducedBySanitizer(v.(ssa.Value), calls) {
 					continue
 				}
 
@@ -398,7 +400,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 			case *ssa.Extract:
 				t := v.Tuple.Type().(*types.Tuple).At(v.Index).Type()
 				if _, ok := t.(*types.Pointer); ok && conf.IsSourceType(utils.DecomposeType(utils.Dereference(t))) {
-					sources = append(sources, New(v, conf))
+					sources = append(sources, New(v, conf, calls))
 				}
 				continue
 
@@ -418,7 +420,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 
 			// all of the instructions that the switch lets through are values as per ssa/doc.go
 			if v := instr.(ssa.Value); isSourceType(conf, v.Type()) {
-				sources = append(sources, New(v.(ssa.Node), conf))
+				sources = append(sources, New(v.(ssa.Node), conf, calls))
 			}
 		}
 	}
@@ -462,7 +464,7 @@ func isSourceType(c classifier, t types.Type) bool {
 	}
 }
 
-func isProducedBySanitizer(v ssa.Value, conf classifier) bool {
+func isProducedBySanitizer(v ssa.Value, calls funccalls.ResultType) bool {
 	for _, instr := range *v.Referrers() {
 		store, ok := instr.(*ssa.Store)
 		if !ok {
@@ -472,7 +474,7 @@ func isProducedBySanitizer(v ssa.Value, conf classifier) bool {
 		if !ok {
 			continue
 		}
-		if callee := call.Call.StaticCallee(); callee != nil && conf.IsSanitizer(utils.DecomposeFunction(callee)) {
+		if calls.IsSanitizer(call) {
 			return true
 		}
 	}

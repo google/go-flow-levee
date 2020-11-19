@@ -18,6 +18,8 @@
 package funccalls
 
 import (
+	"reflect"
+
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis"
@@ -26,11 +28,27 @@ import (
 )
 
 var Analyzer = &analysis.Analyzer{
-	Name:     "funccalls",
-	Run:      runTest,
-	Flags:    config.FlagSet,
-	Doc:      `The funccalls analyzer finds calls to sink and sanitizer functions.`,
-	Requires: []*analysis.Analyzer{buildssa.Analyzer},
+	Name:  "funccalls",
+	Run:   runTest,
+	Flags: config.FlagSet,
+	Doc: `The funccalls analyzer finds calls to sink and sanitizer functions.
+Found calls are returned as a result that can be consumed by other analyzers.`,
+	Requires:   []*analysis.Analyzer{buildssa.Analyzer},
+	ResultType: reflect.TypeOf(new(ResultType)).Elem(),
+}
+
+// ResultType can be used to check if a given call is a call to a sink or sanitizer.
+type ResultType struct {
+	sinkCalls      map[*ssa.Call]bool
+	sanitizerCalls map[*ssa.Call]bool
+}
+
+func (rt ResultType) IsSink(c *ssa.Call) bool {
+	return rt.sinkCalls[c]
+}
+
+func (rt ResultType) IsSanitizer(c *ssa.Call) bool {
+	return rt.sanitizerCalls[c]
 }
 
 func runTest(pass *analysis.Pass) (interface{}, error) {
@@ -39,6 +57,11 @@ func runTest(pass *analysis.Pass) (interface{}, error) {
 	conf, err := config.ReadConfig()
 	if err != nil {
 		return nil, err
+	}
+
+	rt := ResultType{
+		sinkCalls:      map[*ssa.Call]bool{},
+		sanitizerCalls: map[*ssa.Call]bool{},
 	}
 
 	for _, f := range in.SrcFuncs {
@@ -57,15 +80,17 @@ func runTest(pass *analysis.Pass) (interface{}, error) {
 				}
 				switch {
 				case conf.IsSink(utils.DecomposeFunction(callee)):
+					rt.sinkCalls[c] = true
 					reportCall(pass, c, callee, "sink")
 				case conf.IsSanitizer(utils.DecomposeFunction(callee)):
+					rt.sanitizerCalls[c] = true
 					reportCall(pass, c, callee, "sanitizer")
 				}
 			}
 		}
 	}
 
-	return nil, nil
+	return rt, nil
 }
 
 func reportCall(pass *analysis.Pass, c *ssa.Call, f *ssa.Function, kind string) {

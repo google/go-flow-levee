@@ -20,7 +20,7 @@ import (
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/fieldpropagator"
-	"github.com/google/go-flow-levee/internal/pkg/utils"
+	"github.com/google/go-flow-levee/internal/pkg/funccalls"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ssa"
 
@@ -32,7 +32,7 @@ var Analyzer = &analysis.Analyzer{
 	Run:      run,
 	Flags:    config.FlagSet,
 	Doc:      "reports attempts to source data to sinks",
-	Requires: []*analysis.Analyzer{source.Analyzer, fieldpropagator.Analyzer},
+	Requires: []*analysis.Analyzer{source.Analyzer, fieldpropagator.Analyzer, funccalls.Analyzer},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -42,6 +42,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 	sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
 	fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
+	calls := pass.ResultOf[funccalls.Analyzer].(funccalls.ResultType)
 
 	// Only examine functions that have sources
 	for fn, sources := range sourcesMap {
@@ -56,12 +57,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 
-				callee := v.Call.StaticCallee()
 				switch {
 				case fieldPropagators.IsFieldPropagator(v):
-					sources = append(sources, source.New(v, conf))
+					sources = append(sources, source.New(v, conf, calls))
 
-				case callee != nil && conf.IsSink(utils.DecomposeFunction(v.Call.StaticCallee())):
+				case calls.IsSink(v):
 					for _, s := range sources {
 						if s.HasPathTo(instr.(ssa.Node)) && !s.IsSanitizedAt(v) {
 							report(pass, s, v)

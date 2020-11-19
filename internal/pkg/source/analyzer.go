@@ -19,6 +19,7 @@ import (
 	"reflect"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
+	"github.com/google/go-flow-levee/internal/pkg/funccalls"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
@@ -31,18 +32,19 @@ var Analyzer = &analysis.Analyzer{
 	Doc:        "This analyzer identifies ssa.Values as dataflow sources.",
 	Flags:      config.FlagSet,
 	Run:        run,
-	Requires:   []*analysis.Analyzer{buildssa.Analyzer},
+	Requires:   []*analysis.Analyzer{buildssa.Analyzer, funccalls.Analyzer},
 	ResultType: reflect.TypeOf(new(ResultType)).Elem(),
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
+	calls := pass.ResultOf[funccalls.Analyzer].(funccalls.ResultType)
 	conf, err := config.ReadConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	sourceMap := identify(conf, ssaInput)
+	sourceMap := identify(conf, ssaInput, calls)
 
 	for _, srcs := range sourceMap {
 		for _, s := range srcs {
