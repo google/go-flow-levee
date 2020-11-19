@@ -12,6 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package sanitizers
+package core
 
-func Sanitize() {} // want "Sanitize is a sanitizer"
+func Excluded() {} // want "function Excluded is excluded from analysis"
+
+func Sanitize() {} // want "function Sanitize is a sanitizer"
+
+func Sink() {} // want "function Sink is a sink"
+
+func SomeOtherFunction() {}
+
+type Sinker struct{}
+
+func (s Sinker) Do() {} // want "function \\(Sinker\\).Do is a sink"
+
+func (s Sinker) DoNot() {}

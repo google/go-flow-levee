@@ -13,8 +13,14 @@
 # limitations under the License.
 ---
 Sinks:
-  - Package: "sinks"
+  - Package: "core"
     Method: "Sink"
+  - Package: "core"
+    Receiver: "Sinker"
+    Method: "Do"
 Sanitizers:
-  - Package: "sanitizers"
+  - Package: "core"
     Method: "Sanitize"
+Exclude:
+  - Package: "core"
+    Method: "Excluded"

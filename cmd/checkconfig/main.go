@@ -16,10 +16,11 @@
 package main
 
 import (
+	"github.com/google/go-flow-levee/internal/pkg/funccalls"
 	"github.com/google/go-flow-levee/internal/pkg/funcdefs"
-	"golang.org/x/tools/go/analysis/singlechecker"
+	"golang.org/x/tools/go/analysis/multichecker"
 )
 
 func main() {
-	singlechecker.Main(funcdefs.Analyzer)
+	multichecker.Main(funccalls.Analyzer, funcdefs.Analyzer)
 }

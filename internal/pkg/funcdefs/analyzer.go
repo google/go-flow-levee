@@ -21,6 +21,7 @@ import (
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
+	"golang.org/x/tools/go/ssa"
 )
 
 var Analyzer = &analysis.Analyzer{
@@ -41,15 +42,18 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 	for _, f := range builtSSA.SrcFuncs {
 		switch {
-		// TODO: refactor
 		case conf.IsExcluded(utils.DecomposeFunction(f)):
-			pass.Reportf(f.Pos(), "%s is excluded from analysis", f.Name())
+			reportDef(pass, f, "excluded from analysis")
 		case conf.IsSink(utils.DecomposeFunction(f)):
-			pass.Reportf(f.Pos(), "%s is a sink", f.Name())
+			reportDef(pass, f, "a sink")
 		case conf.IsSanitizer(utils.DecomposeFunction(f)):
-			pass.Reportf(f.Pos(), "%s is a sanitizer", f.Name())
+			reportDef(pass, f, "a sanitizer")
 		}
 	}
 
 	return nil, nil
+}
+
+func reportDef(pass *analysis.Pass, f *ssa.Function, what string) {
+	pass.Reportf(f.Pos(), "function %s is %s", f.RelString(pass.Pkg), what)
 }
