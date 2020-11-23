@@ -26,6 +26,11 @@ type Regexp struct {
 	r *regexp.Regexp
 }
 
+func New(s string) (*Regexp, error) {
+	r, err := regexp.Compile(s)
+	return &Regexp{r: r}, err
+}
+
 // MatchString delegates matching to the regex package.
 func (mr *Regexp) MatchString(s string) bool {
 	return mr.r == nil || mr.r.MatchString(s)

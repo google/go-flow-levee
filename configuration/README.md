@@ -13,14 +13,18 @@ For design details concerning value and instruction classification, see [/design
 
 Configuration is provided to `go-flow-levee` via YAML.
 
-Objects of interest are identified primarily via regexp. An empty regexp will match any string.
+Sources are identified by package, type, and field names.
+You may specify these with a combination of string literals or regexp.
+Use `Package`, `Type`, and `Field` to specify by string literal.
+Use `PackageRE`, `TypeRE`, and `FieldRE` to specify by regexp.
+If neither a literal nor a regexp is provided, a wildcard matcher is assumed.
+Providing both a literal and a regexp matcher is considered a misconfiguration and will error.
 
-Sources are identified via regexp according to package, type, and field names.
 ```yaml
 Sources:
-- PackageRE: "<package path regexp>"
-  TypeRE: "<type name regexp>"
-  FieldRE: "<field name regexp>"
+- Package: "full/package/path"
+  # Neither Type nor TypeRE are specified - match all type names
+  FieldRE: "Token|Password|Secret" 
 ```
 
 Sources may also be identified via field tags:
@@ -37,35 +41,40 @@ FieldTags:
   Val: source
 ```
 
-Sinks and sanitizers are identified via regexp according to package, method, and (optional) receiver name.
+Sinks and sanitizers are identified by package, method, and (if applicable) receiver name.
+As with source configuration, these may be specified by either a provided string literal or regexp.
+Use `Package`, `Receiver`, and `Method` to specify by string literal.
+Use `PackageRE`, `ReceiverRE`, and `MethodRE` to specify by regexp.
+If neither a literal nor a regexp is provided, a wildcard matcher is assumed.
+Providing both a literal and a regexp matcher is considered a misconfiguration and will error.
 
 ```yaml
 Sinks:
-- PackageRE: <package path regexp>
-  ReceiverRE: <type name regexp>
-  MethodRE: <method name regexp>
+- PackageRE:  ".*/sinks(/v1)?"  # Regexp match a collection of packages 
+  # Neither Receiver nor ReceiverRE is provided - match any (or no) receiver
+  Method: "Sink"  # Match only functions named exactly "Sink"
 Sanitizers:
-- PackageRE: <package path regexp>
-  ReceiverRE: <type name regexp>
-  MethodRE: <method name regexp>
+- # Neither Package nor PackageRE is provided - match any package
+  ReceiverRE: "^Safe"  # Match any receiver beginning with "Safe"
+  Method: "sanitize"  # Match methods named exactly "sanitize"
 ```
+
+To explicitly match an empty string, such as top-level functions without a receiver, explicitly configure an empty string matcher, e.g., `Receiver: ""`.
 
 Taint propagation is performed automatically and does not need to be explicitly configured.
 
-For matchers that accept a `ReceiverRE` regexp matcher, an unspecified string will match any (or no) receiver.
-To match only methods without any receiver (i.e., a top-level function), use the matcher `^$` to match an empty-string receiver name.
-
 ### Restricting analysis scope
 
-Functions can be explicitly excluded from analysis using regexps,
+Functions can be explicitly excluded from analysis using string literals or regexps,
 constructed similarly to those used to identify sanitizers and sinks:
 ```yaml
 Exclude:
-- PathRE: "^myproject/mypackage$"
-  MethodRE: "^myfunction$"
+- Package: "myproject/mypackage"
+  MethodRE: "^my.*"
 ```
 
-The above will match the function `myfunction` from the `myproject/mypackage` package. It will also match a method named `myfunction` in the same package.
+The above will match any function beginning with "my" in the `myproject/mypackage` package.
+Since no receiver matcher was provided, it will match any method beginning with "my" bound to any (or no) receiver.
 
 As just two examples, this may be used to avoid analyzing test code, or to suppress "false positive" reports.
 

@@ -48,6 +48,18 @@ type (
 		sh SourceHolder
 	}
 
+	SourceWrapperHolder struct { // want SourceWrapperHolder:"inferred source"
+		Wrapped struct {
+			s source.Source
+		}
+	}
+
+	TaggedWrapperHolder struct { // want TaggedWrapperHolder:"inferred source"
+		Wrapped struct {
+			s string `levee:"source"`
+		}
+	}
+
 	TaggedHolder struct { // want TaggedHolder:"inferred source"
 		t source.Tagged
 	}
@@ -56,6 +68,14 @@ type (
 type (
 	NotSourceHolder struct {
 		ns source.NotSource
+	}
+
+	FieldFuncWithSourceArg struct {
+		f func(s source.Source)
+	}
+
+	FieldFuncWithSourceRetval struct {
+		f func() source.Source
 	}
 )
 

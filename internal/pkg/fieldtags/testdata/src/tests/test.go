@@ -24,3 +24,9 @@ type Person struct {
 	spaceAfterFinalQuote     string      `key:"value" `
 	someNotTaggedField       int
 }
+
+type Nester struct {
+	Nested struct {
+		adminSecret string `levee:"source"` // want "tagged field: adminSecret"
+	}
+}
