@@ -16,8 +16,6 @@
 package fields
 
 import (
-	"fmt"
-
 	"example.com/core"
 )
 
@@ -34,6 +32,11 @@ func TestDirectFieldAccess(c *core.Source) {
 	core.Sinkf("ID: %v", c.ID)
 }
 
+func TestInlinedDirectFieldAccess() {
+	core.Sinkf("Data: %v", core.Source{}.Data) // want "a source has reached a sink"
+	core.Sinkf("ID: %v", core.Source{}.ID)
+}
+
 func TestProtoStyleFieldAccessorSanitizedPII(c *core.Source) {
 	core.Sinkf("Source data: %v", core.Sanitize(c.GetData()))
 }
@@ -46,9 +49,4 @@ func TestProtoStyleFieldAccessorPIISecondLevel(wrapper struct{ *core.Source }) {
 func TestDirectFieldAccessorPIISecondLevel(wrapper struct{ *core.Source }) {
 	core.Sinkf("Source data: %v", wrapper.Source.Data) // want "a source has reached a sink"
 	core.Sinkf("Source id: %v", wrapper.Source.ID)
-}
-
-func TestField(s core.Source) {
-	data := s.Data
-	fmt.Printf(data)
 }

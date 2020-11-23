@@ -178,15 +178,11 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		s.visitOperands(n, maxInstrReached, lastBlockVisited)
 
+	case *ssa.Field:
+		s.visitField(n, maxInstrReached, lastBlockVisited, t.X.Type(), t.Field)
+
 	case *ssa.FieldAddr:
-		deref := utils.Dereference(t.X.Type())
-		typPath, typName := utils.DecomposeType(deref)
-		fieldName := utils.FieldName(t)
-		if !s.config.IsSourceField(typPath, typName, fieldName) {
-			return
-		}
-		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
-		s.visitOperands(n, maxInstrReached, lastBlockVisited)
+		s.visitField(n, maxInstrReached, lastBlockVisited, t.X.Type(), t.Field)
 
 	// Everything but the actual integer Index should be visited.
 	case *ssa.Index:
@@ -226,7 +222,7 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 		s.visitOperands(n, maxInstrReached, lastBlockVisited)
 
 	// These nodes are both Instructions and Values, and currently have no special restrictions.
-	case *ssa.Field, *ssa.MakeInterface, *ssa.Select, *ssa.TypeAssert:
+	case *ssa.MakeInterface, *ssa.Select, *ssa.TypeAssert:
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		s.visitOperands(n, maxInstrReached, lastBlockVisited)
 
@@ -236,6 +232,14 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 	default:
 		fmt.Printf("unexpected node received: %T %v; please report this issue\n", n, n)
 	}
+}
+
+func (s *Source) visitField(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, t types.Type, field int) {
+	if !s.config.IsSourceField(utils.DecomposeField(t, field)) {
+		return
+	}
+	s.visitReferrers(n, maxInstrReached, lastBlockVisited)
+	s.visitOperands(n, maxInstrReached, lastBlockVisited)
 }
 
 func (s *Source) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {

@@ -112,10 +112,7 @@ func analyzeResults(pass *analysis.Pass, conf *config.Config, tf fieldtags.Resul
 			continue
 		}
 
-		deref := utils.Dereference(fa.X.Type())
-		path, typeName := utils.DecomposeType(deref)
-		fieldName := utils.FieldName(fa)
-		if conf.IsSourceField(path, typeName, fieldName) || tf.IsSourceFieldAddr(fa) {
+		if conf.IsSourceField(utils.DecomposeField(fa.X.Type(), fa.Field)) || tf.IsSourceFieldAddr(fa) {
 			pass.ExportObjectFact(meth.Object(), &isFieldPropagator{})
 		}
 	}

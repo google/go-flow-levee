@@ -99,38 +99,55 @@ func TestDereference(t *testing.T) {
 	}
 }
 
-func TestFieldName(t *testing.T) {
+func TestDecomposeField(t *testing.T) {
 	dir := analysistest.TestData()
 
 	testCases := []struct {
-		pattern string
-		want    string
+		pattern   string
+		typePath  string
+		typeName  string
+		fieldName string
 	}{
 		{
-			pattern: "regular",
-			want:    "name",
+			pattern:   "regular",
+			typePath:  "fields/regular",
+			typeName:  "foo",
+			fieldName: "name",
 		},
 		{
-			pattern: "embedded",
-			want:    "foo",
+			pattern:   "embedded",
+			typePath:  "fields/embedded",
+			typeName:  "bar",
+			fieldName: "foo",
 		},
 	}
 
 	for _, tt := range testCases {
 		t.Run(tt.pattern, func(t *testing.T) {
-			r := analysistest.Run(t, dir, testAnalyzer, fmt.Sprintf("fieldname/%s", tt.pattern))
+			r := analysistest.Run(t, dir, testAnalyzer, fmt.Sprintf("fields/%s", tt.pattern))
+
 			if len(r) != 1 {
 				t.Fatalf("Got len(result) == %d, want 1", len(r))
 			}
 
-			a, ok := r[0].Result.(testAnalyzerResult)
-			if !ok {
-				t.Fatalf("Got result of type %T, wanted testAnalyzerResult", a)
+			if r[0].Err != nil {
+				t.Fatalf("Got unexpected error: %s", r[0].Err)
 			}
 
-			got := FieldName(a.fieldAddr[0])
-			if got != tt.want {
-				t.Fatalf("Got %s, want %s", got, tt.want)
+			res := r[0].Result.(testAnalyzerResult)
+
+			fa := res.fieldAddr[0]
+			fmt.Println(fa.Pos())
+
+			typePath, typeName, fieldName := DecomposeField(fa.X.Type(), fa.Field)
+			if typePath != tt.typePath {
+				t.Fatalf("Got typePath %s, want %s", typePath, tt.typePath)
+			}
+			if typeName != tt.typeName {
+				t.Fatalf("Got typeName %s, want %s", typeName, tt.typeName)
+			}
+			if fieldName != tt.fieldName {
+				t.Fatalf("Got fieldName %s, want %s", fieldName, tt.fieldName)
 			}
 		})
 	}
