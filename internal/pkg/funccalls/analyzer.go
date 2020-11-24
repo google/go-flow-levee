@@ -13,8 +13,7 @@
 // limitations under the License.
 
 // Package funccalls contains an analyzer that performs identification of
-// sink and sanitizer function definitions and calls. It also identifies
-// excluded functions.
+// sink and sanitizer function calls.
 package funccalls
 
 import (
