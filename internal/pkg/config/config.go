@@ -39,11 +39,12 @@ func init() {
 
 // config contains matchers and analysis scope information
 type Config struct {
-	Sources    []sourceMatcher
-	Sinks      []funcMatcher
-	Sanitizers []funcMatcher
-	FieldTags  []fieldTagMatcher
-	Exclude    []funcMatcher
+	MessageOnError string
+	Sources        []sourceMatcher
+	Sinks          []funcMatcher
+	Sanitizers     []funcMatcher
+	FieldTags      []fieldTagMatcher
+	Exclude        []funcMatcher
 }
 
 type fieldTagMatcher struct {
@@ -256,11 +257,13 @@ func ReadConfig() (*Config, error) {
 		bytes, err := ioutil.ReadFile(configFile)
 		if err != nil {
 			readConfigCachedErr = fmt.Errorf("error reading analysis config: %v", err)
+			fmt.Println(readConfigCachedErr)
 			return
 		}
 
 		if err := yaml.UnmarshalStrict(bytes, c); err != nil {
 			readConfigCachedErr = err
+			fmt.Println(readConfigCachedErr)
 			return
 		}
 		readConfigCached = c

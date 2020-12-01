@@ -35,6 +35,11 @@ var Analyzer = &analysis.Analyzer{
 	Requires: []*analysis.Analyzer{source.Analyzer, fieldpropagator.Analyzer},
 }
 
+type reportItems struct {
+	s *source.Source
+	v *ssa.Call
+}
+
 func run(pass *analysis.Pass) (interface{}, error) {
 	conf, err := config.ReadConfig()
 	if err != nil {
@@ -43,6 +48,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
 	fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
 
+	var items []reportItems
 	// Only examine functions that have sources
 	for fn, sources := range sourcesMap {
 		for _, b := range fn.Blocks {
@@ -64,7 +70,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				case callee != nil && conf.IsSink(utils.DecomposeFunction(v.Call.StaticCallee())):
 					for _, s := range sources {
 						if s.HasPathTo(instr.(ssa.Node)) && !s.IsSanitizedAt(v) {
-							report(pass, s, v)
+							items = append(items, reportItems{s, v})
 							break
 						}
 					}
@@ -73,7 +79,27 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 
+	reportAllItems(pass, conf, items)
 	return nil, nil
+}
+
+type ErrMessageFact string
+
+func (_ ErrMessageFact) AFact() {}
+
+func (emf ErrMessageFact) String() string {
+	return string(emf)
+}
+
+func reportAllItems(pass *analysis.Pass, conf *config.Config, items []reportItems) {
+	if len(items) > 0 && conf.MessageOnError != "" {
+		fact := ErrMessageFact(conf.MessageOnError)
+		pass.ExportPackageFact(&fact)
+	}
+
+	for _, item := range items {
+		report(pass, item.s, item.v)
+	}
 }
 
 func report(pass *analysis.Pass, source *source.Source, sink ssa.Node) {
