@@ -31,14 +31,15 @@ import (
 )
 
 func TestDOT(t *testing.T) {
-	testGolden(t, DOT, "DOT", ".dot")
+	testGoldenFiles(t, DOT, "DOT", ".dot")
 }
 
 func TestSSA(t *testing.T) {
-	testGolden(t, SSA, "SSA", ".ssa")
+	testGoldenFiles(t, SSA, "SSA", ".ssa")
 }
 
-func testGolden(t *testing.T, fn func(f *ssa.Function) string, fnName, ext string) {
+// testGoldenFiles tests the output of a rendering function against the golden files under testdata.
+func testGoldenFiles(t *testing.T, fn func(f *ssa.Function) string, fnName, ext string) {
 	testdata, err := filepath.Abs("testdata")
 	if err != nil {
 		t.Fatal(err)
