@@ -24,10 +24,6 @@ import (
 
 // DOT produces DOT source code representing the SSA graph for a function.
 func DOT(f *ssa.Function) string {
-	return renderDOT(f)
-}
-
-func renderDOT(f *ssa.Function) string {
 	return (&renderer{strings.Builder{}, f}).Render()
 }
 
