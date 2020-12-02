@@ -22,6 +22,7 @@ import (
 	"log"
 	"strings"
 
+	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
@@ -41,11 +42,12 @@ type classifier interface {
 // its referrers.
 // Source.sanitized notes sanitizer calls that sanitize this Source
 type Source struct {
-	node       ssa.Node
-	marked     map[ssa.Node]bool
-	preOrder   []ssa.Node
-	sanitizers []*sanitizer.Sanitizer
-	config     classifier
+	node         ssa.Node
+	marked       map[ssa.Node]bool
+	preOrder     []ssa.Node
+	sanitizers   []*sanitizer.Sanitizer
+	config       classifier
+	taggedFields fieldtags.ResultType
 }
 
 // Pos returns the token position of the SSA Node associated with the Source.
@@ -69,11 +71,12 @@ func (s *Source) Pos() token.Pos {
 }
 
 // New constructs a Source
-func New(in ssa.Node, config classifier) *Source {
+func New(in ssa.Node, config classifier, taggedFields fieldtags.ResultType) *Source {
 	s := &Source{
-		node:   in,
-		marked: make(map[ssa.Node]bool),
-		config: config,
+		node:         in,
+		marked:       make(map[ssa.Node]bool),
+		config:       config,
+		taggedFields: taggedFields,
 	}
 	s.dfs(in, map[*ssa.BasicBlock]int{}, nil, false)
 	return s
@@ -179,10 +182,11 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 		s.visitOperands(n, maxInstrReached, lastBlockVisited)
 
 	case *ssa.FieldAddr:
+		// TODO: need to pipe this in here too
 		deref := utils.Dereference(t.X.Type())
 		typPath, typName := utils.DecomposeType(deref)
 		fieldName := utils.FieldName(t)
-		if !s.config.IsSourceField(typPath, typName, fieldName) {
+		if !s.config.IsSourceField(typPath, typName, fieldName) && !s.taggedFields.IsSourceFieldAddr(t) {
 			return
 		}
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
@@ -321,7 +325,7 @@ func (s *Source) String() string {
 	return b.String()
 }
 
-func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Source {
+func identify(conf classifier, ssaInput *buildssa.SSA, taggedFields fieldtags.ResultType) map[*ssa.Function][]*Source {
 	sourceMap := make(map[*ssa.Function][]*Source)
 
 	for _, fn := range ssaInput.SrcFuncs {
@@ -332,9 +336,9 @@ func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Sour
 		}
 
 		var sources []*Source
-		sources = append(sources, sourcesFromParams(fn, conf)...)
-		sources = append(sources, sourcesFromClosure(fn, conf)...)
-		sources = append(sources, sourcesFromBlocks(fn, conf)...)
+		sources = append(sources, sourcesFromParams(fn, conf, taggedFields)...)
+		sources = append(sources, sourcesFromClosure(fn, conf, taggedFields)...)
+		sources = append(sources, sourcesFromBlocks(fn, conf, taggedFields)...)
 
 		if len(sources) > 0 {
 			sourceMap[fn] = sources
@@ -343,25 +347,42 @@ func identify(conf classifier, ssaInput *buildssa.SSA) map[*ssa.Function][]*Sour
 	return sourceMap
 }
 
-func sourcesFromParams(fn *ssa.Function, conf classifier) []*Source {
+func sourcesFromParams(fn *ssa.Function, conf classifier, taggedFields fieldtags.ResultType) []*Source {
 	var sources []*Source
 	for _, p := range fn.Params {
-		if isSourceType(conf, p.Type()) {
-			sources = append(sources, New(p, conf))
+		if isSourceType(conf, p.Type()) || hasTaggedField(taggedFields, utils.Dereference(p.Type())) {
+			sources = append(sources, New(p, conf, taggedFields))
 		}
 	}
 	return sources
 }
 
-func sourcesFromClosure(fn *ssa.Function, conf classifier) []*Source {
+func hasTaggedField(taggedFields fieldtags.ResultType, t types.Type) bool {
+	n, ok := t.(*types.Named)
+	if !ok {
+		return false
+	}
+	s, ok := n.Underlying().(*types.Struct)
+	if !ok {
+		return false
+	}
+	var has bool
+	for i := 0; i < s.NumFields(); i++ {
+		f := s.Field(i)
+		has = has || taggedFields.IsSource(f)
+	}
+	return has
+}
+
+func sourcesFromClosure(fn *ssa.Function, conf classifier, taggedFields fieldtags.ResultType) []*Source {
 	var sources []*Source
 	for _, p := range fn.FreeVars {
 		switch t := p.Type().(type) {
 		case *types.Pointer:
 			// FreeVars (variables from a closure) appear as double-pointers
 			// Hence, the need to dereference them recursively.
-			if s, ok := utils.Dereference(t).(*types.Named); ok && conf.IsSourceType(utils.DecomposeType(s)) {
-				sources = append(sources, New(p, conf))
+			if s, ok := utils.Dereference(t).(*types.Named); ok && (conf.IsSourceType(utils.DecomposeType(s)) || hasTaggedField(taggedFields, t)) {
+				sources = append(sources, New(p, conf, taggedFields))
 			}
 		}
 	}
@@ -369,7 +390,7 @@ func sourcesFromClosure(fn *ssa.Function, conf classifier) []*Source {
 }
 
 // sourcesFromBlocks finds Source values created by instructions within a function's body.
-func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
+func sourcesFromBlocks(fn *ssa.Function, conf classifier, taggedFields fieldtags.ResultType) []*Source {
 	var sources []*Source
 	for _, b := range fn.Blocks {
 		if b == fn.Recover {
@@ -398,7 +419,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 			case *ssa.Extract:
 				t := v.Tuple.Type().(*types.Tuple).At(v.Index).Type()
 				if _, ok := t.(*types.Pointer); ok && conf.IsSourceType(utils.DecomposeType(utils.Dereference(t))) {
-					sources = append(sources, New(v, conf))
+					sources = append(sources, New(v, conf, taggedFields))
 				}
 				continue
 
@@ -417,8 +438,8 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier) []*Source {
 			}
 
 			// all of the instructions that the switch lets through are values as per ssa/doc.go
-			if v := instr.(ssa.Value); isSourceType(conf, v.Type()) {
-				sources = append(sources, New(v.(ssa.Node), conf))
+			if v := instr.(ssa.Value); isSourceType(conf, v.Type()) || hasTaggedField(taggedFields, utils.Dereference(v.Type())) {
+				sources = append(sources, New(v.(ssa.Node), conf, taggedFields))
 			}
 		}
 	}

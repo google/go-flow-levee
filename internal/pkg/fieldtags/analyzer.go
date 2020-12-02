@@ -35,12 +35,21 @@ type ResultType map[types.Object]bool
 
 var Analyzer = &analysis.Analyzer{
 	Name: "fieldtags",
-	Doc:  "This analyzer identifies Source fields based on their tags. Tags are expected to satisfy the `go vet -structtag` format.",
+	Doc:  "This analyzer identifies Source fields based on their tags.",
 	Run:  run,
 	Requires: []*analysis.Analyzer{
 		inspect.Analyzer,
 	},
 	ResultType: reflect.TypeOf(new(ResultType)).Elem(),
+	FactTypes:  []analysis.Fact{new(isTaggedField)},
+}
+
+type isTaggedField struct{}
+
+func (i isTaggedField) AFact() {}
+
+func (i isTaggedField) String() string {
+	return "tagged field"
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -69,12 +78,19 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			for i, ident := range f.Names {
 				fNames[i] = ident.Name
 				taggedFields[pass.TypesInfo.ObjectOf(ident)] = true
+				pass.ExportObjectFact(pass.TypesInfo.ObjectOf(ident), &isTaggedField{})
 			}
 			pass.Reportf(f.Pos(), "tagged field: %s", strings.Join(fNames, ", "))
 		}
 	})
 
-	return ResultType(taggedFields), nil
+	// return all facts accumulated down the current path in the dependency graph
+	result := map[types.Object]bool{}
+	for _, f := range pass.AllObjectFacts() {
+		result[f.Object] = true
+	}
+
+	return ResultType(result), nil
 }
 
 // IsSourceFieldAddr determines whether a ssa.FieldAddr is a source, that is whether it refers to a field previously identified as a source.
