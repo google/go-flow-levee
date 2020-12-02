@@ -20,7 +20,6 @@ import (
 	"go/ast"
 	"go/types"
 	"reflect"
-	"strings"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"golang.org/x/tools/go/analysis"
@@ -80,7 +79,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				taggedFields[pass.TypesInfo.ObjectOf(ident)] = true
 				pass.ExportObjectFact(pass.TypesInfo.ObjectOf(ident), &isTaggedField{})
 			}
-			pass.Reportf(f.Pos(), "tagged field: %s", strings.Join(fNames, ", "))
 		}
 	})
 

@@ -33,26 +33,19 @@ func TestFieldTagsAnalysis(t *testing.T) {
 
 	results := analysistest.Run(t, testdata, Analyzer, "./...")
 
-	if len(results) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(results))
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
 	}
 
-	want := []string{
-		"password",
-		"creds",
-		"secret",
-		"another",
-		"hasCustomFieldTag",
-		"hasTagWithMultipleValues",
-		"adminSecret",
+	var package0Results, package1Results []string
+	for obj := range results[0].Result.(ResultType) {
+		package0Results = append(package0Results, obj.Name())
+	}
+	for obj := range results[1].Result.(ResultType) {
+		package1Results = append(package1Results, obj.Name())
 	}
 
-	var got []string
-	for o := range results[0].Result.(ResultType) {
-		got = append(got, o.Name())
-	}
-
-	if diff := cmp.Diff(want, got, cmpopts.SortSlices(func(a, b string) bool { return a < b })); diff != "" {
-		t.Errorf("Tagged Fields diff (-want +got):\n%s", diff)
+	if diff := cmp.Diff(package0Results, package1Results, cmpopts.SortSlices(func(a, b string) bool { return a < b })); diff != "" {
+		t.Errorf("expected packages to have same results, diff (-want +got):\n%s", diff)
 	}
 }
