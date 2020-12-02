@@ -174,7 +174,7 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 
 		// This is to avoid attaching calls where the source is the receiver, ex:
 		// core.Sinkf("Source id: %v", wrapper.Source.GetID())
-		if recv := t.Call.Signature().Recv(); recv != nil && s.config.IsSourceType(utils.DecomposeType(utils.Dereference(recv.Type()))) {
+		if recv := t.Call.Signature().Recv(); recv != nil && isSourceType(s.config, s.taggedFields, recv.Type()) {
 			return
 		}
 
@@ -182,7 +182,6 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 		s.visitOperands(n, maxInstrReached, lastBlockVisited)
 
 	case *ssa.FieldAddr:
-		// TODO: need to pipe this in here too
 		deref := utils.Dereference(t.X.Type())
 		typPath, typName := utils.DecomposeType(deref)
 		fieldName := utils.FieldName(t)
@@ -350,28 +349,11 @@ func identify(conf classifier, ssaInput *buildssa.SSA, taggedFields fieldtags.Re
 func sourcesFromParams(fn *ssa.Function, conf classifier, taggedFields fieldtags.ResultType) []*Source {
 	var sources []*Source
 	for _, p := range fn.Params {
-		if isSourceType(conf, p.Type()) || hasTaggedField(taggedFields, utils.Dereference(p.Type())) {
+		if isSourceType(conf, taggedFields, p.Type()) {
 			sources = append(sources, New(p, conf, taggedFields))
 		}
 	}
 	return sources
-}
-
-func hasTaggedField(taggedFields fieldtags.ResultType, t types.Type) bool {
-	n, ok := t.(*types.Named)
-	if !ok {
-		return false
-	}
-	s, ok := n.Underlying().(*types.Struct)
-	if !ok {
-		return false
-	}
-	var has bool
-	for i := 0; i < s.NumFields(); i++ {
-		f := s.Field(i)
-		has = has || taggedFields.IsSource(f)
-	}
-	return has
 }
 
 func sourcesFromClosure(fn *ssa.Function, conf classifier, taggedFields fieldtags.ResultType) []*Source {
@@ -379,9 +361,7 @@ func sourcesFromClosure(fn *ssa.Function, conf classifier, taggedFields fieldtag
 	for _, p := range fn.FreeVars {
 		switch t := p.Type().(type) {
 		case *types.Pointer:
-			// FreeVars (variables from a closure) appear as double-pointers
-			// Hence, the need to dereference them recursively.
-			if s, ok := utils.Dereference(t).(*types.Named); ok && (conf.IsSourceType(utils.DecomposeType(s)) || hasTaggedField(taggedFields, t)) {
+			if isSourceType(conf, taggedFields, t) {
 				sources = append(sources, New(p, conf, taggedFields))
 			}
 		}
@@ -418,7 +398,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier, taggedFields fieldtags
 			// have an Alloc and we'll miss it.
 			case *ssa.Extract:
 				t := v.Tuple.Type().(*types.Tuple).At(v.Index).Type()
-				if _, ok := t.(*types.Pointer); ok && conf.IsSourceType(utils.DecomposeType(utils.Dereference(t))) {
+				if _, ok := t.(*types.Pointer); ok && isSourceType(conf, taggedFields, t) {
 					sources = append(sources, New(v, conf, taggedFields))
 				}
 				continue
@@ -438,7 +418,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier, taggedFields fieldtags
 			}
 
 			// all of the instructions that the switch lets through are values as per ssa/doc.go
-			if v := instr.(ssa.Value); isSourceType(conf, v.Type()) || hasTaggedField(taggedFields, utils.Dereference(v.Type())) {
+			if v := instr.(ssa.Value); isSourceType(conf, taggedFields, v.Type()) {
 				sources = append(sources, New(v.(ssa.Node), conf, taggedFields))
 			}
 		}
@@ -455,22 +435,24 @@ func isBoolean(n ssa.Node) bool {
 	return false
 }
 
-func isSourceType(c classifier, t types.Type) bool {
+func isSourceType(c classifier, tf fieldtags.ResultType, t types.Type) bool {
 	deref := utils.Dereference(t)
 	switch tt := deref.(type) {
 	case *types.Named:
-		return c.IsSourceType(utils.DecomposeType(tt)) || isSourceType(c, tt.Underlying())
+		return c.IsSourceType(utils.DecomposeType(tt)) || isSourceType(c, tf, tt.Underlying())
 	case *types.Array:
-		return isSourceType(c, tt.Elem())
+		return isSourceType(c, tf, tt.Elem())
 	case *types.Slice:
-		return isSourceType(c, tt.Elem())
+		return isSourceType(c, tf, tt.Elem())
 	case *types.Chan:
-		return isSourceType(c, tt.Elem())
+		return isSourceType(c, tf, tt.Elem())
 	case *types.Map:
-		key := isSourceType(c, tt.Key())
-		elem := isSourceType(c, tt.Elem())
+		key := isSourceType(c, tf, tt.Key())
+		elem := isSourceType(c, tf, tt.Elem())
 		return key || elem
-	case *types.Basic, *types.Struct, *types.Tuple, *types.Interface, *types.Signature:
+	case *types.Struct:
+		return hasTaggedField(tf, tt)
+	case *types.Basic, *types.Tuple, *types.Interface, *types.Signature:
 		// These types do not currently represent possible source types
 		return false
 	case *types.Pointer:
@@ -481,6 +463,15 @@ func isSourceType(c classifier, t types.Type) bool {
 		fmt.Printf("unexpected type received: %T %v; please report this issue\n", tt, tt)
 		return false
 	}
+}
+
+func hasTaggedField(taggedFields fieldtags.ResultType, s *types.Struct) bool {
+	var has bool
+	for i := 0; i < s.NumFields(); i++ {
+		f := s.Field(i)
+		has = has || taggedFields.IsSource(f)
+	}
+	return has
 }
 
 func isProducedBySanitizer(v ssa.Value, conf classifier) bool {
