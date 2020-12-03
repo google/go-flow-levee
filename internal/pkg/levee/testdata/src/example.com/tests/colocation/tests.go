@@ -103,34 +103,29 @@ func TestReferenceCollectionsAreTainted(s core.Source) {
 func colocateReflectValue(core.Source, reflect.Value) {}
 
 func TestReflectValuesAreTainted(s core.Source, r reflect.Value) {
-	// This test is failing because ph is created by an Alloc,
+	// This test is failing because r is created by an Alloc,
 	// and we don't traverse through non-array Allocs
 	colocateReflectValue(s, r)
 	core.Sink(r) // TODO want "a source has reached a sink"
 }
 
-func colocateEface(s core.Source, taintees ...interface{}) {}
+func colocateSingleEface(s core.Source, e interface{})             {}
+func colocateVariadicEface(s core.Source, taintees ...interface{}) {}
 
 func TestTaintedEface(s core.Source, i interface{}) {
-	colocateEface(s, i)
+	colocateSingleEface(s, i)
 	core.Sink(i) // want "a source has reached a sink"
 
 }
 
 func TestTaintedThroughEface(s core.Source, str string, i core.Innocuous) {
-	colocateEface(s, str, i)
-	// Ideally, we wouldn't want reports for either of those values, because they
-	// are not pointers.
-	// However, because they are passed to the call via an interface type,
-	// we have no easy way to know that these values can't actually be tainted.
-	core.Sink(str) // want "a source has reached a sink"
-	core.Sink(i)   // TODO want "a source has reached a sink"
+	colocateVariadicEface(s, str, i)
+	core.Sink(str)
+	core.Sink(i)
 }
 
 func TestPointerTaintedThroughEface(s core.Source, str string, i core.Innocuous) {
-	colocateEface(s, &str, &i)
-	// These tests are failing because &x introduces an Alloc,
-	// and we don't traverse through non-array Allocs
+	colocateVariadicEface(s, &str, &i)
 	core.Sink(str) // TODO want "a source has reached a sink"
 	core.Sink(i)   // TODO want "a source has reached a sink"
 }
