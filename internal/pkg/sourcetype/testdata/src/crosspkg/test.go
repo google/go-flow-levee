@@ -18,7 +18,7 @@ import "sourcetype"
 
 type AliasStruct = sourcetype.Source // want AliasStruct:"source type"
 
-// TODO Consider automatic detection of the following types.
+// TODO(96,97) Consider automatic detection of the following types.
 type NamedType sourcetype.Source
 type SliceContainer []sourcetype.Source
 type ArrayContainer [5]sourcetype.Source

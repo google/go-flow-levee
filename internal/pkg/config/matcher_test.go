@@ -31,7 +31,7 @@ func TestFuncMatcherUnmarshaling(t *testing.T) {
 			yaml: `
 Blahblah: foo
 PackageRE: bar`,
-			shouldErrorOnLoad: false, // TODO true
+			shouldErrorOnLoad: false, // TODO(206): true
 		},
 		{
 			desc: "Malformed YAML errors gracefully",
@@ -164,7 +164,7 @@ func TestSourceMatcherUnmarshaling(t *testing.T) {
 			yaml: `
 Blahblah: foo
 PackageRE: bar`,
-			shouldErrorOnLoad: false, // TODO true
+			shouldErrorOnLoad: false, // TODO(206): true
 		},
 		{
 			desc: "Malformed YAML errors gracefully",

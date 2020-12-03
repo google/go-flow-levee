@@ -27,11 +27,11 @@ type EmbedsSourcePointer struct {
 }
 
 func TestStructThatEmbedsSourceIsSource() {
-	core.Sink(EmbedsSource{}) // TODO want "a source has reached a sink"
+	core.Sink(EmbedsSource{}) // TODO(96) want "a source has reached a sink"
 }
 
 func TestStructThatEmbedsSourcePointerIsSource() {
-	core.Sink(EmbedsSourcePointer{}) // TODO want "a source has reached a sink"
+	core.Sink(EmbedsSourcePointer{}) // TODO(96) want "a source has reached a sink"
 }
 
 func TestEmbeddedSourceIsSource() {

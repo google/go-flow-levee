@@ -1,5 +1,9 @@
 # Developing Go Flow Levee
 
+## TODOs
+
+If you introduce a new `TODO`, please use `TODO(#issue number)` instead of a plain `TODO` or even `TODO(username)`. Having an issue number gives visibility to the TODO and makes it less likely that it will be forgotten.
+
 ## Debugging
 
 The main analyzer depends heavily on the [golang.org/x/tools/ssa](https://pkg.go.dev/golang.org/x/tools/ssa) package. Being able to read the SSA code and visualize its graph can be very useful for debugging. In order to generate the SSA code and DOT ([graphviz](https://graphviz.org/)) source for every function in a test, run `go test <package> -debug`. Results are written to the `output` directory. You can generate a PDF from the DOT source using `dot -Tpdf <file> -o "$(basename <file> .dot).pdf"`.
