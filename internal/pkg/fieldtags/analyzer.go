@@ -58,7 +58,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	inspectResult := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	taggedFields := map[types.Object]bool{}
 
 	nodeFilter := []ast.Node{
 		(*ast.StructType)(nil),
@@ -76,7 +75,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			fNames := make([]string, len(f.Names))
 			for i, ident := range f.Names {
 				fNames[i] = ident.Name
-				taggedFields[pass.TypesInfo.ObjectOf(ident)] = true
 				pass.ExportObjectFact(pass.TypesInfo.ObjectOf(ident), &isTaggedField{})
 			}
 		}

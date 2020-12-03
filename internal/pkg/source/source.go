@@ -466,12 +466,13 @@ func isSourceType(c classifier, tf fieldtags.ResultType, t types.Type) bool {
 }
 
 func hasTaggedField(taggedFields fieldtags.ResultType, s *types.Struct) bool {
-	var has bool
 	for i := 0; i < s.NumFields(); i++ {
 		f := s.Field(i)
-		has = has || taggedFields.IsSource(f)
+		if taggedFields.IsSource(f) {
+			return true
+		}
 	}
-	return has
+	return false
 }
 
 func isProducedBySanitizer(v ssa.Value, conf classifier) bool {
