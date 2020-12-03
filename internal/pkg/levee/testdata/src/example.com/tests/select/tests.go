@@ -61,7 +61,7 @@ func TestTaintedAndSinkedInDifferentBranches(objects chan interface{}) {
 	select {
 	case objects <- core.Source{}:
 	case s := <-objects:
-		// TODO want no report here, because objects is only tainted if the
+		// TODO(211) want no report here, because objects is only tainted if the
 		// other branch is taken, and only one branch can be taken
 		core.Sink(s) // want "a source has reached a sink"
 	}
@@ -102,7 +102,7 @@ func TestTaintedInForkedClosure(objects chan interface{}) {
 
 	select {
 	case s := <-objects:
-		core.Sink(s) // TODO want "a source has reached a sink"
+		core.Sink(s) // TODO(99) want "a source has reached a sink"
 	default:
 		return
 	}
@@ -113,7 +113,7 @@ func TestTaintedInForkedCall(objects chan interface{}) {
 
 	select {
 	case s := <-objects:
-		core.Sink(s) // TODO want "a source has reached a sink"
+		core.Sink(s) // TODO(99) want "a source has reached a sink"
 	default:
 		return
 	}

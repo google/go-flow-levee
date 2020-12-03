@@ -1,32 +1,62 @@
 # Developing Go Flow Levee
 
+## Recommended Reading
+
+Having some knowledge of the following packages is helpful when developing Go Flow Levee:
+
+* [golang.org/x/tools/go/analysis](https://golang.org/x/tools/go/analysis)
+
+The `analysis` package provides a framework for developing Go static analyzers. A good overview of the framework is provided in the `doc.go` file. For concrete examples, the `passes` directory contains many analyzers. In that directory, the `findcall` analyzer is intended as a simple example. The `nilness` analyzer is particularly interesting for our purposes, since it uses the `ssa` package.
+
+* [golang.org/x/tools/go/ssa](https://golang.org/x/tools/go/ssa)
+
+The `ssa` package provides a [Static Single Assignment (SSA)](https://en.wikipedia.org/wiki/Static_single_assignment_form) form for Go code. This is the main code representation used by Go Flow Levee, as it provides a way to track the flow of data in a program. The `doc.go` file provides a good overview of the main concepts. The main types (e.g., instructions, values) are defined in `ssa.go`.
+
+* [golang.org/go/types](https://golang.org/pkg/go/types)
+
+The `types` package provides information about types in a Go program. The most relevant files for our uses are `api.go` and `object.go`. For a deeper understanding, there is a nice tutorial about using the `types` package [here](https://github.com/golang/example/tree/master/gotypes).
+
+* [golang.org/go/ast](https://golang.org/pkg/go/ast)
+
+The `ast` package provides the [Abstract Syntax Tree (AST)](https://en.wikipedia.org/wiki/Abstract_syntax_tree) of Go code. We use this package to answer questions about the structure of the code, e.g. "does this struct definition have tagged fields" (in the `fieldtags` analyzer). You can view a Go program's AST with `gotype -ast <file>`.
+
+Outside of those packages, we often refer to the [Go Spec](https://golang.org/ref/spec) to determine the proper way to handle various Go constructs.
+
 ## TODOs
 
-If you introduce a new `TODO`, please use `TODO(#issue number)` instead of a plain `TODO` or even `TODO(username)`. Having an issue number gives visibility to the TODO and makes it less likely that it will be forgotten.
+If you introduce a new TODO, please use `TODO(#issue number)` instead of a plain `TODO` or even `TODO(username)`. Having an issue number gives visibility to the TODO and makes it less likely that it will be forgotten.
 
 ## Debugging
 
-The main analyzer depends heavily on the [golang.org/x/tools/ssa](https://pkg.go.dev/golang.org/x/tools/ssa) package. Being able to read the SSA code and visualize its graph can be very useful for debugging. In order to generate the SSA code and DOT ([graphviz](https://graphviz.org/)) source for every function in a test, run `go test <package> -debug`. Results are written to the `output` directory. You can generate a PDF from the DOT source using `dot -Tpdf <file> -o "$(basename <file> .dot).pdf"`.
+The main analyzer depends heavily on the [golang.org/x/tools/ssa](https://pkg.go.dev/golang.org/x/tools/ssa) package. Being able to read the SSA code and visualize its graph can be very useful for debugging.
 
-Currently, debugging is only supported for the `levee` analyzer. In order to add support for debugging in a new test, first add a debugging flag:
+Currently, debugging is only available in the tests for the `levee` package. To obtain the debugging output, run this command: `go test ./... -debug` from the `internal/pkg/levee` directory. The output files are written to a directory named `output` in the root of the repository.
+
+Given a function named `MyFunc` in a package named `mypack`, running `levee`'s tests with `-debug` produces the following files:
+* `mypack_MyFunc.ssa`: the SSA code, in a similar fashion to `golang.org/x/tools/cmd/ssadump`
+* `mypack_MyFunc.dot`: the DOT ([graphviz](https://graphviz.org/)) code for the function's SSA Operands and Referrers graph
+* `mypack_MyFunc-cfg.dot`: the DOT code for the function's [control-flow graph (CFG)](https://en.wikipedia.org/wiki/Control-flow_graph)
+
+You can generate a PDF from the DOT source using `dot -Tpdf <file> -o "$(basename <file> .dot).pdf"`.
+
+In the graph:
+* An **orange** edge points to an **Operand** of an `ssa.Node`
+* A **red** edge points to a **Referrer** of an `ssa.Node`
+* **Rectangle**-shaped nodes represent `ssa.Node`s that are both `ssa.Instruction`s and `ssa.Value`s
+* **Diamond**-shaped nodes represent `ssa.Node`s that are only `ssa.Instruction`s
+* **Ellipse**-shaped nodes represent `ssa.Node`s that are either only `ssa.Value`s, or are `ssa.Member`s.
+
+In order to add support for debugging in a new package, first add a debugging flag:
 ```go
 var debugging bool = flag.Bool("debug", false, "run the debug analyzer")
 ```
+
 Then add `debug.Analyzer` as a dependency of the analyzer being tested:
 ```go
 if *debugging {
 	Analyzer.Requires = append(Analyzer.Requires, debug.Analyzer)
 }
 ```
-
-In the `dot` output:
-* A **red** edge points to a **Referrer** of an `ssa.Node`
-* An **orange** edge points to an **Operand** of an `ssa.Node`
-* **Rectangle**-shaped nodes represent `ssa.Node`s that are both `ssa.Instruction`s and `ssa.Value`s
-* **Diamond**-shaped nodes represent `ssa.Node`s that are only `ssa.Instruction`s
-* **Ellipse**-shaped nodes represent `ssa.Node`s that are either only `ssa.Value`s, or are `ssa.Member`s.
-
-The function's control-flow graph (CFG) is also produced and written in a file named `<function-name>-cfg.dot`.
 
 ## Source Code Headers
 

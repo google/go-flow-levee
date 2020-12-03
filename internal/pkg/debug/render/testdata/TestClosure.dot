@@ -1,0 +1,10 @@
+digraph {
+	subgraph cluster_0 {
+		color=black;
+		label="entry";
+		"t0 = TestClosure$1(0:int)\n(Call)" [shape=rectangle];
+		"return\n(Return)" [shape=diamond];
+	}
+	"t0 = TestClosure$1(0:int)\n(Call)" -> "TestClosure$1\n(Function)" [color=orange];
+	"t0 = TestClosure$1(0:int)\n(Call)" -> "0:int\n(Const)" [color=orange];
+}
