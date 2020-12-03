@@ -479,11 +479,12 @@ func canBeTaintedByCall(t types.Type) bool {
 		return canBeTaintedByCall(tt.Elem())
 
 	case *types.Struct:
-		can := false
 		for i := 0; i < tt.NumFields(); i++ {
-			can = can || canBeTaintedByCall(tt.Field(i).Type())
+			if canBeTaintedByCall(tt.Field(i).Type()) {
+				return true
+			}
 		}
-		return can
+		return false
 	}
 
 	return false
