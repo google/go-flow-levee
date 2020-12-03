@@ -48,3 +48,14 @@ func TestClosure() {
 	}
 	f(x)
 }
+
+func TestDisconnected() {
+	x, y := 1, 2
+	for i := 0; i < x*y; i++ {
+		i--
+	}
+
+	prefix := "error: "
+	message := "unreachable code"
+	fmt.Printf(prefix + message)
+}

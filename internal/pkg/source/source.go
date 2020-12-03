@@ -203,6 +203,10 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		s.dfs(t.X.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 
+	// Only the Addr (the Value that is being written to) should be visited.
+	case *ssa.Store:
+		s.dfs(t.Addr.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+
 	// Only the Map itself can be tainted by an Update.
 	// The Key can't be tainted.
 	// The Value can propagate taint to the Map, but not receive it.
@@ -226,7 +230,7 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 
 	// These nodes don't have referrers; they are Instructions, not Values.
-	case *ssa.Go, *ssa.Store:
+	case *ssa.Go:
 		s.visitOperands(n, maxInstrReached, lastBlockVisited)
 
 	// These nodes are both Instructions and Values, and currently have no special restrictions.

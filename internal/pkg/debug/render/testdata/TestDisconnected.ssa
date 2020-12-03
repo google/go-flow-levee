@@ -1,0 +1,16 @@
+func TestDisconnected()
+0: entry
+	0(*ssa.Jump           ): jump 3
+1: for.loop
+	0(*ssa.Phi            ): t4 = phi [0: 0:int, 1: t1] #i
+	1(*ssa.BinOp          ): t5 = 1:int * 2:int
+	2(*ssa.BinOp          ): t6 = t4 < t5
+	3(*ssa.If             ): if t6 goto 1 else 2
+2: for.body
+	0(*ssa.BinOp          ): t0 = t4 - 1:int
+	1(*ssa.BinOp          ): t1 = t0 + 1:int
+	2(*ssa.Jump           ): jump 3
+3: for.done
+	0(*ssa.BinOp          ): t2 = "error: ":string + "unreachable code":string
+	1(*ssa.Call           ): t3 = fmt.Printf(t2, nil:[]interface{}...)
+	2(*ssa.Return         ): return

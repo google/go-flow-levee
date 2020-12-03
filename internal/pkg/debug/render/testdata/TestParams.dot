@@ -1,0 +1,48 @@
+digraph {
+	subgraph cluster_0 {
+		color=black;
+		label="entry";
+		"t0 = new [3]interface{} (varargs)\n(Alloc)" [shape=rectangle];
+		"t1 = &t0[0:int]\n(IndexAddr)" [shape=rectangle];
+		"t2 = make interface{} <- int (a)\n(MakeInterface)" [shape=rectangle];
+		"*t1 = t2\n(Store)" [shape=diamond];
+		"t3 = &t0[1:int]\n(IndexAddr)" [shape=rectangle];
+		"t4 = make interface{} <- int (b)\n(MakeInterface)" [shape=rectangle];
+		"*t3 = t4\n(Store)" [shape=diamond];
+		"t5 = &t0[2:int]\n(IndexAddr)" [shape=rectangle];
+		"t6 = make interface{} <- string (c)\n(MakeInterface)" [shape=rectangle];
+		"*t5 = t6\n(Store)" [shape=diamond];
+		"t7 = slice t0[:]\n(Slice)" [shape=rectangle];
+		"t8 = fmt.Println(t7...)\n(Call)" [shape=rectangle];
+		"return\n(Return)" [shape=diamond];
+	}
+	"t0 = new [3]interface{} (varargs)\n(Alloc)" -> "t1 = &t0[0:int]\n(IndexAddr)" [color=red];
+	"t0 = new [3]interface{} (varargs)\n(Alloc)" -> "t3 = &t0[1:int]\n(IndexAddr)" [color=red];
+	"t0 = new [3]interface{} (varargs)\n(Alloc)" -> "t5 = &t0[2:int]\n(IndexAddr)" [color=red];
+	"t0 = new [3]interface{} (varargs)\n(Alloc)" -> "t7 = slice t0[:]\n(Slice)" [color=red];
+	"t1 = &t0[0:int]\n(IndexAddr)" -> "*t1 = t2\n(Store)" [color=red];
+	"t1 = &t0[0:int]\n(IndexAddr)" -> "t0 = new [3]interface{} (varargs)\n(Alloc)" [color=orange];
+	"t1 = &t0[0:int]\n(IndexAddr)" -> "0:int\n(Const)" [color=orange];
+	"t2 = make interface{} <- int (a)\n(MakeInterface)" -> "*t1 = t2\n(Store)" [color=red];
+	"t2 = make interface{} <- int (a)\n(MakeInterface)" -> "a\n(Parameter)" [color=orange];
+	"*t1 = t2\n(Store)" -> "t1 = &t0[0:int]\n(IndexAddr)" [color=orange];
+	"*t1 = t2\n(Store)" -> "t2 = make interface{} <- int (a)\n(MakeInterface)" [color=orange];
+	"t3 = &t0[1:int]\n(IndexAddr)" -> "*t3 = t4\n(Store)" [color=red];
+	"t3 = &t0[1:int]\n(IndexAddr)" -> "t0 = new [3]interface{} (varargs)\n(Alloc)" [color=orange];
+	"t3 = &t0[1:int]\n(IndexAddr)" -> "1:int\n(Const)" [color=orange];
+	"t4 = make interface{} <- int (b)\n(MakeInterface)" -> "*t3 = t4\n(Store)" [color=red];
+	"t4 = make interface{} <- int (b)\n(MakeInterface)" -> "b\n(Parameter)" [color=orange];
+	"*t3 = t4\n(Store)" -> "t3 = &t0[1:int]\n(IndexAddr)" [color=orange];
+	"*t3 = t4\n(Store)" -> "t4 = make interface{} <- int (b)\n(MakeInterface)" [color=orange];
+	"t5 = &t0[2:int]\n(IndexAddr)" -> "*t5 = t6\n(Store)" [color=red];
+	"t5 = &t0[2:int]\n(IndexAddr)" -> "t0 = new [3]interface{} (varargs)\n(Alloc)" [color=orange];
+	"t5 = &t0[2:int]\n(IndexAddr)" -> "2:int\n(Const)" [color=orange];
+	"t6 = make interface{} <- string (c)\n(MakeInterface)" -> "*t5 = t6\n(Store)" [color=red];
+	"t6 = make interface{} <- string (c)\n(MakeInterface)" -> "c\n(Parameter)" [color=orange];
+	"*t5 = t6\n(Store)" -> "t5 = &t0[2:int]\n(IndexAddr)" [color=orange];
+	"*t5 = t6\n(Store)" -> "t6 = make interface{} <- string (c)\n(MakeInterface)" [color=orange];
+	"t7 = slice t0[:]\n(Slice)" -> "t8 = fmt.Println(t7...)\n(Call)" [color=red];
+	"t7 = slice t0[:]\n(Slice)" -> "t0 = new [3]interface{} (varargs)\n(Alloc)" [color=orange];
+	"t8 = fmt.Println(t7...)\n(Call)" -> "Println\n(Function)" [color=orange];
+	"t8 = fmt.Println(t7...)\n(Call)" -> "t7 = slice t0[:]\n(Slice)" [color=orange];
+}
