@@ -116,3 +116,7 @@ func TestCollections(ss []Source) { // want "source identified"
 
 type SourceSlice []Source
 type DeeplyNested map[string][]map[string]map[string][][]map[string]Source
+
+func TestTaggedSourceIdentification() {
+	_ = TaggedSource{} // want "source identified"
+}

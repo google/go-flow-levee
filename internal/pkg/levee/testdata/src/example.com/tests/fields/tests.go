@@ -41,7 +41,16 @@ func TestProtoStyleFieldAccessorPIISecondLevel(wrapper struct{ *core.Source }) {
 	core.Sinkf("Source id: %v", wrapper.Source.GetID())
 }
 
-func tesDirectFieldAccessorPIISecondLevel(wrapper struct{ *core.Source }) {
+func TestDirectFieldAccessorPIISecondLevel(wrapper struct{ *core.Source }) {
 	core.Sinkf("Source data: %v", wrapper.Source.Data) // want "a source has reached a sink"
 	core.Sinkf("Source id: %v", wrapper.Source.ID)
+}
+
+func TestTaggedStruct(s core.TaggedSource) {
+	core.Sink(s) // want "a source has reached a sink"
+}
+
+func TestTaggedAndNonTaggedFields(s core.TaggedSource) {
+	core.Sink(s.Data) // want "a source has reached a sink"
+	core.Sink(s.ID)
 }

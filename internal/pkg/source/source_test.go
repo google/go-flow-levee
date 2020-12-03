@@ -18,6 +18,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
@@ -58,11 +59,12 @@ var testAnalyzer = &analysis.Analyzer{
 	Name:     "source",
 	Run:      runTest,
 	Doc:      "test harness for the logic related to sources",
-	Requires: []*analysis.Analyzer{buildssa.Analyzer},
+	Requires: []*analysis.Analyzer{buildssa.Analyzer, fieldtags.Analyzer},
 }
 
 func runTest(pass *analysis.Pass) (interface{}, error) {
 	in := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
+	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 	config := &testConfig{
 		sourcePattern:    "foo",
 		sanitizerPattern: "sanitizer",
@@ -70,7 +72,7 @@ func runTest(pass *analysis.Pass) (interface{}, error) {
 		sinkPattern:      "sink",
 	}
 
-	sm := identify(config, in)
+	sm := identify(config, in, taggedFields)
 	for _, f := range sm {
 		for _, s := range f {
 			if s.String() != "" {
