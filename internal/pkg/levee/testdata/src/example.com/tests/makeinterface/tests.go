@@ -12,23 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package sourcetest
+package deletethis
 
-// source container
-type Source struct {
-	Data string // source field
-	ID   int    // public
+import (
+	"example.com/core"
+)
+
+func TestTaintingInterfaceValueDoesNotTaintContainedValue(s *core.Source, str string) {
+	var x interface{} = str
+	colocate(s, x)
+	// TODO: no report should be produced below
+	core.Sink(str) // want "a source has reached a sink"
 }
 
-func CreateSource() (Source, error) {
-	return Source{}, nil // want "source identified"
-}
-
-func NewSource() (*Source, error) {
-	return &Source{}, nil // want "source identified"
-}
-
-type TaggedSource struct {
-	Data string `levee:"source"`
-	ID   int
-}
+func colocate(s *core.Source, x interface{}) {}
