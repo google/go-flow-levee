@@ -484,6 +484,8 @@ func canBeTaintedByCall(t types.Type) bool {
 
 	case *types.Struct:
 		for i := 0; i < tt.NumFields(); i++ {
+			// this cannot cause an infinite loop, because a struct
+			// type cannot refer to itself except through a pointer
 			if canBeTaintedByCall(tt.Field(i).Type()) {
 				return true
 			}
