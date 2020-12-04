@@ -26,6 +26,7 @@ import (
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
+	"golang.org/x/tools/go/pointer"
 	"golang.org/x/tools/go/ssa"
 )
 
@@ -179,7 +180,11 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 		}
 
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
-		s.visitOperands(n, maxInstrReached, lastBlockVisited)
+		for _, a := range t.Call.Args {
+			if canBeTaintedByCall(a.Type()) {
+				s.dfs(a.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+			}
+		}
 
 	case *ssa.FieldAddr:
 		deref := utils.Dereference(t.X.Type())
@@ -196,7 +201,6 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		s.dfs(t.X.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 
-	// The actual integer Index should not be visited.
 	// Everything but the actual integer Index should be visited.
 	case *ssa.IndexAddr:
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
@@ -221,7 +225,7 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 
 	// These nodes' operands should not be visited, because they can only receive
 	// taint from their operands, not propagate taint to them.
-	case *ssa.BinOp, *ssa.ChangeInterface, *ssa.ChangeType, *ssa.Convert, *ssa.Extract, *ssa.MakeChan, *ssa.MakeMap, *ssa.MakeSlice, *ssa.Phi, *ssa.Range, *ssa.Slice, *ssa.UnOp:
+	case *ssa.BinOp, *ssa.ChangeInterface, *ssa.ChangeType, *ssa.Convert, *ssa.Extract, *ssa.MakeChan, *ssa.MakeMap, *ssa.MakeSlice, *ssa.Phi, *ssa.Range:
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 
 	// These nodes don't have operands; they are Values, not Instructions.
@@ -233,7 +237,7 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 		s.visitOperands(n, maxInstrReached, lastBlockVisited)
 
 	// These nodes are both Instructions and Values, and currently have no special restrictions.
-	case *ssa.Field, *ssa.MakeInterface, *ssa.Select, *ssa.TypeAssert:
+	case *ssa.Field, *ssa.MakeInterface, *ssa.Select, *ssa.Slice, *ssa.TypeAssert, *ssa.UnOp:
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		s.visitOperands(n, maxInstrReached, lastBlockVisited)
 
@@ -467,6 +471,32 @@ func isSourceType(c classifier, tf fieldtags.ResultType, t types.Type) bool {
 		fmt.Printf("unexpected type received: %T %v; please report this issue\n", tt, tt)
 		return false
 	}
+}
+
+// A type can be tainted by a call if it is itself a pointer or pointer-like type (according to
+// pointer.CanPoint), or it is an array/struct that holds an element that can be tainted by
+// a call.
+func canBeTaintedByCall(t types.Type) bool {
+	if pointer.CanPoint(t) {
+		return true
+	}
+
+	switch tt := t.(type) {
+	case *types.Array:
+		return canBeTaintedByCall(tt.Elem())
+
+	case *types.Struct:
+		for i := 0; i < tt.NumFields(); i++ {
+			// this cannot cause an infinite loop, because a struct
+			// type cannot refer to itself except through a pointer
+			if canBeTaintedByCall(tt.Field(i).Type()) {
+				return true
+			}
+		}
+		return false
+	}
+
+	return false
 }
 
 func hasTaggedField(taggedFields fieldtags.ResultType, s *types.Struct) bool {
