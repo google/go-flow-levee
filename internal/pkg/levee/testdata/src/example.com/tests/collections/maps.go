@@ -55,7 +55,7 @@ func TestMapRemainsTaintedWhenSourceIsDeleted(s core.Source) {
 
 func TestDeletingFromTaintedMapDoesNotTaintTheKey(key string, sources map[string]core.Source) {
 	delete(sources, key)
-	// TODO(186): no report should be produced here
+	// TODO(#186): no report should be produced here
 	core.Sink(key) // want "a source has reached a sink"
 }
 

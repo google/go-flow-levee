@@ -20,7 +20,7 @@ type AliasStruct = sourcetype.Source // want AliasStruct:"source type"
 
 type NamedType sourcetype.Source // want NamedType:"source type"
 
-// TODO(96,97) Consider automatic detection of the following types.
+// TODO(#96,#97) Consider automatic detection of the following types.
 
 type SliceContainer []sourcetype.Source
 type ArrayContainer [5]sourcetype.Source
