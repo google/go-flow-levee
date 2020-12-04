@@ -22,6 +22,10 @@ The `ast` package provides the [Abstract Syntax Tree (AST)](https://en.wikipedia
 
 Outside of those packages, we often refer to the [Go Spec](https://golang.org/ref/spec) to determine the proper way to handle various Go constructs.
 
+## TODOs
+
+If you introduce a new TODO, please use `TODO(#issue number)` instead of a plain `TODO` or even `TODO(username)`. Having an issue number gives visibility to the TODO and makes it less likely that it will be forgotten.
+
 ## Debugging
 
 The main analyzer depends heavily on the [golang.org/x/tools/ssa](https://pkg.go.dev/golang.org/x/tools/ssa) package. Being able to read the SSA code and visualize its graph can be very useful for debugging.

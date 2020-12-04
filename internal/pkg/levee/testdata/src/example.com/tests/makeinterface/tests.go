@@ -21,7 +21,7 @@ import (
 func TestTaintingInterfaceValueDoesNotTaintContainedValue(s *core.Source, str string) {
 	var x interface{} = str
 	colocate(s, x)
-	// TODO: no report should be produced below
+	// TODO(#209): no report should be produced below
 	core.Sink(str) // want "a source has reached a sink"
 }
 
