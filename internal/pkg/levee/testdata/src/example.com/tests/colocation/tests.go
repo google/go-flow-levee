@@ -141,3 +141,18 @@ func TestTaintIsPropagatedToDataBeingUnmarshalled(contents []byte) (src core.Sou
 	core.Sink(contents) // want "a source has reached a sink"
 	return
 }
+
+func colocateFunc(core.Source, func()) {}
+
+func TestTaintIsNotPropagatedToFunction(s core.Source) {
+	f := func() {}
+	// f is an *ssa.Function with type *types.Signature
+	colocateFunc(s, f)
+	core.Sink(f)
+}
+
+func TestTaintIsNotPropagatedToFunctionParameter(s core.Source, f func()) {
+	// f is an *ssa.Parameter with type *types.Signature
+	colocateFunc(s, f)
+	core.Sink(f)
+}

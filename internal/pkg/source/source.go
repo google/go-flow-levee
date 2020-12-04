@@ -119,8 +119,7 @@ func (s *Source) shouldNotVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]
 		return true
 	}
 
-	// booleans can't meaningfully be tainted
-	if isBoolean(n) {
+	if !hasTaintableType(n) {
 		return true
 	}
 
@@ -434,13 +433,16 @@ func sourcesFromBlocks(fn *ssa.Function, conf classifier, taggedFields fieldtags
 	return sources
 }
 
-func isBoolean(n ssa.Node) bool {
+func hasTaintableType(n ssa.Node) bool {
 	if v, ok := n.(ssa.Value); ok {
-		if basic, ok := v.Type().(*types.Basic); ok && basic.Info() == types.IsBoolean {
-			return true
+		switch t := v.Type().(type) {
+		case *types.Basic:
+			return t.Info() != types.IsBoolean
+		case *types.Signature:
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 func isSourceType(c classifier, tf fieldtags.ResultType, t types.Type) bool {
