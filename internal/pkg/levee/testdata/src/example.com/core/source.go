@@ -36,6 +36,11 @@ func (s Source) CopyPointer() (*Source, error) {
 	return &s, nil
 }
 
+type TaggedSource struct {
+	Data string `levee:"source"`
+	ID   int
+}
+
 // Innocuous will _not_ be configured to be a source, even though underlying types are equal.
 type Innocuous struct {
 	Data string
