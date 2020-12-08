@@ -29,26 +29,47 @@ import (
 	"github.com/google/go-flow-levee/internal/pkg/config/regexp"
 )
 
-// FlagSet should be used by analyzers to reuse -config flag.
-var FlagSet flag.FlagSet
-var configFile string
+var (
+	// FlagSet should be used by analyzers to reuse -config flag.
+	FlagSet                    flag.FlagSet
+	configFile                 string
+	validFuncMatcherFields     map[string]bool
+	validSourceMatcherFields   map[string]bool
+	validFieldTagMatcherFields map[string]bool
+)
 
 func init() {
 	FlagSet.StringVar(&configFile, "config", "config.yaml", "path to analysis configuration file")
+	validFuncMatcherFields = map[string]bool{
+		"package": true, "Package": true,
+		"packageRE": true, "PackageRE": true,
+		"receiver": true, "Receiver": true,
+		"receiverRE": true, "ReceiverRE": true,
+		"method": true, "Method": true,
+		"methodRE": true, "MethodRE": true,
+	}
+	validSourceMatcherFields = map[string]bool{
+		"package": true, "Package": true,
+		"packageRE": true, "PackageRE": true,
+		"type": true, "Type": true,
+		"typeRE": true, "TypeRE": true,
+		"field": true, "Field": true,
+		"fieldRE": true, "FieldRE": true,
+	}
+	validFieldTagMatcherFields = map[string]bool{
+		"key": true, "Key": true,
+		"val": true, "Val": true,
+		"value": true, "Value": true,
+	}
 }
 
-// config contains matchers and analysis scope information
+// Config contains matchers and analysis scope information.
 type Config struct {
 	Sources    []sourceMatcher
 	Sinks      []funcMatcher
 	Sanitizers []funcMatcher
 	FieldTags  []fieldTagMatcher
 	Exclude    []funcMatcher
-}
-
-type fieldTagMatcher struct {
-	Key string
-	Val string
 }
 
 // IsSourceFieldTag determines whether a field tag made up of a key and value
@@ -85,6 +106,7 @@ func (c Config) IsExcluded(path, recv, name string) bool {
 	return false
 }
 
+// IsSink determines whether a function is a sink.
 func (c Config) IsSink(path, recv, name string) bool {
 	for _, p := range c.Sinks {
 		if p.MatchFunction(path, recv, name) {
@@ -94,6 +116,7 @@ func (c Config) IsSink(path, recv, name string) bool {
 	return false
 }
 
+// IsSanitizer determines whether a function is a sanitizer.
 func (c Config) IsSanitizer(path, recv, name string) bool {
 	for _, p := range c.Sanitizers {
 		if p.MatchFunction(path, recv, name) {
@@ -103,6 +126,7 @@ func (c Config) IsSanitizer(path, recv, name string) bool {
 	return false
 }
 
+// IsSourceType determines whether a type is a source to analyze.
 func (c Config) IsSourceType(path, name string) bool {
 	for _, p := range c.Sources {
 		if p.MatchType(path, name) {
@@ -112,6 +136,7 @@ func (c Config) IsSourceType(path, name string) bool {
 	return false
 }
 
+// IsSourceField determines whether a field contains secret.
 func (c Config) IsSourceField(path, typeName, fieldName string) bool {
 	for _, p := range c.Sources {
 		if p.MatchField(path, typeName, fieldName) {
@@ -137,7 +162,39 @@ func (vacuousMatcher) MatchString(string) bool {
 	return true
 }
 
-// Returns the first non-nil matcher.  If all are nil, returns a vacuousMatcher.
+type fieldTagMatcher struct {
+	Key string
+	Val string
+}
+
+type rawFieldTagMatcher struct {
+	Key string
+	Val string
+}
+
+func (ft *fieldTagMatcher) UnmarshalJSON(bytes []byte) error {
+	// Unknown config fields are not allowed.
+	rawMap := make(map[string]interface{})
+	if err := json.Unmarshal(bytes, &rawMap); err != nil {
+		return err
+	}
+	for label := range rawMap {
+		if !validFieldTagMatcherFields[label] {
+			return fmt.Errorf("%v is not a valid config field, expect one of: %v", label, validFieldTagMatcherFields)
+		}
+	}
+
+	raw := rawFieldTagMatcher{}
+	if err := json.Unmarshal(bytes, &raw); err != nil {
+		return err
+	}
+	ft.Key = raw.Key
+	ft.Val = raw.Val
+	return nil
+}
+
+// Returns the first non-nil matcher.
+// If all are nil, returns a vacuousMatcher.
 func matcherFrom(lm *literalMatcher, r *regexp.Regexp) stringMatcher {
 	switch {
 	case lm != nil:
@@ -169,20 +226,31 @@ type rawSourceMatcher struct {
 }
 
 func (s *sourceMatcher) UnmarshalJSON(bytes []byte) error {
+	// Unknown config fields are not allowed.
+	rawMap := make(map[string]interface{})
+	if err := json.Unmarshal(bytes, &rawMap); err != nil {
+		return err
+	}
+	for label := range rawMap {
+		if !validSourceMatcherFields[label] {
+			return fmt.Errorf("%v is not a valid config field, expect one of: %v", label, validSourceMatcherFields)
+		}
+	}
+
 	raw := rawSourceMatcher{}
 	if err := json.Unmarshal(bytes, &raw); err != nil {
 		return err
 	}
 
-	// validation: do not double-specify any attribute with literal and regexp
+	// Only one of literal and regexp field can be specified.
 	if raw.Package != nil && raw.PackageRE != nil {
-		return fmt.Errorf("expected only one of Package, PackageRE to be configured")
+		return fmt.Errorf("expected only one of Package, PackageRE to be configured for a source")
 	}
 	if raw.Type != nil && raw.TypeRE != nil {
-		return fmt.Errorf("expected only one of Type, TypeRE to be configured")
+		return fmt.Errorf("expected only one of Type, TypeRE to be configured for a source")
 	}
 	if raw.Field != nil && raw.FieldRE != nil {
-		return fmt.Errorf("expected only one of Field, FieldRE to be configured")
+		return fmt.Errorf("expected only one of Field, FieldRE to be configured for a source")
 	}
 
 	*s = sourceMatcher{
@@ -218,20 +286,31 @@ type rawFuncMatcher struct {
 }
 
 func (fm *funcMatcher) UnmarshalJSON(bytes []byte) error {
+	// Unknown config fields are not allowed.
+	rawMap := make(map[string]interface{})
+	if err := json.Unmarshal(bytes, &rawMap); err != nil {
+		return err
+	}
+	for label := range rawMap {
+		if !validFuncMatcherFields[label] {
+			return fmt.Errorf("%v is not a valid config field, expect one of: %v", label, validFuncMatcherFields)
+		}
+	}
+
 	raw := rawFuncMatcher{}
 	if err := json.Unmarshal(bytes, &raw); err != nil {
 		return err
 	}
 
-	// validation: do not double-specify any attribute with literal and regexp
+	// Only one of literal and regexp field can be specified.
 	if raw.Package != nil && raw.PackageRE != nil {
-		return fmt.Errorf("expected at most one of Package, PackageRE to be configured")
+		return fmt.Errorf("expected only one of Package, PackageRE to be configured for a function")
 	}
 	if raw.Receiver != nil && raw.ReceiverRE != nil {
-		return fmt.Errorf("expected at most one of Receiver, ReceiverRE to be configured")
+		return fmt.Errorf("expected only one of Receiver, ReceiverRE to be configured for a function")
 	}
 	if raw.Method != nil && raw.MethodRE != nil {
-		return fmt.Errorf("expected at most one of Method, MethodRE to be configured")
+		return fmt.Errorf("expected only one of Method, MethodRE to be configured for a function")
 	}
 
 	*fm = funcMatcher{
@@ -250,6 +329,7 @@ var readFileOnce sync.Once
 var readConfigCached *Config
 var readConfigCachedErr error
 
+// ReadConfig reads, parses, and validates config file.
 func ReadConfig() (*Config, error) {
 	readFileOnce.Do(func() {
 		c := new(Config)

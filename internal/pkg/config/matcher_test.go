@@ -21,50 +21,43 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func TestFuncMatcherUnmarshaling(t *testing.T) {
+func TestFuncMatcherUnmarshalErrorCases(t *testing.T) {
 	testCases := []struct {
-		desc, yaml        string
-		shouldErrorOnLoad bool
+		desc, yaml string
 	}{
 		{
 			desc: "Unmarshaling is strict",
 			yaml: `
 Blahblah: foo
 PackageRE: bar`,
-			shouldErrorOnLoad: false, // TODO(#206): true
 		},
 		{
 			desc: "Malformed YAML errors gracefully",
 			yaml: `
 PackageRE: "No ending quote`,
-			shouldErrorOnLoad: true,
 		},
 		{
 			desc: "Malformed regexp errors gracefully",
 			yaml: `
 PackageRE: "(?:NoEndingParen"`,
-			shouldErrorOnLoad: true,
 		},
 		{
 			desc: "Do not permit both Package and PackageRE",
 			yaml: `
 Package: foo
 PackageRE: bar`,
-			shouldErrorOnLoad: true,
 		},
 		{
 			desc: "Do not permit both Receiver and ReceiverRE",
 			yaml: `
 Receiver: foo
 ReceiverRE: bar`,
-			shouldErrorOnLoad: true,
 		},
 		{
 			desc: "Do not permit both Field and FieldRE",
 			yaml: `
 Method: foo
 MethodRE: bar`,
-			shouldErrorOnLoad: true,
 		},
 	}
 
@@ -73,8 +66,8 @@ MethodRE: bar`,
 			fm := funcMatcher{}
 			err := yaml.UnmarshalStrict([]byte(tc.yaml), &fm)
 
-			if (err != nil) != tc.shouldErrorOnLoad {
-				t.Errorf("error expectation = %v, but got err=%v", tc.shouldErrorOnLoad, err)
+			if err == nil {
+				t.Error("want error, but got err = nil")
 			}
 		})
 	}
@@ -144,11 +137,11 @@ Method: bar`,
 		t.Run(tc.desc, func(t *testing.T) {
 			fm := funcMatcher{}
 			if err := yaml.UnmarshalStrict([]byte(tc.yaml), &fm); err != nil {
-				t.Errorf("Unexpected error unmarshalling funcMatcher: %v", err)
+				t.Errorf("unexpected error unmarshalling funcMatcher: %v", err)
 			}
 
 			if tc.shouldMatch != fm.MatchFunction(tc.path, tc.recv, tc.name) {
-				t.Errorf("MatchFunction(%q, %q, %q) = %v; got %v", tc.path, tc.recv, tc.name, tc.shouldMatch, !tc.shouldMatch)
+				t.Errorf("MatchFunction(%q, %q, %q) got %v, want %v; ", tc.path, tc.recv, tc.name, !tc.shouldMatch, tc.shouldMatch)
 			}
 		})
 	}
@@ -164,7 +157,7 @@ func TestSourceMatcherUnmarshaling(t *testing.T) {
 			yaml: `
 Blahblah: foo
 PackageRE: bar`,
-			shouldErrorOnLoad: false, // TODO(#206): true
+			shouldErrorOnLoad: true,
 		},
 		{
 			desc: "Malformed YAML errors gracefully",
@@ -207,7 +200,7 @@ FieldRE: bar`,
 			err := yaml.UnmarshalStrict([]byte(tc.yaml), &sm)
 
 			if (err != nil) != tc.shouldErrorOnLoad {
-				t.Errorf("error expectation = %v, but got err=%v", tc.shouldErrorOnLoad, err)
+				t.Errorf("got err = %v, want err = %v", err, tc.shouldErrorOnLoad)
 			}
 		})
 	}
@@ -287,10 +280,42 @@ Field: qux`,
 			}
 
 			if tc.shouldMatchType != sm.MatchType(tc.path, tc.typ) {
-				t.Errorf("MatchType(%q, %q) = %v; got %v", tc.path, tc.typ, tc.shouldMatchType, !tc.shouldMatchType)
+				t.Errorf("MatchType(%q, %q) got %v, want %v", tc.path, tc.typ, !tc.shouldMatchType, tc.shouldMatchType)
 			}
 			if tc.shouldMatchField != sm.MatchField(tc.path, tc.typ, tc.fieldName) {
-				t.Errorf("MatchField(%q, %q, %q) = %v; got %v", tc.path, tc.typ, tc.fieldName, tc.shouldMatchType, !tc.shouldMatchType)
+				t.Errorf("MatchField(%q, %q, %q) got %v, want %v", tc.path, tc.typ, tc.fieldName, !tc.shouldMatchType, tc.shouldMatchType)
+			}
+		})
+	}
+}
+
+func TestFieldTagMatcherUnmarshalling(t *testing.T) {
+	testCases := []struct {
+		desc, yaml string
+		wantErr    bool
+	}{
+		{
+			desc: "unknown field is not allowed",
+			yaml: `
+Key: good
+UnknownField: bad`,
+			wantErr: true,
+		}, {
+			desc: "valid field tag config",
+			yaml: `
+key: good
+val: AlsoGood`,
+			wantErr: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			ftm := fieldTagMatcher{}
+			err := yaml.UnmarshalStrict([]byte(tc.yaml), &ftm)
+
+			if (err != nil) != tc.wantErr {
+				t.Errorf("got err = %v, expect err = %v", err, tc.wantErr)
 			}
 		})
 	}
@@ -362,7 +387,7 @@ func TestMatcherTypes(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			if tc.matcher.MatchString(tc.s) != tc.shouldMatch {
-				t.Errorf("Expected matcher (%T) %v to return MatchString(%q) == %v, got %v", tc.matcher, tc.matcher, tc.s, tc.shouldMatch, !tc.shouldMatch)
+				t.Errorf("matcher (%T) %v returned MatchString(%q) == %v, want %v, ", tc.matcher, tc.matcher, tc.s, !tc.shouldMatch, tc.shouldMatch)
 			}
 		})
 	}
