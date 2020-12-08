@@ -67,7 +67,7 @@ MethodRE: bar`,
 			err := yaml.UnmarshalStrict([]byte(tc.yaml), &fm)
 
 			if err == nil {
-				t.Error("want error, but got err = nil")
+				t.Error("got err = nil, want error")
 			}
 		})
 	}
@@ -147,50 +147,43 @@ Method: bar`,
 	}
 }
 
-func TestSourceMatcherUnmarshaling(t *testing.T) {
+func TestSourceMatcherUnmarshalingErrorCases(t *testing.T) {
 	testCases := []struct {
-		desc, yaml        string
-		shouldErrorOnLoad bool
+		desc, yaml string
 	}{
 		{
 			desc: "Unmarshaling is strict",
 			yaml: `
 Blahblah: foo
 PackageRE: bar`,
-			shouldErrorOnLoad: true,
 		},
 		{
 			desc: "Malformed YAML errors gracefully",
 			yaml: `
 PackageRE: "No ending quote`,
-			shouldErrorOnLoad: true,
 		},
 		{
 			desc: "Malformed regexp errors gracefully",
 			yaml: `
 PackageRE: "(?:NoEndingParen"`,
-			shouldErrorOnLoad: true,
 		},
 		{
 			desc: "Do not permit both Package and PackageRE",
 			yaml: `
 Package: foo
 PackageRE: bar`,
-			shouldErrorOnLoad: true,
 		},
 		{
 			desc: "Do not permit both Type and TypeRE",
 			yaml: `
 Type: foo
 TypeRE: bar`,
-			shouldErrorOnLoad: true,
 		},
 		{
 			desc: "Do not permit both Field and FieldRE",
 			yaml: `
 Field: foo
 FieldRE: bar`,
-			shouldErrorOnLoad: true,
 		},
 	}
 
@@ -199,8 +192,8 @@ FieldRE: bar`,
 			sm := sourceMatcher{}
 			err := yaml.UnmarshalStrict([]byte(tc.yaml), &sm)
 
-			if (err != nil) != tc.shouldErrorOnLoad {
-				t.Errorf("got err = %v, want err = %v", err, tc.shouldErrorOnLoad)
+			if err == nil {
+				t.Errorf("got err = nil, want err != nil")
 			}
 		})
 	}

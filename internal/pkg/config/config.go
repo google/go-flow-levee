@@ -31,36 +31,42 @@ import (
 
 var (
 	// FlagSet should be used by analyzers to reuse -config flag.
-	FlagSet                    flag.FlagSet
-	configFile                 string
-	validFuncMatcherFields     map[string]bool
-	validSourceMatcherFields   map[string]bool
-	validFieldTagMatcherFields map[string]bool
+	FlagSet                      flag.FlagSet
+	configFile                   string
+	validFuncMatcherFields       []string
+	validSourceMatcherFields     []string
+	validFieldTagMatcherFields   []string
+	validFuncMatcherFieldSet     map[string]bool
+	validSourceMatcherFieldSet   map[string]bool
+	validFieldTagMatcherFieldSet map[string]bool
 )
 
 func init() {
 	FlagSet.StringVar(&configFile, "config", "config.yaml", "path to analysis configuration file")
-	validFuncMatcherFields = map[string]bool{
-		"package": true, "Package": true,
-		"packageRE": true, "PackageRE": true,
-		"receiver": true, "Receiver": true,
-		"receiverRE": true, "ReceiverRE": true,
-		"method": true, "Method": true,
-		"methodRE": true, "MethodRE": true,
+	validFuncMatcherFields = []string{
+		"package", "Package",
+		"packageRE", "PackageRE",
+		"receiver", "Receiver",
+		"receiverRE", "ReceiverRE",
+		"method", "Method",
+		"methodRE", "MethodRE",
 	}
-	validSourceMatcherFields = map[string]bool{
-		"package": true, "Package": true,
-		"packageRE": true, "PackageRE": true,
-		"type": true, "Type": true,
-		"typeRE": true, "TypeRE": true,
-		"field": true, "Field": true,
-		"fieldRE": true, "FieldRE": true,
+	validFuncMatcherFieldSet = toStringSet(validFuncMatcherFields)
+	validSourceMatcherFields = []string{
+		"package", "Package",
+		"packageRE", "PackageRE",
+		"type", "Type",
+		"typeRE", "TypeRE",
+		"field", "Field",
+		"fieldRE", "FieldRE",
 	}
-	validFieldTagMatcherFields = map[string]bool{
-		"key": true, "Key": true,
-		"val": true, "Val": true,
-		"value": true, "Value": true,
+	validSourceMatcherFieldSet = toStringSet(validSourceMatcherFields)
+	validFieldTagMatcherFields = []string{
+		"key", "Key",
+		"val", "Val",
+		"value", "Value",
 	}
+	validFieldTagMatcherFieldSet = toStringSet(validFieldTagMatcherFields)
 }
 
 // Config contains matchers and analysis scope information.
@@ -173,15 +179,8 @@ type rawFieldTagMatcher struct {
 }
 
 func (ft *fieldTagMatcher) UnmarshalJSON(bytes []byte) error {
-	// Unknown config fields are not allowed.
-	rawMap := make(map[string]interface{})
-	if err := json.Unmarshal(bytes, &rawMap); err != nil {
+	if err := validateFieldNames(&bytes, "fieldTagMatcher"); err != nil {
 		return err
-	}
-	for label := range rawMap {
-		if !validFieldTagMatcherFields[label] {
-			return fmt.Errorf("%v is not a valid config field, expect one of: %v", label, validFieldTagMatcherFields)
-		}
 	}
 
 	raw := rawFieldTagMatcher{}
@@ -226,15 +225,8 @@ type rawSourceMatcher struct {
 }
 
 func (s *sourceMatcher) UnmarshalJSON(bytes []byte) error {
-	// Unknown config fields are not allowed.
-	rawMap := make(map[string]interface{})
-	if err := json.Unmarshal(bytes, &rawMap); err != nil {
+	if err := validateFieldNames(&bytes, "sourceMatcher"); err != nil {
 		return err
-	}
-	for label := range rawMap {
-		if !validSourceMatcherFields[label] {
-			return fmt.Errorf("%v is not a valid config field, expect one of: %v", label, validSourceMatcherFields)
-		}
 	}
 
 	raw := rawSourceMatcher{}
@@ -244,13 +236,13 @@ func (s *sourceMatcher) UnmarshalJSON(bytes []byte) error {
 
 	// Only one of literal and regexp field can be specified.
 	if raw.Package != nil && raw.PackageRE != nil {
-		return fmt.Errorf("expected only one of Package, PackageRE to be configured for a source")
+		return fmt.Errorf("expected only one of Package, PackageRE in config definition for a source matcher")
 	}
 	if raw.Type != nil && raw.TypeRE != nil {
-		return fmt.Errorf("expected only one of Type, TypeRE to be configured for a source")
+		return fmt.Errorf("expected only one of Type, TypeRE in config definition for a source matcher")
 	}
 	if raw.Field != nil && raw.FieldRE != nil {
-		return fmt.Errorf("expected only one of Field, FieldRE to be configured for a source")
+		return fmt.Errorf("expected only one of Field, FieldRE in config definition for a source matcher")
 	}
 
 	*s = sourceMatcher{
@@ -286,15 +278,8 @@ type rawFuncMatcher struct {
 }
 
 func (fm *funcMatcher) UnmarshalJSON(bytes []byte) error {
-	// Unknown config fields are not allowed.
-	rawMap := make(map[string]interface{})
-	if err := json.Unmarshal(bytes, &rawMap); err != nil {
+	if err := validateFieldNames(&bytes, "funcMatcher"); err != nil {
 		return err
-	}
-	for label := range rawMap {
-		if !validFuncMatcherFields[label] {
-			return fmt.Errorf("%v is not a valid config field, expect one of: %v", label, validFuncMatcherFields)
-		}
 	}
 
 	raw := rawFuncMatcher{}
@@ -304,13 +289,13 @@ func (fm *funcMatcher) UnmarshalJSON(bytes []byte) error {
 
 	// Only one of literal and regexp field can be specified.
 	if raw.Package != nil && raw.PackageRE != nil {
-		return fmt.Errorf("expected only one of Package, PackageRE to be configured for a function")
+		return fmt.Errorf("expected only one of Package, PackageRE in config definition for a function matcher")
 	}
 	if raw.Receiver != nil && raw.ReceiverRE != nil {
-		return fmt.Errorf("expected only one of Receiver, ReceiverRE to be configured for a function")
+		return fmt.Errorf("expected only one of Receiver, ReceiverRE in config definition for a function matcher")
 	}
 	if raw.Method != nil && raw.MethodRE != nil {
-		return fmt.Errorf("expected only one of Method, MethodRE to be configured for a function")
+		return fmt.Errorf("expected only one of Method, MethodRE in config definition for a function matcher")
 	}
 
 	*fm = funcMatcher{
@@ -346,4 +331,40 @@ func ReadConfig() (*Config, error) {
 		readConfigCached = c
 	})
 	return readConfigCached, readConfigCachedErr
+}
+
+func validateFieldNames(bytes *[]byte, matcherType string) error {
+	rawMap := make(map[string]interface{})
+	if err := json.Unmarshal(*bytes, &rawMap); err != nil {
+		return err
+	}
+
+	var validFields []string
+	var validFieldSet map[string]bool
+	switch matcherType {
+	case "fieldTagMatcher":
+		validFields = validFieldTagMatcherFields
+		validFieldSet = validFieldTagMatcherFieldSet
+	case "funcMatcher":
+		validFields = validFuncMatcherFields
+		validFieldSet = validFuncMatcherFieldSet
+	case "sourceMatcher":
+		validFields = validSourceMatcherFields
+		validFieldSet = validSourceMatcherFieldSet
+	}
+
+	for label := range rawMap {
+		if !validFieldSet[label] {
+			return fmt.Errorf("%v is not a valid config field for %s, expect one of: %v", label, matcherType, validFields)
+		}
+	}
+	return nil
+}
+
+func toStringSet(ss []string) map[string]bool {
+	ret := make(map[string]bool)
+	for _, s := range ss {
+		ret[s] = true
+	}
+	return ret
 }
