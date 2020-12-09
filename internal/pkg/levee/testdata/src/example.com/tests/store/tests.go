@@ -12,23 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package sourcetest
+package store
 
-// source container
-type Source struct {
-	Data string // source field
-	ID   int    // public
-}
+import (
+	"example.com/core"
+)
 
-func CreateSource() (Source, error) {
-	return Source{}, nil // want "source identified"
-}
-
-func NewSource() (*Source, error) {
-	return &Source{}, nil // want "source identified"
-}
-
-type TaggedSource struct {
-	Data string `levee:"source"`
-	ID   int
+func TestStoringToTaintedAddrDoesNotTaintStoredValue() {
+	myChan := make(chan string)
+	s := core.Source{Data: "foo"}
+	recv := <-myChan
+	s.Data = recv
+	core.Sink(recv)
+	core.Sink(myChan)
 }

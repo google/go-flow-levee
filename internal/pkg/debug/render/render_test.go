@@ -30,7 +30,16 @@ import (
 	"golang.org/x/tools/go/ssa/ssautil"
 )
 
+func TestDOT(t *testing.T) {
+	testGoldenFiles(t, DOT, "DOT", ".dot")
+}
+
 func TestSSA(t *testing.T) {
+	testGoldenFiles(t, SSA, "SSA", ".ssa")
+}
+
+// testGoldenFiles tests the output of a rendering function against the golden files under testdata.
+func testGoldenFiles(t *testing.T, fn func(f *ssa.Function) string, fnName, ext string) {
 	testdata, err := filepath.Abs("testdata")
 	if err != nil {
 		t.Fatal(err)
@@ -38,16 +47,17 @@ func TestSSA(t *testing.T) {
 	testfile := filepath.Join(testdata, "tests.go")
 	ssaFuncs := extractSSAFuncs(t, testfile)
 	for _, f := range ssaFuncs {
-		bytes, err := ioutil.ReadFile(filepath.Join(testdata, f.Name()) + ".ssa")
+		goldenFilename := filepath.Join(testdata, f.Name()) + ext
+		bytes, err := ioutil.ReadFile(goldenFilename)
 		if err != nil {
 			t.Fatal(err)
 		}
 		want := string(bytes)
 
-		got := SSA(f)
+		got := fn(f)
 
 		if diff := cmp.Diff(want, got); diff != "" {
-			t.Errorf("render.SSA(%s) diff (-want +got):\n%s", f.Name(), diff)
+			t.Errorf("render.%s(%s) diff (-want +got):\n%s", fnName, f.Name(), diff)
 		}
 	}
 }

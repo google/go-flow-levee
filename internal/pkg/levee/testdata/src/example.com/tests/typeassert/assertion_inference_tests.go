@@ -25,11 +25,11 @@ func TestTypeSwitch(i interface{}) {
 		core.Sink(t)
 	case *core.Source:
 		// The type of i is definitively known within this block
-		core.Sink(i) // TODO want "a source has reached a sink"
+		core.Sink(i) // TODO(#161) want "a source has reached a sink"
 		core.Sink(t) // want "a source has reached a sink"
 	case core.Source:
 		// The type of i is definitively known within this block
-		core.Sink(i) // TODO want "a source has reached a sink"
+		core.Sink(i) // TODO(#161) want "a source has reached a sink"
 		core.Sink(t) // want "a source has reached a sink"
 	default:
 		core.Sink(i)
@@ -41,7 +41,7 @@ func TestTypeSwitchInline(i interface{}) {
 	switch i.(type) {
 	case core.Innocuous, *core.Source, core.Source:
 		// While not definitively known, the type of i may be asserted to be a source type
-		core.Sink(i) // TODO want "a source has reached a sink"
+		core.Sink(i) // TODO(#161) want "a source has reached a sink"
 	default:
 		// do nothing
 	}
@@ -51,7 +51,7 @@ func TestPanicTypeAssertSource(i interface{}) {
 	s := i.(core.Source)
 	_ = s
 	// The dominating type assertion would panic if i were not a source type.
-	core.Sink(i) // want "a source has reached a sink"
+	core.Sink(i) // TODO(210) want "a source has reached a sink"
 }
 
 func TestPanicTypeAssertInnocuous(i interface{}) {

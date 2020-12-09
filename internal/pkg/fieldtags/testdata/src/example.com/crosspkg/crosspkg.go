@@ -12,23 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package sourcetest
+package crosspkg
 
-// source container
-type Source struct {
-	Data string // source field
-	ID   int    // public
-}
+import "example.com/core"
 
-func CreateSource() (Source, error) {
-	return Source{}, nil // want "source identified"
-}
-
-func NewSource() (*Source, error) {
-	return &Source{}, nil // want "source identified"
-}
-
-type TaggedSource struct {
-	Data string `levee:"source"`
-	ID   int
+type PersonWrapper struct {
+	p          core.Person
+	crossField string `levee:"source"` // want crossField:"tagged field"
 }
