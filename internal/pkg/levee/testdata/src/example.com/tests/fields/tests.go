@@ -68,3 +68,25 @@ func TestTaintNonSourceFieldOnSourceType(s core.Source, i *core.Innocuous) {
 	core.Sink(s.ID) // TODO want "a source has reached a sink"
 
 }
+
+type Headers struct {
+	Name  string
+	Auth  map[string]string `levee:"source"`
+	Other map[string]string
+}
+
+func fooByPtr(h *Headers) {}
+
+func foo(h Headers) {}
+
+func TestCallWithStructReferenceTaintsEveryField(h Headers) {
+	fooByPtr(&h)       // without interprocedural assessment, foo can do anything, so this call should taint every field on h
+	core.Sink(h.Name)  // TODO want "a source has reached a sink"
+	core.Sink(h.Other) // TODO want "a source has reached a sink"
+}
+
+func TestCallWithStructValueDoesNotTaintNonReferenceFields(h Headers) {
+	foo(h) // h is passed by value, so only its reference-like fields should be tainted
+	core.Sink(h.Name)
+	core.Sink(h.Other) // TODO want "a source has reached a sink"
+}
