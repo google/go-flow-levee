@@ -31,24 +31,18 @@ import (
 
 var (
 	// FlagSet should be used by analyzers to reuse -config flag.
-	FlagSet                      flag.FlagSet
-	configFile                   string
-	validFuncMatcherFields       []string
-	validSourceMatcherFields     []string
-	validFieldTagMatcherFields   []string
-	validFuncMatcherFieldSet     map[string]bool
-	validSourceMatcherFieldSet   map[string]bool
-	validFieldTagMatcherFieldSet map[string]bool
+	FlagSet                    flag.FlagSet
+	configFile                 string
+	validFuncMatcherFields     []string
+	validSourceMatcherFields   []string
+	validFieldTagMatcherFields []string
 )
 
 func init() {
 	FlagSet.StringVar(&configFile, "config", "config.yaml", "path to analysis configuration file")
 	validFuncMatcherFields = []string{"package", "packagere", "receiver", "receiverre", "method", "methodre"}
-	validFuncMatcherFieldSet = toStringSet(validFuncMatcherFields)
 	validSourceMatcherFields = []string{"package", "packagere", "type", "typere", "field", "fieldre"}
-	validSourceMatcherFieldSet = toStringSet(validSourceMatcherFields)
 	validFieldTagMatcherFields = []string{"key", "val", "value"}
-	validFieldTagMatcherFieldSet = toStringSet(validFieldTagMatcherFields)
 }
 
 // Config contains matchers and analysis scope information.
@@ -161,7 +155,7 @@ type rawFieldTagMatcher struct {
 }
 
 func (ft *fieldTagMatcher) UnmarshalJSON(bytes []byte) error {
-	if err := validateFieldNames(&bytes, "fieldTagMatcher", validFieldTagMatcherFields, validFieldTagMatcherFieldSet); err != nil {
+	if err := validateFieldNames(&bytes, "fieldTagMatcher", validFieldTagMatcherFields); err != nil {
 		return err
 	}
 
@@ -207,7 +201,7 @@ type rawSourceMatcher struct {
 }
 
 func (s *sourceMatcher) UnmarshalJSON(bytes []byte) error {
-	if err := validateFieldNames(&bytes, "sourceMatcher", validSourceMatcherFields, validSourceMatcherFieldSet); err != nil {
+	if err := validateFieldNames(&bytes, "sourceMatcher", validSourceMatcherFields); err != nil {
 		return err
 	}
 
@@ -260,7 +254,7 @@ type rawFuncMatcher struct {
 }
 
 func (fm *funcMatcher) UnmarshalJSON(bytes []byte) error {
-	if err := validateFieldNames(&bytes, "funcMatcher", validFuncMatcherFields, validFuncMatcherFieldSet); err != nil {
+	if err := validateFieldNames(&bytes, "funcMatcher", validFuncMatcherFields); err != nil {
 		return err
 	}
 
@@ -315,23 +309,21 @@ func ReadConfig() (*Config, error) {
 	return readConfigCached, readConfigCachedErr
 }
 
-func validateFieldNames(bytes *[]byte, matcherType string, validFields []string, validFieldSet map[string]bool) error {
+func validateFieldNames(bytes *[]byte, matcherType string, validFields []string) error {
 	rawMap := make(map[string]interface{})
 	if err := json.Unmarshal(*bytes, &rawMap); err != nil {
 		return err
 	}
 	for label := range rawMap {
-		if !validFieldSet[strings.ToLower(label)] {
+		matched := false
+		for _, valid := range validFields {
+			if strings.EqualFold(label, valid) {
+				matched = true
+			}
+		}
+		if !matched {
 			return fmt.Errorf("%v is not a valid config field for %s, expect one of: %v", label, matcherType, validFields)
 		}
 	}
 	return nil
-}
-
-func toStringSet(ss []string) map[string]bool {
-	ret := make(map[string]bool)
-	for _, s := range ss {
-		ret[s] = true
-	}
-	return ret
 }
