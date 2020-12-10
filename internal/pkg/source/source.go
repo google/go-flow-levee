@@ -43,7 +43,7 @@ type classifier interface {
 // its referrers.
 // Source.sanitized notes sanitizer calls that sanitize this Source
 type Source struct {
-	node         ssa.Node
+	Node         ssa.Node
 	marked       map[ssa.Node]bool
 	preOrder     []ssa.Node
 	sanitizers   []*sanitizer.Sanitizer
@@ -57,31 +57,30 @@ type DFSTools Source
 func (s *Source) Pos() token.Pos {
 	// Extracts don't have a registered position in the source code,
 	// so we need to use the position of their related Tuple.
-	if e, ok := s.node.(*ssa.Extract); ok {
+	if e, ok := s.Node.(*ssa.Extract); ok {
 		return e.Tuple.Pos()
 	}
 	// Fields don't *always* have a registered position in the source code,
 	// e.g. when accessing an embedded field.
-	if f, ok := s.node.(*ssa.Field); ok && f.Pos() == token.NoPos {
+	if f, ok := s.Node.(*ssa.Field); ok && f.Pos() == token.NoPos {
 		return f.X.Pos()
 	}
 	// FieldAddrs don't *always* have a registered position in the source code,
 	// e.g. when accessing an embedded field.
-	if f, ok := s.node.(*ssa.FieldAddr); ok && f.Pos() == token.NoPos {
+	if f, ok := s.Node.(*ssa.FieldAddr); ok && f.Pos() == token.NoPos {
 		return f.X.Pos()
 	}
-	return s.node.Pos()
+	return s.Node.Pos()
 }
 
 // New constructs a Source
 func New(in ssa.Node, config classifier, taggedFields fieldtags.ResultType) *Source {
 	dfsTool := &DFSTools{
-		node:         in,
+		Node:         in,
 		marked:       make(map[ssa.Node]bool),
 		config:       config,
 		taggedFields: taggedFields,
 	}
-	dfsTool.dfs(in, map[*ssa.BasicBlock]int{}, nil, false)
 
 	src := Source(*dfsTool)
 	return &src
@@ -90,7 +89,7 @@ func New(in ssa.Node, config classifier, taggedFields fieldtags.ResultType) *Sou
 // dfs performs Depth-First-Search on the def-use graph of the input Source.
 // While traversing the graph we also look for potential sanitizers of this Source.
 // If the Source passes through a sanitizer, dfs does not continue through that Node.
-func (s *DFSTools) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, isReferrer bool) {
+func (s *DFSTools) Dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, isReferrer bool) {
 	if s.shouldNotVisit(n, maxInstrReached, lastBlockVisited, isReferrer) {
 		return
 	}
@@ -153,7 +152,7 @@ func (s *DFSTools) shouldNotVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBloc
 }
 
 func (s *DFSTools) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
-	if s.node == n {
+	if s.Node == n {
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		return
 	}
@@ -185,7 +184,7 @@ func (s *DFSTools) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, la
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		for _, a := range t.Call.Args {
 			if canBeTaintedByCall(a.Type()) {
-				s.dfs(a.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+				s.Dfs(a.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 			}
 		}
 
@@ -202,29 +201,29 @@ func (s *DFSTools) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, la
 	// Everything but the actual integer Index should be visited.
 	case *ssa.Index:
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
-		s.dfs(t.X.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+		s.Dfs(t.X.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 
 	// Everything but the actual integer Index should be visited.
 	case *ssa.IndexAddr:
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
-		s.dfs(t.X.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+		s.Dfs(t.X.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 
 	// Only the Addr (the Value that is being written to) should be visited.
 	case *ssa.Store:
-		s.dfs(t.Addr.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+		s.Dfs(t.Addr.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 
 	// Only the Map itself can be tainted by an Update.
 	// The Key can't be tainted.
 	// The Value can propagate taint to the Map, but not receive it.
 	// MapUpdate has no referrers, it is only an Instruction, not a Value.
 	case *ssa.MapUpdate:
-		s.dfs(t.Map.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+		s.Dfs(t.Map.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 
 	// The only Operand that can be tainted by a Send is the Chan.
 	// The Value can propagate taint to the Chan, but not receive it.
 	// Send has no referrers, it is only an Instruction, not a Value.
 	case *ssa.Send:
-		s.dfs(t.Chan.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+		s.Dfs(t.Chan.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 
 	// These nodes' operands should not be visited, because they can only receive
 	// taint from their operands, not propagate taint to them.
@@ -257,7 +256,7 @@ func (s *DFSTools) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBloc
 		return
 	}
 	for _, r := range *n.Referrers() {
-		s.dfs(r.(ssa.Node), maxInstrReached, lastBlockVisited, true)
+		s.Dfs(r.(ssa.Node), maxInstrReached, lastBlockVisited, true)
 	}
 }
 
@@ -266,7 +265,7 @@ func (s *DFSTools) visitOperands(n ssa.Node, maxInstrReached map[*ssa.BasicBlock
 		if *o == nil {
 			continue
 		}
-		s.dfs((*o).(ssa.Node), maxInstrReached, lastBlockVisited, false)
+		s.Dfs((*o).(ssa.Node), maxInstrReached, lastBlockVisited, false)
 	}
 }
 

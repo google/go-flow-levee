@@ -45,6 +45,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
 	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 
+	for _, sources := range sourcesMap {
+		for _, s := range sources {
+			(*source.DFSTools)(s).Dfs(s.Node, map[*ssa.BasicBlock]int{}, nil, false)
+		}
+	}
 	// Only examine functions that have sources
 	for fn, sources := range sourcesMap {
 		for _, b := range fn.Blocks {
@@ -61,7 +66,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				callee := v.Call.StaticCallee()
 				switch {
 				case fieldPropagators.IsFieldPropagator(v):
-					sources = append(sources, source.New(v, conf, taggedFields))
+					newSrc := source.New(v, conf, taggedFields)
+					(*source.DFSTools)(newSrc).Dfs(v, map[*ssa.BasicBlock]int{}, nil, false)
+
+					sources = append(sources, newSrc)
 
 				case callee != nil && conf.IsSink(utils.DecomposeFunction(v.Call.StaticCallee())):
 					for _, s := range sources {
