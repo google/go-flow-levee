@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/types"
 	"log"
+	"strings"
 
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
 	"github.com/google/go-flow-levee/internal/pkg/source"
@@ -216,6 +217,48 @@ func (s *DFSTools) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
 			stack.Push(s)
 		}
 	}
+	return false
+}
+
+// String implements Stringer interface.
+func (s *DFSTools) String() string {
+	var b strings.Builder
+	for _, n := range s.compress() {
+		b.WriteString(fmt.Sprintf("%v ", n))
+	}
+
+	return b.String()
+}
+
+// compress removes the elements from the graph that are not required by the
+// taint-propagation analysis. Concretely, only propagators, sanitizers and
+// sinks should constitute the output. Since, we already know what the source
+// is, it is also removed.
+func (s *DFSTools) compress() []ssa.Node {
+	var compressed []ssa.Node
+	for _, n := range s.PreOrder {
+		switch n.(type) {
+		case *ssa.Call:
+			compressed = append(compressed, n)
+		}
+	}
+
+	return compressed
+}
+
+// HasPathTo returns true when a Node is part of declaration-use graph.
+func (s *DFSTools) HasPathTo(n ssa.Node) bool {
+	return s.Marked[n]
+}
+
+// IsSanitizedAt returns true when the Source is sanitized by the supplied instruction.
+func (s *DFSTools) IsSanitizedAt(call ssa.Instruction) bool {
+	for _, san := range s.Sanitizers {
+		if san.Dominates(call) {
+			return true
+		}
+	}
+
 	return false
 }
 

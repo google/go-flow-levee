@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"go/token"
 	"go/types"
-	"strings"
 
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
@@ -78,48 +77,6 @@ func New(in ssa.Node, config classifier, taggedFields fieldtags.ResultType) *Sou
 		Config:       config,
 		TaggedFields: taggedFields,
 	}
-}
-
-// compress removes the elements from the graph that are not required by the
-// taint-propagation analysis. Concretely, only propagators, sanitizers and
-// sinks should constitute the output. Since, we already know what the source
-// is, it is also removed.
-func (s *Source) compress() []ssa.Node {
-	var compressed []ssa.Node
-	for _, n := range s.PreOrder {
-		switch n.(type) {
-		case *ssa.Call:
-			compressed = append(compressed, n)
-		}
-	}
-
-	return compressed
-}
-
-// HasPathTo returns true when a Node is part of declaration-use graph.
-func (s *Source) HasPathTo(n ssa.Node) bool {
-	return s.Marked[n]
-}
-
-// IsSanitizedAt returns true when the Source is sanitized by the supplied instruction.
-func (s *Source) IsSanitizedAt(call ssa.Instruction) bool {
-	for _, san := range s.Sanitizers {
-		if san.Dominates(call) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// String implements Stringer interface.
-func (s *Source) String() string {
-	var b strings.Builder
-	for _, n := range s.compress() {
-		b.WriteString(fmt.Sprintf("%v ", n))
-	}
-
-	return b.String()
 }
 
 func identify(conf classifier, ssaInput *buildssa.SSA, taggedFields fieldtags.ResultType) map[*ssa.Function][]*Source {

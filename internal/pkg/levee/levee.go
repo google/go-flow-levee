@@ -73,7 +73,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 				case callee != nil && conf.IsSink(utils.DecomposeFunction(v.Call.StaticCallee())):
 					for _, s := range sources {
-						if s.HasPathTo(instr.(ssa.Node)) && !s.IsSanitizedAt(v) {
+						if (*DFSTools)(s).HasPathTo(instr.(ssa.Node)) && !(*DFSTools)(s).IsSanitizedAt(v) {
 							report(pass, s, v)
 							break
 						}

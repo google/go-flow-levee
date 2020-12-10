@@ -62,6 +62,7 @@ var testAnalyzer = &analysis.Analyzer{
 	Requires: []*analysis.Analyzer{buildssa.Analyzer, fieldtags.Analyzer},
 }
 
+// TODO This is a graph, and therefore propagation, analysis test.
 func runTest(pass *analysis.Pass) (interface{}, error) {
 	in := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
@@ -73,13 +74,14 @@ func runTest(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	sm := identify(config, in, taggedFields)
-	for _, f := range sm {
-		for _, s := range f {
-			if s.String() != "" {
-				pass.Reportf(s.Node.Pos(), s.String())
-			}
-		}
-	}
+	_ = sm
+	//for _, f := range sm {
+	//	for _, s := range f {
+	//		if s.String() != "" {
+	//			pass.Reportf(s.Node.Pos(), s.String())
+	//		}
+	//	}
+	//}
 
 	return nil, nil
 }
