@@ -10,6 +10,7 @@ import (
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
 	"github.com/google/go-flow-levee/internal/pkg/source"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
+	"golang.org/x/tools/go/pointer"
 	"golang.org/x/tools/go/ssa"
 )
 
@@ -56,7 +57,7 @@ func (s *DFSRecord) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, las
 	}
 
 	if instr, ok := n.(ssa.Instruction); ok {
-		instrIndex, ok := IndexInBlock(instr)
+		instrIndex, ok := indexInBlock(instr)
 		if !ok {
 			return
 		}
@@ -76,12 +77,12 @@ func (s *DFSRecord) shouldNotVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBlo
 		return true
 	}
 
-	if !source.HasTaintableType(n) {
+	if !hasTaintableType(n) {
 		return true
 	}
 
 	if instr, ok := n.(ssa.Instruction); ok {
-		instrIndex, ok := IndexInBlock(instr)
+		instrIndex, ok := indexInBlock(instr)
 		if !ok {
 			return true
 		}
@@ -132,7 +133,7 @@ func (s *DFSRecord) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, l
 
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		for _, a := range t.Call.Args {
-			if source.CanBeTaintedByCall(a.Type()) {
+			if canBeTaintedByCall(a.Type()) {
 				s.dfs(a.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 			}
 		}
@@ -223,10 +224,10 @@ func (s *DFSRecord) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
 		return true
 	}
 
-	stack := Stack([]*ssa.BasicBlock{start})
+	stack := stack([]*ssa.BasicBlock{start})
 	seen := map[*ssa.BasicBlock]bool{start: true}
 	for len(stack) > 0 {
-		current := stack.Pop()
+		current := stack.pop()
 		if current == dest {
 			return true
 		}
@@ -235,7 +236,7 @@ func (s *DFSRecord) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
 				continue
 			}
 			seen[s] = true
-			stack.Push(s)
+			stack.push(s)
 		}
 	}
 	return false
@@ -283,9 +284,9 @@ func (s DFSRecord) IsSanitizedAt(call ssa.Instruction) bool {
 	return false
 }
 
-type Stack []*ssa.BasicBlock
+type stack []*ssa.BasicBlock
 
-func (s *Stack) Pop() *ssa.BasicBlock {
+func (s *stack) pop() *ssa.BasicBlock {
 	if len(*s) == 0 {
 		log.Println("tried to pop from empty stack")
 	}
@@ -294,12 +295,12 @@ func (s *Stack) Pop() *ssa.BasicBlock {
 	return popped
 }
 
-func (s *Stack) Push(b *ssa.BasicBlock) {
+func (s *stack) push(b *ssa.BasicBlock) {
 	*s = append(*s, b)
 }
 
 // indexInBlock returns this instruction's index in its parent block.
-func IndexInBlock(target ssa.Instruction) (int, bool) {
+func indexInBlock(target ssa.Instruction) (int, bool) {
 	for i, instr := range target.Block().Instrs {
 		if instr == target {
 			return i, true
@@ -308,4 +309,42 @@ func IndexInBlock(target ssa.Instruction) (int, bool) {
 	// we can only hit this return if there is a bug in the ssa package
 	// i.e. an instruction does not appear within its parent block
 	return 0, false
+}
+
+func hasTaintableType(n ssa.Node) bool {
+	if v, ok := n.(ssa.Value); ok {
+		switch t := v.Type().(type) {
+		case *types.Basic:
+			return t.Info() != types.IsBoolean
+		case *types.Signature:
+			return false
+		}
+	}
+	return true
+}
+
+// A type can be tainted by a call if it is itself a pointer or pointer-like type (according to
+// pointer.CanPoint), or it is an array/struct that holds an element that can be tainted by
+// a call.
+func canBeTaintedByCall(t types.Type) bool {
+	if pointer.CanPoint(t) {
+		return true
+	}
+
+	switch tt := t.(type) {
+	case *types.Array:
+		return canBeTaintedByCall(tt.Elem())
+
+	case *types.Struct:
+		for i := 0; i < tt.NumFields(); i++ {
+			// this cannot cause an infinite loop, because a struct
+			// type cannot refer to itself except through a pointer
+			if canBeTaintedByCall(tt.Field(i).Type()) {
+				return true
+			}
+		}
+		return false
+	}
+
+	return false
 }

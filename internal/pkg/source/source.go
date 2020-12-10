@@ -23,7 +23,6 @@ import (
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
-	"golang.org/x/tools/go/pointer"
 	"golang.org/x/tools/go/ssa"
 )
 
@@ -172,18 +171,6 @@ func sourcesFromBlocks(fn *ssa.Function, conf Classifier, taggedFields fieldtags
 	return sources
 }
 
-func HasTaintableType(n ssa.Node) bool {
-	if v, ok := n.(ssa.Value); ok {
-		switch t := v.Type().(type) {
-		case *types.Basic:
-			return t.Info() != types.IsBoolean
-		case *types.Signature:
-			return false
-		}
-	}
-	return true
-}
-
 func IsSourceType(c Classifier, tf fieldtags.ResultType, t types.Type) bool {
 	deref := utils.Dereference(t)
 	switch tt := deref.(type) {
@@ -212,32 +199,6 @@ func IsSourceType(c Classifier, tf fieldtags.ResultType, t types.Type) bool {
 		fmt.Printf("unexpected type received: %T %v; please report this issue\n", tt, tt)
 		return false
 	}
-}
-
-// A type can be tainted by a call if it is itself a pointer or pointer-like type (according to
-// pointer.CanPoint), or it is an array/struct that holds an element that can be tainted by
-// a call.
-func CanBeTaintedByCall(t types.Type) bool {
-	if pointer.CanPoint(t) {
-		return true
-	}
-
-	switch tt := t.(type) {
-	case *types.Array:
-		return CanBeTaintedByCall(tt.Elem())
-
-	case *types.Struct:
-		for i := 0; i < tt.NumFields(); i++ {
-			// this cannot cause an infinite loop, because a struct
-			// type cannot refer to itself except through a pointer
-			if CanBeTaintedByCall(tt.Field(i).Type()) {
-				return true
-			}
-		}
-		return false
-	}
-
-	return false
 }
 
 func hasTaggedField(taggedFields fieldtags.ResultType, s *types.Struct) bool {
