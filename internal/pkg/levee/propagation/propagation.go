@@ -1,4 +1,4 @@
-package internal
+package propagation
 
 import (
 	"fmt"

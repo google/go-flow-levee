@@ -21,6 +21,7 @@ import (
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/fieldpropagator"
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
+	"github.com/google/go-flow-levee/internal/pkg/levee/propagation"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ssa"
@@ -45,11 +46,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
 	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 
-	propagationRecords := map[ssa.Node]DFSRecord{}
+	propagationRecords := map[ssa.Node]propagation.DFSRecord{}
 
 	for _, sources := range sourcesMap {
 		for _, s := range sources {
-			propagationRecords[s.Node] = Dfs(s.Node, conf, taggedFields)
+			propagationRecords[s.Node] = propagation.Dfs(s.Node, conf, taggedFields)
 		}
 	}
 	// Only examine functions that have sources
@@ -69,7 +70,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				switch {
 				case fieldPropagators.IsFieldPropagator(v):
 					newSrc := source.New(v)
-					propagationRecords[v] = Dfs(v, conf, taggedFields)
+					propagationRecords[v] = propagation.Dfs(v, conf, taggedFields)
 
 					sources = append(sources, newSrc)
 
