@@ -63,7 +63,7 @@ func (s *Source) Pos() token.Pos {
 }
 
 // New constructs a Source
-func New(in ssa.Node, config Classifier, taggedFields fieldtags.ResultType) *Source {
+func New(in ssa.Node) *Source {
 	return &Source{
 		Node: in,
 	}
@@ -95,7 +95,7 @@ func sourcesFromParams(fn *ssa.Function, conf Classifier, taggedFields fieldtags
 	var sources []*Source
 	for _, p := range fn.Params {
 		if IsSourceType(conf, taggedFields, p.Type()) {
-			sources = append(sources, New(p, conf, taggedFields))
+			sources = append(sources, New(p))
 		}
 	}
 	return sources
@@ -107,7 +107,7 @@ func sourcesFromClosure(fn *ssa.Function, conf Classifier, taggedFields fieldtag
 		switch t := p.Type().(type) {
 		case *types.Pointer:
 			if IsSourceType(conf, taggedFields, t) {
-				sources = append(sources, New(p, conf, taggedFields))
+				sources = append(sources, New(p))
 			}
 		}
 	}
@@ -144,7 +144,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf Classifier, taggedFields fieldtags
 			case *ssa.Extract:
 				t := v.Tuple.Type().(*types.Tuple).At(v.Index).Type()
 				if _, ok := t.(*types.Pointer); ok && IsSourceType(conf, taggedFields, t) {
-					sources = append(sources, New(v, conf, taggedFields))
+					sources = append(sources, New(v))
 				}
 				continue
 
@@ -164,7 +164,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf Classifier, taggedFields fieldtags
 
 			// all of the instructions that the switch lets through are values as per ssa/doc.go
 			if v := instr.(ssa.Value); IsSourceType(conf, taggedFields, v.Type()) {
-				sources = append(sources, New(v.(ssa.Node), conf, taggedFields))
+				sources = append(sources, New(v.(ssa.Node)))
 			}
 		}
 	}

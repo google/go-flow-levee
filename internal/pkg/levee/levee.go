@@ -68,7 +68,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				callee := v.Call.StaticCallee()
 				switch {
 				case fieldPropagators.IsFieldPropagator(v):
-					newSrc := source.New(v, conf, taggedFields)
+					newSrc := source.New(v)
 					propagationRecords[v] = Dfs(v, conf, taggedFields)
 
 					sources = append(sources, newSrc)
