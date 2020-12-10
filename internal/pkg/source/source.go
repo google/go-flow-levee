@@ -21,7 +21,6 @@ import (
 	"go/types"
 
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
-	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/pointer"
@@ -41,12 +40,7 @@ type Classifier interface {
 // its referrers.
 // Source.sanitized notes sanitizer calls that sanitize this Source
 type Source struct {
-	Node         ssa.Node
-	Marked       map[ssa.Node]bool
-	PreOrder     []ssa.Node
-	Sanitizers   []*sanitizer.Sanitizer
-	Config       Classifier
-	TaggedFields fieldtags.ResultType
+	Node ssa.Node
 }
 
 // Pos returns the token position of the SSA Node associated with the Source.
@@ -72,10 +66,7 @@ func (s *Source) Pos() token.Pos {
 // New constructs a Source
 func New(in ssa.Node, config Classifier, taggedFields fieldtags.ResultType) *Source {
 	return &Source{
-		Node:         in,
-		Marked:       make(map[ssa.Node]bool),
-		Config:       config,
-		TaggedFields: taggedFields,
+		Node: in,
 	}
 }
 

@@ -14,7 +14,7 @@ import (
 )
 
 type DFSTools struct {
-	Node         ssa.Node
+	Root         ssa.Node
 	Marked       map[ssa.Node]bool
 	PreOrder     []ssa.Node
 	Sanitizers   []*sanitizer.Sanitizer
@@ -22,13 +22,22 @@ type DFSTools struct {
 	TaggedFields fieldtags.ResultType
 }
 
-func (s *DFSTools) DfsRoot(n ssa.Node) {
+func Dfs(n ssa.Node, conf source.Classifier, taggedFields fieldtags.ResultType) DFSTools {
+	record := DFSTools{
+		Root:         n,
+		Marked:       make(map[ssa.Node]bool),
+		PreOrder:     nil,
+		Sanitizers:   nil,
+		Config:       conf,
+		TaggedFields: taggedFields,
+	}
 	var lastBlockVisited *ssa.BasicBlock = nil
 	maxInstrReached := map[*ssa.BasicBlock]int{}
 
-	s.visitReferrers(n, maxInstrReached, lastBlockVisited)
-	s.dfs(n, maxInstrReached, lastBlockVisited, false)
+	record.visitReferrers(n, maxInstrReached, lastBlockVisited)
+	record.dfs(n, maxInstrReached, lastBlockVisited, false)
 
+	return record
 }
 
 // dfs performs Depth-First-Search on the def-use graph of the input Source.
@@ -259,12 +268,12 @@ func (s *DFSTools) compress() []ssa.Node {
 }
 
 // HasPathTo returns true when a Node is part of declaration-use graph.
-func (s *DFSTools) HasPathTo(n ssa.Node) bool {
+func (s DFSTools) HasPathTo(n ssa.Node) bool {
 	return s.Marked[n]
 }
 
 // IsSanitizedAt returns true when the Source is sanitized by the supplied instruction.
-func (s *DFSTools) IsSanitizedAt(call ssa.Instruction) bool {
+func (s DFSTools) IsSanitizedAt(call ssa.Instruction) bool {
 	for _, san := range s.Sanitizers {
 		if san.Dominates(call) {
 			return true

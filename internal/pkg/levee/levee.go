@@ -45,9 +45,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
 	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 
+	propagationRecords := map[ssa.Node]DFSTools{}
+
 	for _, sources := range sourcesMap {
 		for _, s := range sources {
-			(*DFSTools)(s).DfsRoot(s.Node)
+			propagationRecords[s.Node] = Dfs(s.Node, conf, taggedFields)
 		}
 	}
 	// Only examine functions that have sources
@@ -67,13 +69,14 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				switch {
 				case fieldPropagators.IsFieldPropagator(v):
 					newSrc := source.New(v, conf, taggedFields)
-					(*DFSTools)(newSrc).DfsRoot(v)
+					propagationRecords[v] = Dfs(v, conf, taggedFields)
 
 					sources = append(sources, newSrc)
 
 				case callee != nil && conf.IsSink(utils.DecomposeFunction(v.Call.StaticCallee())):
 					for _, s := range sources {
-						if (*DFSTools)(s).HasPathTo(instr.(ssa.Node)) && !(*DFSTools)(s).IsSanitizedAt(v) {
+						record := propagationRecords[s.Node]
+						if record.HasPathTo(instr.(ssa.Node)) && !record.IsSanitizedAt(v) {
 							report(pass, s, v)
 							break
 						}
