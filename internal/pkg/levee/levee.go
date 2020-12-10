@@ -47,7 +47,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 	for _, sources := range sourcesMap {
 		for _, s := range sources {
-			(*DFSTools)(s).Dfs(s.Node, map[*ssa.BasicBlock]int{}, nil, false)
+			(*DFSTools)(s).DfsRoot(s.Node)
 		}
 	}
 	// Only examine functions that have sources
@@ -67,7 +67,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				switch {
 				case fieldPropagators.IsFieldPropagator(v):
 					newSrc := source.New(v, conf, taggedFields)
-					(*DFSTools)(newSrc).Dfs(v, map[*ssa.BasicBlock]int{}, nil, false)
+					(*DFSTools)(newSrc).DfsRoot(v)
 
 					sources = append(sources, newSrc)
 

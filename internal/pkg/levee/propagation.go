@@ -14,6 +14,15 @@ import (
 
 type DFSTools source.Source
 
+func (s *DFSTools) DfsRoot(n ssa.Node) {
+	var lastBlockVisited *ssa.BasicBlock = nil
+	maxInstrReached := map[*ssa.BasicBlock]int{}
+
+	s.visitReferrers(n, maxInstrReached, lastBlockVisited)
+	s.Dfs(n, maxInstrReached, lastBlockVisited, false)
+
+}
+
 // dfs performs Depth-First-Search on the def-use graph of the input Source.
 // While traversing the graph we also look for potential sanitizers of this Source.
 // If the Source passes through a sanitizer, dfs does not continue through that Node.
@@ -80,11 +89,6 @@ func (s *DFSTools) shouldNotVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBloc
 }
 
 func (s *DFSTools) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
-	if s.Node == n {
-		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
-		return
-	}
-
 	switch t := n.(type) {
 	case *ssa.Alloc:
 		// An Alloc represents the allocation of space for a variable. If a Node is an Alloc,
