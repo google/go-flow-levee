@@ -51,6 +51,8 @@ type Source struct {
 	taggedFields fieldtags.ResultType
 }
 
+type DFSTools Source
+
 // Pos returns the token position of the SSA Node associated with the Source.
 func (s *Source) Pos() token.Pos {
 	// Extracts don't have a registered position in the source code,
@@ -73,20 +75,22 @@ func (s *Source) Pos() token.Pos {
 
 // New constructs a Source
 func New(in ssa.Node, config classifier, taggedFields fieldtags.ResultType) *Source {
-	s := &Source{
+	dfsTool := &DFSTools{
 		node:         in,
 		marked:       make(map[ssa.Node]bool),
 		config:       config,
 		taggedFields: taggedFields,
 	}
-	s.dfs(in, map[*ssa.BasicBlock]int{}, nil, false)
-	return s
+	dfsTool.dfs(in, map[*ssa.BasicBlock]int{}, nil, false)
+
+	src := Source(*dfsTool)
+	return &src
 }
 
 // dfs performs Depth-First-Search on the def-use graph of the input Source.
 // While traversing the graph we also look for potential sanitizers of this Source.
 // If the Source passes through a sanitizer, dfs does not continue through that Node.
-func (s *Source) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, isReferrer bool) {
+func (s *DFSTools) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, isReferrer bool) {
 	if s.shouldNotVisit(n, maxInstrReached, lastBlockVisited, isReferrer) {
 		return
 	}
@@ -114,7 +118,7 @@ func (s *Source) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBl
 	s.visit(n, mirCopy, lastBlockVisited)
 }
 
-func (s *Source) shouldNotVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, isReferrer bool) bool {
+func (s *DFSTools) shouldNotVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, isReferrer bool) bool {
 	if s.marked[n] {
 		return true
 	}
@@ -148,7 +152,7 @@ func (s *Source) shouldNotVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]
 	return false
 }
 
-func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+func (s *DFSTools) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	if s.node == n {
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		return
@@ -248,7 +252,7 @@ func (s *Source) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 	}
 }
 
-func (s *Source) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+func (s *DFSTools) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	if n.Referrers() == nil {
 		return
 	}
@@ -257,7 +261,7 @@ func (s *Source) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]
 	}
 }
 
-func (s *Source) visitOperands(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+func (s *DFSTools) visitOperands(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	for _, o := range n.Operands(nil) {
 		if *o == nil {
 			continue
@@ -266,7 +270,7 @@ func (s *Source) visitOperands(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 	}
 }
 
-func (s *Source) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
+func (s *DFSTools) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
 	if start.Dominates(dest) {
 		return true
 	}
