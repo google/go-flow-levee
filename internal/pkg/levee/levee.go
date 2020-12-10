@@ -45,7 +45,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
 	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 
-	propagationRecords := map[ssa.Node]DFSTools{}
+	propagationRecords := map[ssa.Node]DFSRecord{}
 
 	for _, sources := range sourcesMap {
 		for _, s := range sources {

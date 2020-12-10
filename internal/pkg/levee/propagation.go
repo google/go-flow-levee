@@ -13,7 +13,7 @@ import (
 	"golang.org/x/tools/go/ssa"
 )
 
-type DFSTools struct {
+type DFSRecord struct {
 	Root         ssa.Node
 	Marked       map[ssa.Node]bool
 	PreOrder     []ssa.Node
@@ -22,8 +22,8 @@ type DFSTools struct {
 	TaggedFields fieldtags.ResultType
 }
 
-func Dfs(n ssa.Node, conf source.Classifier, taggedFields fieldtags.ResultType) DFSTools {
-	record := DFSTools{
+func Dfs(n ssa.Node, conf source.Classifier, taggedFields fieldtags.ResultType) DFSRecord {
+	record := DFSRecord{
 		Root:         n,
 		Marked:       make(map[ssa.Node]bool),
 		PreOrder:     nil,
@@ -43,7 +43,7 @@ func Dfs(n ssa.Node, conf source.Classifier, taggedFields fieldtags.ResultType) 
 // dfs performs Depth-First-Search on the def-use graph of the input Source.
 // While traversing the graph we also look for potential sanitizers of this Source.
 // If the Source passes through a sanitizer, dfs does not continue through that Node.
-func (s *DFSTools) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, isReferrer bool) {
+func (s *DFSRecord) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, isReferrer bool) {
 	if s.shouldNotVisit(n, maxInstrReached, lastBlockVisited, isReferrer) {
 		return
 	}
@@ -71,7 +71,7 @@ func (s *DFSTools) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 	s.visit(n, mirCopy, lastBlockVisited)
 }
 
-func (s *DFSTools) shouldNotVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, isReferrer bool) bool {
+func (s *DFSRecord) shouldNotVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, isReferrer bool) bool {
 	if s.Marked[n] {
 		return true
 	}
@@ -105,7 +105,7 @@ func (s *DFSTools) shouldNotVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBloc
 	return false
 }
 
-func (s *DFSTools) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+func (s *DFSRecord) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	switch t := n.(type) {
 	case *ssa.Alloc:
 		// An Alloc represents the allocation of space for a variable. If a Node is an Alloc,
@@ -200,7 +200,7 @@ func (s *DFSTools) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, la
 	}
 }
 
-func (s *DFSTools) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+func (s *DFSRecord) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	if n.Referrers() == nil {
 		return
 	}
@@ -209,7 +209,7 @@ func (s *DFSTools) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBloc
 	}
 }
 
-func (s *DFSTools) visitOperands(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+func (s *DFSRecord) visitOperands(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	for _, o := range n.Operands(nil) {
 		if *o == nil {
 			continue
@@ -218,7 +218,7 @@ func (s *DFSTools) visitOperands(n ssa.Node, maxInstrReached map[*ssa.BasicBlock
 	}
 }
 
-func (s *DFSTools) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
+func (s *DFSRecord) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
 	if start.Dominates(dest) {
 		return true
 	}
@@ -242,7 +242,7 @@ func (s *DFSTools) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
 }
 
 // String implements Stringer interface.
-func (s *DFSTools) String() string {
+func (s *DFSRecord) String() string {
 	var b strings.Builder
 	for _, n := range s.compress() {
 		b.WriteString(fmt.Sprintf("%v ", n))
@@ -255,7 +255,7 @@ func (s *DFSTools) String() string {
 // taint-propagation analysis. Concretely, only propagators, sanitizers and
 // sinks should constitute the output. Since, we already know what the source
 // is, it is also removed.
-func (s *DFSTools) compress() []ssa.Node {
+func (s *DFSRecord) compress() []ssa.Node {
 	var compressed []ssa.Node
 	for _, n := range s.PreOrder {
 		switch n.(type) {
@@ -268,12 +268,12 @@ func (s *DFSTools) compress() []ssa.Node {
 }
 
 // HasPathTo returns true when a Node is part of declaration-use graph.
-func (s DFSTools) HasPathTo(n ssa.Node) bool {
+func (s DFSRecord) HasPathTo(n ssa.Node) bool {
 	return s.Marked[n]
 }
 
 // IsSanitizedAt returns true when the Source is sanitized by the supplied instruction.
-func (s DFSTools) IsSanitizedAt(call ssa.Instruction) bool {
+func (s DFSRecord) IsSanitizedAt(call ssa.Instruction) bool {
 	for _, san := range s.Sanitizers {
 		if san.Dominates(call) {
 			return true
