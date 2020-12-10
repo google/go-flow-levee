@@ -3,6 +3,7 @@ package internal
 import (
 	"fmt"
 	"go/types"
+	"log"
 
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
 	"github.com/google/go-flow-levee/internal/pkg/source"
@@ -28,7 +29,7 @@ func (s *DFSTools) Dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, last
 	}
 
 	if instr, ok := n.(ssa.Instruction); ok {
-		instrIndex, ok := source.IndexInBlock(instr)
+		instrIndex, ok := IndexInBlock(instr)
 		if !ok {
 			return
 		}
@@ -53,7 +54,7 @@ func (s *DFSTools) shouldNotVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBloc
 	}
 
 	if instr, ok := n.(ssa.Instruction); ok {
-		instrIndex, ok := source.IndexInBlock(instr)
+		instrIndex, ok := IndexInBlock(instr)
 		if !ok {
 			return true
 		}
@@ -200,7 +201,7 @@ func (s *DFSTools) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
 		return true
 	}
 
-	stack := source.Stack([]*ssa.BasicBlock{start})
+	stack := Stack([]*ssa.BasicBlock{start})
 	seen := map[*ssa.BasicBlock]bool{start: true}
 	for len(stack) > 0 {
 		current := stack.Pop()
@@ -216,4 +217,31 @@ func (s *DFSTools) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
 		}
 	}
 	return false
+}
+
+type Stack []*ssa.BasicBlock
+
+func (s *Stack) Pop() *ssa.BasicBlock {
+	if len(*s) == 0 {
+		log.Println("tried to pop from empty stack")
+	}
+	popped := (*s)[len(*s)-1]
+	*s = (*s)[:len(*s)-1]
+	return popped
+}
+
+func (s *Stack) Push(b *ssa.BasicBlock) {
+	*s = append(*s, b)
+}
+
+// indexInBlock returns this instruction's index in its parent block.
+func IndexInBlock(target ssa.Instruction) (int, bool) {
+	for i, instr := range target.Block().Instrs {
+		if instr == target {
+			return i, true
+		}
+	}
+	// we can only hit this return if there is a bug in the ssa package
+	// i.e. an instruction does not appear within its parent block
+	return 0, false
 }

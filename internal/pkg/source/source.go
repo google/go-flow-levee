@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"go/token"
 	"go/types"
-	"log"
 	"strings"
 
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
@@ -318,31 +317,4 @@ func isProducedBySanitizer(v ssa.Value, conf classifier) bool {
 		}
 	}
 	return false
-}
-
-// indexInBlock returns this instruction's index in its parent block.
-func IndexInBlock(target ssa.Instruction) (int, bool) {
-	for i, instr := range target.Block().Instrs {
-		if instr == target {
-			return i, true
-		}
-	}
-	// we can only hit this return if there is a bug in the ssa package
-	// i.e. an instruction does not appear within its parent block
-	return 0, false
-}
-
-type Stack []*ssa.BasicBlock
-
-func (s *Stack) Pop() *ssa.BasicBlock {
-	if len(*s) == 0 {
-		log.Println("tried to pop from empty stack")
-	}
-	popped := (*s)[len(*s)-1]
-	*s = (*s)[:len(*s)-1]
-	return popped
-}
-
-func (s *Stack) Push(b *ssa.BasicBlock) {
-	*s = append(*s, b)
 }
