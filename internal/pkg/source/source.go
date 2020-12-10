@@ -28,7 +28,7 @@ import (
 	"golang.org/x/tools/go/ssa"
 )
 
-type classifier interface {
+type Classifier interface {
 	IsSourceType(path, typeName string) bool
 	IsSourceField(path, typeName, fieldName string) bool
 	IsSanitizer(path, recv, name string) bool
@@ -45,7 +45,7 @@ type Source struct {
 	Marked       map[ssa.Node]bool
 	PreOrder     []ssa.Node
 	Sanitizers   []*sanitizer.Sanitizer
-	Config       classifier
+	Config       Classifier
 	TaggedFields fieldtags.ResultType
 }
 
@@ -70,7 +70,7 @@ func (s *Source) Pos() token.Pos {
 }
 
 // New constructs a Source
-func New(in ssa.Node, config classifier, taggedFields fieldtags.ResultType) *Source {
+func New(in ssa.Node, config Classifier, taggedFields fieldtags.ResultType) *Source {
 	return &Source{
 		Node:         in,
 		Marked:       make(map[ssa.Node]bool),
@@ -79,7 +79,7 @@ func New(in ssa.Node, config classifier, taggedFields fieldtags.ResultType) *Sou
 	}
 }
 
-func identify(conf classifier, ssaInput *buildssa.SSA, taggedFields fieldtags.ResultType) map[*ssa.Function][]*Source {
+func identify(conf Classifier, ssaInput *buildssa.SSA, taggedFields fieldtags.ResultType) map[*ssa.Function][]*Source {
 	sourceMap := make(map[*ssa.Function][]*Source)
 
 	for _, fn := range ssaInput.SrcFuncs {
@@ -101,7 +101,7 @@ func identify(conf classifier, ssaInput *buildssa.SSA, taggedFields fieldtags.Re
 	return sourceMap
 }
 
-func sourcesFromParams(fn *ssa.Function, conf classifier, taggedFields fieldtags.ResultType) []*Source {
+func sourcesFromParams(fn *ssa.Function, conf Classifier, taggedFields fieldtags.ResultType) []*Source {
 	var sources []*Source
 	for _, p := range fn.Params {
 		if IsSourceType(conf, taggedFields, p.Type()) {
@@ -111,7 +111,7 @@ func sourcesFromParams(fn *ssa.Function, conf classifier, taggedFields fieldtags
 	return sources
 }
 
-func sourcesFromClosure(fn *ssa.Function, conf classifier, taggedFields fieldtags.ResultType) []*Source {
+func sourcesFromClosure(fn *ssa.Function, conf Classifier, taggedFields fieldtags.ResultType) []*Source {
 	var sources []*Source
 	for _, p := range fn.FreeVars {
 		switch t := p.Type().(type) {
@@ -125,7 +125,7 @@ func sourcesFromClosure(fn *ssa.Function, conf classifier, taggedFields fieldtag
 }
 
 // sourcesFromBlocks finds Source values created by instructions within a function's body.
-func sourcesFromBlocks(fn *ssa.Function, conf classifier, taggedFields fieldtags.ResultType) []*Source {
+func sourcesFromBlocks(fn *ssa.Function, conf Classifier, taggedFields fieldtags.ResultType) []*Source {
 	var sources []*Source
 	for _, b := range fn.Blocks {
 		if b == fn.Recover {
@@ -193,7 +193,7 @@ func HasTaintableType(n ssa.Node) bool {
 	return true
 }
 
-func IsSourceType(c classifier, tf fieldtags.ResultType, t types.Type) bool {
+func IsSourceType(c Classifier, tf fieldtags.ResultType, t types.Type) bool {
 	deref := utils.Dereference(t)
 	switch tt := deref.(type) {
 	case *types.Named:
@@ -259,7 +259,7 @@ func hasTaggedField(taggedFields fieldtags.ResultType, s *types.Struct) bool {
 	return false
 }
 
-func isProducedBySanitizer(v ssa.Value, conf classifier) bool {
+func isProducedBySanitizer(v ssa.Value, conf Classifier) bool {
 	for _, instr := range *v.Referrers() {
 		store, ok := instr.(*ssa.Store)
 		if !ok {

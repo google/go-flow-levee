@@ -6,13 +6,21 @@ import (
 	"log"
 	"strings"
 
+	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
 	"github.com/google/go-flow-levee/internal/pkg/source"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/ssa"
 )
 
-type DFSTools source.Source
+type DFSTools struct {
+	Node         ssa.Node
+	Marked       map[ssa.Node]bool
+	PreOrder     []ssa.Node
+	Sanitizers   []*sanitizer.Sanitizer
+	Config       source.Classifier
+	TaggedFields fieldtags.ResultType
+}
 
 func (s *DFSTools) DfsRoot(n ssa.Node) {
 	var lastBlockVisited *ssa.BasicBlock = nil
