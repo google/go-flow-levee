@@ -35,9 +35,6 @@ type Classifier interface {
 }
 
 // Source represents a Source in an SSA call tree.
-// It is based on ssa.Node, with the added functionality of computing the recursive graph of
-// its referrers.
-// Source.sanitized notes sanitizer calls that sanitize this Source
 type Source struct {
 	Node ssa.Node
 }

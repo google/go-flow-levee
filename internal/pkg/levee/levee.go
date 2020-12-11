@@ -73,8 +73,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					sources = append(sources, source.New(v))
 				case callee != nil && conf.IsSink(utils.DecomposeFunction(v.Call.StaticCallee())):
 					for _, s := range sources {
-						record := propagationRecords[s.Node]
-						if record.HasPathTo(instr.(ssa.Node)) && !record.IsSanitizedAt(v) {
+						prop := propagationRecords[s.Node]
+						if prop.HasPathTo(instr.(ssa.Node)) && !prop.IsSanitizedAt(v) {
 							report(pass, s, v)
 							break
 						}
