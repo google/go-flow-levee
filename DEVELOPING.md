@@ -2,7 +2,7 @@
 
 ## Testing Your Changes Against a Large Codebase
 
-When creating a pull request, you must certify that your changes are safe by running them on a large codebase such as [https://github.com/kubernetes/kubernetes](https://github.com/kubernetes/kubernetes). This is not intended as a replacement for proper automated testing. Running without error on a large codebase provides an additional level of confidence, since a large codebase is likely to contain edge cases that you may not have considered. Indeed, such edge cases have caused failures in the past ([#74](https://github.com/google/go-flow-levee/pull/74), [#143](https://github.com/google/go-flow-levee/pull/143)).
+When creating a pull request, you must verify that your changes are safe by running them on a large codebase such as [https://github.com/kubernetes/kubernetes](https://github.com/kubernetes/kubernetes). This is not intended as a replacement for proper automated testing. Running without error on a large codebase provides an additional level of confidence, since a large codebase is likely to contain edge cases that you may not have considered. Indeed, such edge cases have caused failures in the past ([#74](https://github.com/google/go-flow-levee/pull/74), [#143](https://github.com/google/go-flow-levee/pull/143)).
 
 Here's an example script showing how you can test your changes against [Kubernetes](https://github.com/kubernetes/kubernetes):
 
