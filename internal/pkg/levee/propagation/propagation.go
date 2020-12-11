@@ -29,11 +29,10 @@ func Dfs(n ssa.Node, conf source.Classifier, taggedFields fieldtags.ResultType) 
 		config:       conf,
 		taggedFields: taggedFields,
 	}
-	var lastBlockVisited *ssa.BasicBlock
 	maxInstrReached := map[*ssa.BasicBlock]int{}
 
-	record.visitReferrers(n, maxInstrReached, lastBlockVisited)
-	record.dfs(n, maxInstrReached, lastBlockVisited, false)
+	record.visitReferrers(n, maxInstrReached, nil)
+	record.dfs(n, maxInstrReached, nil, false)
 
 	return record
 }
