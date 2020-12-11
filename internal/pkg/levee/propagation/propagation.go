@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"go/types"
 	"log"
-	"strings"
 
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
@@ -14,25 +13,23 @@ import (
 	"golang.org/x/tools/go/ssa"
 )
 
-type DFSRecord struct {
-	Root         ssa.Node
-	Marked       map[ssa.Node]bool
-	PreOrder     []ssa.Node
-	Sanitizers   []*sanitizer.Sanitizer
-	Config       source.Classifier
-	TaggedFields fieldtags.ResultType
+type Propagation struct {
+	root         ssa.Node
+	marked       map[ssa.Node]bool
+	preOrder     []ssa.Node
+	sanitizers   []*sanitizer.Sanitizer
+	config       source.Classifier
+	taggedFields fieldtags.ResultType
 }
 
-func Dfs(n ssa.Node, conf source.Classifier, taggedFields fieldtags.ResultType) DFSRecord {
-	record := DFSRecord{
-		Root:         n,
-		Marked:       make(map[ssa.Node]bool),
-		PreOrder:     nil,
-		Sanitizers:   nil,
-		Config:       conf,
-		TaggedFields: taggedFields,
+func Dfs(n ssa.Node, conf source.Classifier, taggedFields fieldtags.ResultType) Propagation {
+	record := Propagation{
+		root:         n,
+		marked:       make(map[ssa.Node]bool),
+		config:       conf,
+		taggedFields: taggedFields,
 	}
-	var lastBlockVisited *ssa.BasicBlock = nil
+	var lastBlockVisited *ssa.BasicBlock
 	maxInstrReached := map[*ssa.BasicBlock]int{}
 
 	record.visitReferrers(n, maxInstrReached, lastBlockVisited)
@@ -44,12 +41,12 @@ func Dfs(n ssa.Node, conf source.Classifier, taggedFields fieldtags.ResultType) 
 // dfs performs Depth-First-Search on the def-use graph of the input Source.
 // While traversing the graph we also look for potential sanitizers of this Source.
 // If the Source passes through a sanitizer, dfs does not continue through that Node.
-func (s *DFSRecord) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, isReferrer bool) {
+func (s *Propagation) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, isReferrer bool) {
 	if s.shouldNotVisit(n, maxInstrReached, lastBlockVisited, isReferrer) {
 		return
 	}
-	s.PreOrder = append(s.PreOrder, n)
-	s.Marked[n] = true
+	s.preOrder = append(s.preOrder, n)
+	s.marked[n] = true
 
 	mirCopy := map[*ssa.BasicBlock]int{}
 	for m, i := range maxInstrReached {
@@ -72,8 +69,8 @@ func (s *DFSRecord) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, las
 	s.visit(n, mirCopy, lastBlockVisited)
 }
 
-func (s *DFSRecord) shouldNotVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, isReferrer bool) bool {
-	if s.Marked[n] {
+func (s *Propagation) shouldNotVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, isReferrer bool) bool {
+	if s.marked[n] {
 		return true
 	}
 
@@ -106,7 +103,7 @@ func (s *DFSRecord) shouldNotVisit(n ssa.Node, maxInstrReached map[*ssa.BasicBlo
 	return false
 }
 
-func (s *DFSRecord) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+func (s *Propagation) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	switch t := n.(type) {
 	case *ssa.Alloc:
 		// An Alloc represents the allocation of space for a variable. If a Node is an Alloc,
@@ -121,13 +118,13 @@ func (s *DFSRecord) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, l
 		}
 
 	case *ssa.Call:
-		if callee := t.Call.StaticCallee(); callee != nil && s.Config.IsSanitizer(utils.DecomposeFunction(callee)) {
-			s.Sanitizers = append(s.Sanitizers, &sanitizer.Sanitizer{Call: t})
+		if callee := t.Call.StaticCallee(); callee != nil && s.config.IsSanitizer(utils.DecomposeFunction(callee)) {
+			s.sanitizers = append(s.sanitizers, &sanitizer.Sanitizer{Call: t})
 		}
 
 		// This is to avoid attaching calls where the source is the receiver, ex:
 		// core.Sinkf("Source id: %v", wrapper.Source.GetID())
-		if recv := t.Call.Signature().Recv(); recv != nil && source.IsSourceType(s.Config, s.TaggedFields, recv.Type()) {
+		if recv := t.Call.Signature().Recv(); recv != nil && source.IsSourceType(s.config, s.taggedFields, recv.Type()) {
 			return
 		}
 
@@ -142,7 +139,7 @@ func (s *DFSRecord) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, l
 		deref := utils.Dereference(t.X.Type())
 		typPath, typName := utils.DecomposeType(deref)
 		fieldName := utils.FieldName(t)
-		if !s.Config.IsSourceField(typPath, typName, fieldName) && !s.TaggedFields.IsSourceFieldAddr(t) {
+		if !s.config.IsSourceField(typPath, typName, fieldName) && !s.taggedFields.IsSourceFieldAddr(t) {
 			return
 		}
 		s.visitReferrers(n, maxInstrReached, lastBlockVisited)
@@ -201,7 +198,7 @@ func (s *DFSRecord) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, l
 	}
 }
 
-func (s *DFSRecord) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+func (s *Propagation) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	if n.Referrers() == nil {
 		return
 	}
@@ -210,7 +207,7 @@ func (s *DFSRecord) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlo
 	}
 }
 
-func (s *DFSRecord) visitOperands(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+func (s *Propagation) visitOperands(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	for _, o := range n.Operands(nil) {
 		if *o == nil {
 			continue
@@ -219,7 +216,7 @@ func (s *DFSRecord) visitOperands(n ssa.Node, maxInstrReached map[*ssa.BasicBloc
 	}
 }
 
-func (s *DFSRecord) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
+func (s *Propagation) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
 	if start.Dominates(dest) {
 		return true
 	}
@@ -242,40 +239,14 @@ func (s *DFSRecord) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) bool {
 	return false
 }
 
-// String implements Stringer interface.
-func (s *DFSRecord) String() string {
-	var b strings.Builder
-	for _, n := range s.compress() {
-		b.WriteString(fmt.Sprintf("%v ", n))
-	}
-
-	return b.String()
-}
-
-// compress removes the elements from the graph that are not required by the
-// taint-propagation analysis. Concretely, only propagators, sanitizers and
-// sinks should constitute the output. Since, we already know what the source
-// is, it is also removed.
-func (s *DFSRecord) compress() []ssa.Node {
-	var compressed []ssa.Node
-	for _, n := range s.PreOrder {
-		switch n.(type) {
-		case *ssa.Call:
-			compressed = append(compressed, n)
-		}
-	}
-
-	return compressed
-}
-
 // HasPathTo returns true when a Node is part of declaration-use graph.
-func (s DFSRecord) HasPathTo(n ssa.Node) bool {
-	return s.Marked[n]
+func (s Propagation) HasPathTo(n ssa.Node) bool {
+	return s.marked[n]
 }
 
 // IsSanitizedAt returns true when the Source is sanitized by the supplied instruction.
-func (s DFSRecord) IsSanitizedAt(call ssa.Instruction) bool {
-	for _, san := range s.Sanitizers {
+func (s Propagation) IsSanitizedAt(call ssa.Instruction) bool {
+	for _, san := range s.sanitizers {
 		if san.Dominates(call) {
 			return true
 		}

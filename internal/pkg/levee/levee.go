@@ -46,7 +46,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
 	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 
-	propagationRecords := map[ssa.Node]propagation.DFSRecord{}
+	propagationRecords := map[ssa.Node]propagation.Propagation{}
 
 	for _, sources := range sourcesMap {
 		for _, s := range sources {
@@ -69,11 +69,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				callee := v.Call.StaticCallee()
 				switch {
 				case fieldPropagators.IsFieldPropagator(v):
-					newSrc := source.New(v)
 					propagationRecords[v] = propagation.Dfs(v, conf, taggedFields)
-
-					sources = append(sources, newSrc)
-
+					sources = append(sources, source.New(v))
 				case callee != nil && conf.IsSink(utils.DecomposeFunction(v.Call.StaticCallee())):
 					for _, s := range sources {
 						record := propagationRecords[s.Node]
