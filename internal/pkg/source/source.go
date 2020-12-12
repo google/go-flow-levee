@@ -115,10 +115,6 @@ func sourcesFromClosure(fn *ssa.Function, conf Classifier, taggedFields fieldtag
 func sourcesFromBlocks(fn *ssa.Function, conf Classifier, taggedFields fieldtags.ResultType) []*Source {
 	var sources []*Source
 	for _, b := range fn.Blocks {
-		if b == fn.Recover {
-			continue
-		}
-
 		for _, instr := range b.Instrs {
 			// This type switch is used to catch instructions that could produce sources.
 			// All instructions that do not match one of the cases will hit the "default"

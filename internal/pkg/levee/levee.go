@@ -56,10 +56,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	// Only examine functions that have sources
 	for fn, sources := range sourcesMap {
 		for _, b := range fn.Blocks {
-			if b == fn.Recover {
-				continue // skipping Recover since it does not have instructions, rather a single block.
-			}
-
 			for _, instr := range b.Instrs {
 				v, ok := instr.(*ssa.Call)
 				if !ok {
