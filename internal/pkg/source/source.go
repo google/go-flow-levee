@@ -134,6 +134,10 @@ func sourcesFromBlocks(fn *ssa.Function, conf Classifier, taggedFields fieldtags
 				if isProducedBySanitizer(v.(ssa.Value), conf) {
 					continue
 				}
+			case *ssa.TypeAssert:
+				if !v.CommaOk && IsSourceType(conf, taggedFields, v.AssertedType) {
+					sources = append(sources, New(v))
+				}
 
 			// An Extract is used to obtain a value from an instruction that returns multiple values.
 			// If the Extract is used to get a Pointer, create a Source, otherwise the Source won't
