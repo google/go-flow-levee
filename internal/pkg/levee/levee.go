@@ -61,8 +61,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				}
 
 				callee := v.Call.StaticCallee()
-				switch {
-				case callee != nil && conf.IsSink(utils.DecomposeFunction(callee)):
+				if callee != nil && conf.IsSink(utils.DecomposeFunction(callee)) {
 					for _, s := range sources {
 						prop := propagations[s.Node]
 						if prop.HasPathTo(instr.(ssa.Node)) && !prop.IsSanitizedAt(v) {
