@@ -29,7 +29,7 @@ type ResultType = map[*ssa.Function][]*Source
 
 var Analyzer = &analysis.Analyzer{
 	Name:       "source",
-	Doc:        "This analyzer identifies ssa.Values as dataflow sources.",
+	Doc:        "This analyzer identifies ssa.Values that are sources.",
 	Flags:      config.FlagSet,
 	Run:        run,
 	Requires:   []*analysis.Analyzer{buildssa.Analyzer, fieldtags.Analyzer},
