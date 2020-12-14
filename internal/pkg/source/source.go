@@ -134,7 +134,9 @@ func sourcesFromBlocks(fn *ssa.Function, conf Classifier, taggedFields fieldtags
 				if isProducedBySanitizer(v.(ssa.Value), conf) {
 					continue
 				}
-
+			// A panicky type assert like s := e.(*core.Source) does not result in ssa.Extract
+			// so we need to create a source if the type assert is panicky i.e. CommaOk is false
+			// and the type being asserted is a source type.
 			case *ssa.TypeAssert:
 				if !v.CommaOk && IsSourceType(conf, taggedFields, v.AssertedType) {
 					sources = append(sources, New(v))
