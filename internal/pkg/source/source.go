@@ -134,6 +134,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf Classifier, taggedFields fieldtags
 				if isProducedBySanitizer(v.(ssa.Value), conf) {
 					continue
 				}
+
 			case *ssa.TypeAssert:
 				if !v.CommaOk && IsSourceType(conf, taggedFields, v.AssertedType) {
 					sources = append(sources, New(v))
