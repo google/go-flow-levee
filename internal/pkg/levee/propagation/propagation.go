@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package propagation implements the core taint propagation analysis that
+// can be used to determine what ssa Nodes can be reached from a given Node.
 package propagation
 
 import (
@@ -27,6 +29,8 @@ import (
 	"golang.org/x/tools/go/ssa"
 )
 
+// Propagation represents the information that is used by, and collected
+// during, a taint propagation analysis.
 type Propagation struct {
 	root         ssa.Node
 	marked       map[ssa.Node]bool
@@ -36,6 +40,8 @@ type Propagation struct {
 	taggedFields fieldtags.ResultType
 }
 
+// Dfs performs a depth-first search of the graph formed by SSA Referrers and
+// Operands relationships.
 func Dfs(n ssa.Node, conf source.Classifier, taggedFields fieldtags.ResultType) Propagation {
 	record := Propagation{
 		root:         n,
@@ -51,9 +57,6 @@ func Dfs(n ssa.Node, conf source.Classifier, taggedFields fieldtags.ResultType) 
 	return record
 }
 
-// dfs performs Depth-First-Search on the def-use graph of the input Source.
-// While traversing the graph we also look for potential sanitizers of this Source.
-// If the Source passes through a sanitizer, dfs does not continue through that Node.
 func (prop *Propagation) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, isReferrer bool) {
 	if prop.shouldNotVisit(n, maxInstrReached, lastBlockVisited, isReferrer) {
 		return
@@ -252,15 +255,17 @@ func (prop *Propagation) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) b
 	return false
 }
 
-// HasPathTo returns true when a Node is part of declaration-use graph.
+// HasPathTo determines whether a Node can be reached
+// from the Propagation's root.
 func (prop Propagation) HasPathTo(n ssa.Node) bool {
 	return prop.marked[n]
 }
 
-// IsSanitizedAt returns true when the Source is sanitized by the supplied instruction.
-func (prop Propagation) IsSanitizedAt(call ssa.Instruction) bool {
+// IsSanitizedAt determines whether the Propagation's root is sanitized
+// when it reaches the given instruction.
+func (prop Propagation) IsSanitizedAt(instr ssa.Instruction) bool {
 	for _, san := range prop.sanitizers {
-		if san.Dominates(call) {
+		if san.Dominates(instr) {
 			return true
 		}
 	}
