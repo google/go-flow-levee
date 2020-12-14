@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package source contains the logic related to the concept of the source which may be tainted.
+// Package source can be used to identify SSA values that are Sources.
 package source
 
 import (
@@ -26,6 +26,8 @@ import (
 	"golang.org/x/tools/go/ssa"
 )
 
+// A Classifier is used to identify Objects of interest,
+// such as Sources, Sanitizers, and Sinks.
 type Classifier interface {
 	IsSourceType(path, typeName string) bool
 	IsSourceField(path, typeName, fieldName string) bool
@@ -34,7 +36,8 @@ type Classifier interface {
 	IsExcluded(path, recv, name string) bool
 }
 
-// Source represents a Source in an SSA call tree.
+// A Source is a node in the SSA graph that is used as a
+// starting point in a propagation analysis.
 type Source struct {
 	Node ssa.Node
 }
@@ -59,13 +62,16 @@ func (s *Source) Pos() token.Pos {
 	return s.Node.Pos()
 }
 
-// New constructs a Source
+// New constructs a new Source.
 func New(in ssa.Node) *Source {
 	return &Source{
 		Node: in,
 	}
 }
 
+// identify individually examines each Function in the SSA code looking for Sources.
+// It produces a map relating a Function to the Sources it contains.
+// If a Function contains no Sources, it does not appear in the map.
 func identify(conf Classifier, ssaInput *buildssa.SSA, taggedFields fieldtags.ResultType) map[*ssa.Function][]*Source {
 	sourceMap := make(map[*ssa.Function][]*Source)
 
@@ -78,7 +84,7 @@ func identify(conf Classifier, ssaInput *buildssa.SSA, taggedFields fieldtags.Re
 
 		var sources []*Source
 		sources = append(sources, sourcesFromParams(fn, conf, taggedFields)...)
-		sources = append(sources, sourcesFromClosure(fn, conf, taggedFields)...)
+		sources = append(sources, sourcesFromClosures(fn, conf, taggedFields)...)
 		sources = append(sources, sourcesFromBlocks(fn, conf, taggedFields)...)
 
 		if len(sources) > 0 {
@@ -88,6 +94,7 @@ func identify(conf Classifier, ssaInput *buildssa.SSA, taggedFields fieldtags.Re
 	return sourceMap
 }
 
+// sourcesFromParams identifies Sources that appear within a Function's parameters.
 func sourcesFromParams(fn *ssa.Function, conf Classifier, taggedFields fieldtags.ResultType) []*Source {
 	var sources []*Source
 	for _, p := range fn.Params {
@@ -98,7 +105,11 @@ func sourcesFromParams(fn *ssa.Function, conf Classifier, taggedFields fieldtags
 	return sources
 }
 
-func sourcesFromClosure(fn *ssa.Function, conf Classifier, taggedFields fieldtags.ResultType) []*Source {
+// sourcesFromClosures identifies Source values which are captured by closures.
+// A value that is captured by a closure will appear as a Free Variable in the
+// closure. In the SSA, a Free Variable is represented as a Pointer, distinct
+// from the original value.
+func sourcesFromClosures(fn *ssa.Function, conf Classifier, taggedFields fieldtags.ResultType) []*Source {
 	var sources []*Source
 	for _, p := range fn.FreeVars {
 		switch t := p.Type().(type) {
@@ -124,16 +135,15 @@ func sourcesFromBlocks(fn *ssa.Function, conf Classifier, taggedFields fieldtags
 			default:
 				continue
 
-			// source defined as a local variable or returned from a call
+			// local variable or value returned from a call
 			case *ssa.Alloc, *ssa.Call:
-				// Allocs and Calls are values
 				if isProducedBySanitizer(v.(ssa.Value), conf) {
 					continue
 				}
 
 			// An Extract is used to obtain a value from an instruction that returns multiple values.
-			// If the Extract is used to get a Pointer, create a Source, otherwise the Source won't
-			// have an Alloc and we'll miss it.
+			// If the extracted value is a Pointer to a Source, it won't have an Alloc, so we need to
+			// identify the Source from the Extract.
 			case *ssa.Extract:
 				t := v.Tuple.Type().(*types.Tuple).At(v.Index).Type()
 				if _, ok := t.(*types.Pointer); ok && IsSourceType(conf, taggedFields, t) {
@@ -141,17 +151,17 @@ func sourcesFromBlocks(fn *ssa.Function, conf Classifier, taggedFields fieldtags
 				}
 				continue
 
-			// source received from chan
+			// value received from chan
 			case *ssa.UnOp:
 				// not a <-chan operation
 				if v.Op != token.ARROW {
 					continue
 				}
 
-			// source obtained through a field or an index operation
+			// value obtained through a field or an index operation
 			case *ssa.Field, *ssa.FieldAddr, *ssa.Index, *ssa.IndexAddr, *ssa.Lookup:
 
-			// source chan or map (arrays and slices have regular Allocs)
+			// chan or map value (arrays and slices are created using Allocs)
 			case *ssa.MakeMap, *ssa.MakeChan:
 			}
 
@@ -164,6 +174,11 @@ func sourcesFromBlocks(fn *ssa.Function, conf Classifier, taggedFields fieldtags
 	return sources
 }
 
+// IsSourceType determines whether a Type is a Source Type.
+// A Source Type is either:
+// - A Named Type that is classified as a Source
+// - A composite type that contains a Source Type
+// - A Struct Type that contains a tagged field
 func IsSourceType(c Classifier, tf fieldtags.ResultType, t types.Type) bool {
 	deref := utils.Dereference(t)
 	switch tt := deref.(type) {
