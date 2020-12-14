@@ -20,21 +20,12 @@ import (
 	"go/token"
 	"go/types"
 
+	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
 )
-
-// A Classifier is used to identify Objects of interest,
-// such as Sources, Sanitizers, and Sinks.
-type Classifier interface {
-	IsSourceType(path, typeName string) bool
-	IsSourceField(path, typeName, fieldName string) bool
-	IsSanitizer(path, recv, name string) bool
-	IsSink(path, recv, name string) bool
-	IsExcluded(path, recv, name string) bool
-}
 
 // A Source is a node in the SSA graph that is used as a
 // starting point in a propagation analysis.
@@ -72,7 +63,7 @@ func New(in ssa.Node) *Source {
 // identify individually examines each Function in the SSA code looking for Sources.
 // It produces a map relating a Function to the Sources it contains.
 // If a Function contains no Sources, it does not appear in the map.
-func identify(conf Classifier, ssaInput *buildssa.SSA, taggedFields fieldtags.ResultType) map[*ssa.Function][]*Source {
+func identify(conf *config.Config, ssaInput *buildssa.SSA, taggedFields fieldtags.ResultType) map[*ssa.Function][]*Source {
 	sourceMap := make(map[*ssa.Function][]*Source)
 
 	for _, fn := range ssaInput.SrcFuncs {
@@ -95,7 +86,7 @@ func identify(conf Classifier, ssaInput *buildssa.SSA, taggedFields fieldtags.Re
 }
 
 // sourcesFromParams identifies Sources that appear within a Function's parameters.
-func sourcesFromParams(fn *ssa.Function, conf Classifier, taggedFields fieldtags.ResultType) []*Source {
+func sourcesFromParams(fn *ssa.Function, conf *config.Config, taggedFields fieldtags.ResultType) []*Source {
 	var sources []*Source
 	for _, p := range fn.Params {
 		if IsSourceType(conf, taggedFields, p.Type()) {
@@ -109,7 +100,7 @@ func sourcesFromParams(fn *ssa.Function, conf Classifier, taggedFields fieldtags
 // A value that is captured by a closure will appear as a Free Variable in the
 // closure. In the SSA, a Free Variable is represented as a Pointer, distinct
 // from the original value.
-func sourcesFromClosures(fn *ssa.Function, conf Classifier, taggedFields fieldtags.ResultType) []*Source {
+func sourcesFromClosures(fn *ssa.Function, conf *config.Config, taggedFields fieldtags.ResultType) []*Source {
 	var sources []*Source
 	for _, p := range fn.FreeVars {
 		switch t := p.Type().(type) {
@@ -123,7 +114,7 @@ func sourcesFromClosures(fn *ssa.Function, conf Classifier, taggedFields fieldta
 }
 
 // sourcesFromBlocks finds Source values created by instructions within a function's body.
-func sourcesFromBlocks(fn *ssa.Function, conf Classifier, taggedFields fieldtags.ResultType) []*Source {
+func sourcesFromBlocks(fn *ssa.Function, conf *config.Config, taggedFields fieldtags.ResultType) []*Source {
 	var sources []*Source
 	for _, b := range fn.Blocks {
 		for _, instr := range b.Instrs {
@@ -179,7 +170,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf Classifier, taggedFields fieldtags
 // - A Named Type that is classified as a Source
 // - A composite type that contains a Source Type
 // - A Struct Type that contains a tagged field
-func IsSourceType(c Classifier, tf fieldtags.ResultType, t types.Type) bool {
+func IsSourceType(c *config.Config, tf fieldtags.ResultType, t types.Type) bool {
 	deref := utils.Dereference(t)
 	switch tt := deref.(type) {
 	case *types.Named:
@@ -219,7 +210,7 @@ func hasTaggedField(taggedFields fieldtags.ResultType, s *types.Struct) bool {
 	return false
 }
 
-func isProducedBySanitizer(v ssa.Value, conf Classifier) bool {
+func isProducedBySanitizer(v ssa.Value, conf *config.Config) bool {
 	for _, instr := range *v.Referrers() {
 		store, ok := instr.(*ssa.Store)
 		if !ok {

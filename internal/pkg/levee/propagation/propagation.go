@@ -21,6 +21,7 @@ import (
 	"go/types"
 	"log"
 
+	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
 	"github.com/google/go-flow-levee/internal/pkg/source"
@@ -36,13 +37,13 @@ type Propagation struct {
 	marked       map[ssa.Node]bool
 	preOrder     []ssa.Node
 	sanitizers   []*sanitizer.Sanitizer
-	config       source.Classifier
+	config       *config.Config
 	taggedFields fieldtags.ResultType
 }
 
 // Dfs performs a depth-first search of the graph formed by SSA Referrers and
 // Operands relationships, beginning at the given root node.
-func Dfs(n ssa.Node, conf source.Classifier, taggedFields fieldtags.ResultType) Propagation {
+func Dfs(n ssa.Node, conf *config.Config, taggedFields fieldtags.ResultType) Propagation {
 	record := Propagation{
 		root:         n,
 		marked:       make(map[ssa.Node]bool),
