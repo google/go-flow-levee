@@ -57,6 +57,16 @@ func Dfs(n ssa.Node, conf source.Classifier, taggedFields fieldtags.ResultType) 
 	return record
 }
 
+// dfs performs a depth-first search of the graph formed by SSA Referrers and
+// Operands relationships. Along the way, visited nodes are marked and stored
+// in a slice which captures the visitation order. Sanitizers are also recorded.
+// maxInstrReached and lastBlockVisited are used to give the traversal some
+// degree of flow sensitivity. Specifically:
+// - maxInstrReached records the highest index of an instruction visited
+//   in each block. This is used to avoid visiting past instructions, e.g.
+//   a call to a sink where the argument was tainted after the call happened.
+// - lastBlockVisited is used to determine whether the next instruction to visit
+//   can be reached from the current instruction.
 func (prop *Propagation) dfs(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, isReferrer bool) {
 	if prop.shouldNotVisit(n, maxInstrReached, lastBlockVisited, isReferrer) {
 		return
