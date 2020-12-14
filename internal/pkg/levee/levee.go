@@ -67,7 +67,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				case fieldPropagators.IsFieldPropagator(v):
 					propagations[v] = propagation.Dfs(v, conf, taggedFields)
 					sources = append(sources, source.New(v))
-				case callee != nil && conf.IsSink(utils.DecomposeFunction(v.Call.StaticCallee())):
+				case callee != nil && conf.IsSink(utils.DecomposeFunction(callee)):
 					for _, s := range sources {
 						prop := propagations[s.Node]
 						if prop.HasPathTo(instr.(ssa.Node)) && !prop.IsSanitizedAt(v) {
