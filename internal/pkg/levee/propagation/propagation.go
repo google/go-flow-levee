@@ -41,7 +41,7 @@ type Propagation struct {
 }
 
 // Dfs performs a depth-first search of the graph formed by SSA Referrers and
-// Operands relationships.
+// Operands relationships, beginning at the given root node.
 func Dfs(n ssa.Node, conf source.Classifier, taggedFields fieldtags.ResultType) Propagation {
 	record := Propagation{
 		root:         n,
