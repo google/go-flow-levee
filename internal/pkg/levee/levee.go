@@ -53,7 +53,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			propagations[s.Node] = propagation.Dfs(s.Node, conf, taggedFields)
 		}
 	}
-	// Only examine functions that have sources
+
 	for fn, sources := range sourcesMap {
 		for _, b := range fn.Blocks {
 			for _, instr := range b.Instrs {
