@@ -180,7 +180,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf Classifier, taggedFields fieldtags
 
 // IsSourceType determines whether a Type is a Source Type.
 // A Source Type is either:
-// - A Named Type that has is classified as a Source
+// - A Named Type that is classified as a Source
 // - A composite type that contains a Source Type
 // - A Struct Type that contains a tagged field
 func IsSourceType(c Classifier, tf fieldtags.ResultType, t types.Type) bool {
