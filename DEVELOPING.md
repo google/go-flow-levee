@@ -105,6 +105,7 @@ if *debugging {
     ```
 
 3.  Branch
+
     Get your local master upto date:
 
     ```bash
