@@ -1,5 +1,30 @@
 # Developing Go Flow Levee
 
+## Testing Your Changes Against a Large Codebase
+
+When creating a pull request, you must verify that your changes are safe by running them on a large codebase such as [https://github.com/kubernetes/kubernetes](https://github.com/kubernetes/kubernetes). This is not intended as a replacement for proper automated testing. Running without error on a large codebase provides an additional level of confidence, since a large codebase is likely to contain edge cases that you may not have considered. Indeed, such edge cases have caused failures in the past ([#74](https://github.com/google/go-flow-levee/pull/74), [#143](https://github.com/google/go-flow-levee/pull/143)).
+
+Here's an example script showing how you can test your changes against [Kubernetes](https://github.com/kubernetes/kubernetes):
+
+```bash
+#!/bin/bash
+
+set -eux
+
+# set these to appropriate values for your setup
+# GO_FLOW_LEVEE_PATH=path to the root of the go-flow-levee repository on your machine
+# K8S_PATH="$GOPATH"/src/k8s.io/kubernetes
+
+cd "$GO_FLOW_LEVEE_PATH"/cmd/levee
+go install
+
+cd "$K8S_PATH"
+git checkout master
+git pull
+CFG_PATH="$(realpath ./hack/testdata/levee/levee-config.yaml)"
+make vet WHAT="-vettool=$(which levee) -config=$CFG_PATH"
+```
+
 ## Recommended Reading
 
 Having some knowledge of the following packages is helpful when developing Go Flow Levee:
