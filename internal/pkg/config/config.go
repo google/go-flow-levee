@@ -49,6 +49,7 @@ type Config struct {
 	Sanitizers []funcMatcher
 	FieldTags  []fieldTagMatcher
 	Exclude    []funcMatcher
+	DontTreatPanicAsSink bool
 }
 
 // IsSourceFieldTag determines whether a field tag made up of a key and value
