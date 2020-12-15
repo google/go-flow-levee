@@ -56,6 +56,10 @@ func (r *renderer) writeSubgraphs() {
 }
 
 func (r *renderer) writeEdges() {
+	for _, p := range r.f.Params {
+		r.writeReferrers(p)
+	}
+
 	for _, b := range r.f.Blocks {
 		for _, i := range b.Instrs {
 			r.writeReferrers(i.(ssa.Node))
