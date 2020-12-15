@@ -132,6 +132,14 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config.Config, taggedFields field
 					continue
 				}
 
+			// A panicky type assert like s := e.(*core.Source) does not result in ssa.Extract
+			// so we need to create a source if the type assert is panicky i.e. CommaOk is false
+			// and the type being asserted is a source type.
+			case *ssa.TypeAssert:
+				if !v.CommaOk && IsSourceType(conf, taggedFields, v.AssertedType) {
+					sources = append(sources, New(v))
+				}
+
 			// An Extract is used to obtain a value from an instruction that returns multiple values.
 			// If the extracted value is a Pointer to a Source, it won't have an Alloc, so we need to
 			// identify the Source from the Extract.
