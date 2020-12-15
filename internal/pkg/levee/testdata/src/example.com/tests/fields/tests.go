@@ -66,7 +66,6 @@ func TestTaintFieldOnNonSourceStruct(s core.Source, i *core.Innocuous) {
 func TestTaintNonSourceFieldOnSourceType(s core.Source, i *core.Innocuous) {
 	s.ID, _ = strconv.Atoi(s.Data)
 	core.Sink(s.ID) // TODO want "a source has reached a sink"
-
 }
 
 type Headers struct {
