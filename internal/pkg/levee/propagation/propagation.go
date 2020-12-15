@@ -34,7 +34,7 @@ import (
 // during, a taint propagation analysis.
 type Propagation struct {
 	root         ssa.Node
-	tainted       map[ssa.Node]bool
+	tainted      map[ssa.Node]bool
 	preOrder     []ssa.Node
 	sanitizers   []*sanitizer.Sanitizer
 	config       *config.Config
@@ -46,7 +46,7 @@ type Propagation struct {
 func PropagateTaint(n ssa.Node, conf *config.Config, taggedFields fieldtags.ResultType) Propagation {
 	record := Propagation{
 		root:         n,
-		tainted:       make(map[ssa.Node]bool),
+		tainted:      make(map[ssa.Node]bool),
 		config:       conf,
 		taggedFields: taggedFields,
 	}
