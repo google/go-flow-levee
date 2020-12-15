@@ -44,11 +44,11 @@ func init() {
 
 // Config contains matchers and analysis scope information.
 type Config struct {
-	Sources    []sourceMatcher
-	Sinks      []funcMatcher
-	Sanitizers []funcMatcher
-	FieldTags  []fieldTagMatcher
-	Exclude    []funcMatcher
+	Sources              []sourceMatcher
+	Sinks                []funcMatcher
+	Sanitizers           []funcMatcher
+	FieldTags            []fieldTagMatcher
+	Exclude              []funcMatcher
 	DontTreatPanicAsSink bool
 }
 
