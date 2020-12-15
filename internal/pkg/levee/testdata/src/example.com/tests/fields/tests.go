@@ -59,13 +59,13 @@ func TestTaggedAndNonTaggedFields(s core.TaggedSource) {
 
 func TestTaintFieldOnNonSourceStruct(s core.Source, i *core.Innocuous) {
 	i.Data = s.Data
-	core.Sink(i)      // TODO want "a source has reached a sink"
-	core.Sink(i.Data) // TODO want "a source has reached a sink"
+	core.Sink(i)      // TODO(#228) want "a source has reached a sink"
+	core.Sink(i.Data) // TODO(#228) want "a source has reached a sink"
 }
 
 func TestTaintNonSourceFieldOnSourceType(s core.Source, i *core.Innocuous) {
 	s.ID, _ = strconv.Atoi(s.Data)
-	core.Sink(s.ID) // TODO want "a source has reached a sink"
+	core.Sink(s.ID) // TODO(#228) want "a source has reached a sink"
 }
 
 type Headers struct {
@@ -80,12 +80,12 @@ func foo(h Headers) {}
 
 func TestCallWithStructReferenceTaintsEveryField(h Headers) {
 	fooByPtr(&h)       // without interprocedural assessment, foo can do anything, so this call should taint every field on h
-	core.Sink(h.Name)  // TODO want "a source has reached a sink"
-	core.Sink(h.Other) // TODO want "a source has reached a sink"
+	core.Sink(h.Name)  // TODO(#229) want "a source has reached a sink"
+	core.Sink(h.Other) // TODO(#229) want "a source has reached a sink"
 }
 
 func TestCallWithStructValueDoesNotTaintNonReferenceFields(h Headers) {
 	foo(h) // h is passed by value, so only its reference-like fields should be tainted
 	core.Sink(h.Name)
-	core.Sink(h.Other) // TODO want "a source has reached a sink"
+	core.Sink(h.Other) // TODO(#229) want "a source has reached a sink"
 }
