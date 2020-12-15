@@ -50,7 +50,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 	for _, sources := range sourcesMap {
 		for _, s := range sources {
-			propagations[s.Node] = propagation.Dfs(s.Node, conf, taggedFields)
+			propagations[s.Node] = propagation.PropogateTaint(s.Node, conf, taggedFields)
 		}
 	}
 
@@ -65,7 +65,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				callee := v.Call.StaticCallee()
 				switch {
 				case fieldPropagators.IsFieldPropagator(v):
-					propagations[v] = propagation.Dfs(v, conf, taggedFields)
+					propagations[v] = propagation.PropogateTaint(v, conf, taggedFields)
 					sources = append(sources, source.New(v))
 				case callee != nil && conf.IsSink(utils.DecomposeFunction(callee)):
 					for _, s := range sources {
