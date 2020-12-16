@@ -197,7 +197,7 @@ func (prop *Propagation) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 
 	// These nodes' operands should not be visited, because they can only receive
 	// taint from their operands, not propagate taint to them.
-	case *ssa.BinOp, *ssa.ChangeInterface, *ssa.ChangeType, *ssa.Convert, *ssa.Extract, *ssa.MakeChan, *ssa.MakeMap, *ssa.MakeSlice, *ssa.Phi, *ssa.Range, *ssa.Slice, *ssa.UnOp:
+	case *ssa.BinOp, *ssa.ChangeInterface, *ssa.ChangeType, *ssa.Convert, *ssa.Extract, *ssa.MakeChan, *ssa.MakeMap, *ssa.MakeSlice, *ssa.Phi, *ssa.Range:
 		prop.visitReferrers(n, maxInstrReached, lastBlockVisited)
 
 	// These nodes don't have operands; they are Values, not Instructions.
@@ -209,7 +209,7 @@ func (prop *Propagation) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 		prop.visitOperands(n, maxInstrReached, lastBlockVisited)
 
 	// These nodes are both Instructions and Values, and currently have no special restrictions.
-	case *ssa.MakeInterface, *ssa.Select, *ssa.TypeAssert:
+	case *ssa.MakeInterface, *ssa.Select, *ssa.Slice, *ssa.TypeAssert, *ssa.UnOp:
 		prop.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		prop.visitOperands(n, maxInstrReached, lastBlockVisited)
 
