@@ -76,7 +76,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					}
 
 				case *ssa.Panic:
-					if conf.DontTreatPanicAsSink {
+					if conf.AllowPanicOnTaintedValues {
 						continue
 					}
 					for _, s := range sources {
