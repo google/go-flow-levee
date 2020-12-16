@@ -1,9 +1,7 @@
 ---
 name: False negative
 about: Report a false negative.
-title: "[FALSE NEGATIVE]: "
 labels: false negative
-assignees: ''
 
 ---
 

@@ -12,16 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package allocation
+package store
 
-type foo struct {
-	name string
-}
+import (
+	"example.com/core"
+)
 
-func f1() {
-	f := &foo{name: "bar"} // want "log"
-	log(f)
-}
-
-func log(in *foo) {
+func TestStoringToTaintedAddrDoesNotTaintStoredValue() {
+	myChan := make(chan string)
+	s := core.Source{Data: "foo"}
+	recv := <-myChan
+	s.Data = recv
+	core.Sink(recv)
+	core.Sink(myChan)
 }

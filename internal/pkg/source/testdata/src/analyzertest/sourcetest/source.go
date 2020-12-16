@@ -27,3 +27,8 @@ func CreateSource() (Source, error) {
 func NewSource() (*Source, error) {
 	return &Source{}, nil // want "source identified"
 }
+
+type TaggedSource struct {
+	Data string `levee:"source"`
+	ID   int
+}

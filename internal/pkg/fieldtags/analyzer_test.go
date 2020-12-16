@@ -31,28 +31,35 @@ func TestFieldTagsAnalysis(t *testing.T) {
 		t.Error(err)
 	}
 
-	results := analysistest.Run(t, testdata, Analyzer, "./...")
+	results := analysistest.Run(t, testdata, Analyzer, "example.com/core", "example.com/crosspkg")
 
-	if len(results) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(results))
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
 	}
 
-	want := []string{
-		"password",
-		"creds",
-		"secret",
+	var gotCoreResults []string
+	for obj := range results[0].Result.(ResultType) {
+		gotCoreResults = append(gotCoreResults, obj.Name())
+	}
+	wantCoreResults := []string{
+		"adminSecret",
 		"another",
+		"creds",
 		"hasCustomFieldTag",
 		"hasTagWithMultipleValues",
-		"adminSecret",
+		"password",
+		"secret",
+	}
+	if diff := cmp.Diff(wantCoreResults, gotCoreResults, cmpopts.SortSlices(func(a, b string) bool { return a < b })); diff != "" {
+		t.Errorf("core results diff (-want +got):\n%s", diff)
 	}
 
-	var got []string
-	for o := range results[0].Result.(ResultType) {
-		got = append(got, o.Name())
+	var gotCrosspkgResults []string
+	for obj := range results[1].Result.(ResultType) {
+		gotCrosspkgResults = append(gotCrosspkgResults, obj.Name())
 	}
-
-	if diff := cmp.Diff(want, got, cmpopts.SortSlices(func(a, b string) bool { return a < b })); diff != "" {
-		t.Errorf("Tagged Fields diff (-want +got):\n%s", diff)
+	wantCrosspkgResults := append(wantCoreResults, "crossField")
+	if diff := cmp.Diff(wantCrosspkgResults, gotCrosspkgResults, cmpopts.SortSlices(func(a, b string) bool { return a < b })); diff != "" {
+		t.Errorf("crosspkg results diff (-want +got):\n%s", diff)
 	}
 }

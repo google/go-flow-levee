@@ -54,8 +54,9 @@ func DecomposeType(t types.Type) (path, name string) {
 // If the referenced struct's type is not a named type,
 // the type path and name will both be empty strings.
 func DecomposeField(t types.Type, field int) (typePath, typeName, fieldName string) {
-	typePath, typeName = DecomposeType(Dereference(t))
-	fieldName = Dereference(t).Underlying().(*types.Struct).Field(field).Name()
+	deref := Dereference(t)
+	typePath, typeName = DecomposeType(deref)
+	fieldName = deref.Underlying().(*types.Struct).Field(field).Name()
 	return
 }
 

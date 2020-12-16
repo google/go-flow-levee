@@ -20,6 +20,8 @@ import (
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/fieldpropagator"
+	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
+	"github.com/google/go-flow-levee/internal/pkg/levee/propagation"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ssa"
@@ -32,7 +34,7 @@ var Analyzer = &analysis.Analyzer{
 	Run:      run,
 	Flags:    config.FlagSet,
 	Doc:      "reports attempts to source data to sinks",
-	Requires: []*analysis.Analyzer{source.Analyzer, fieldpropagator.Analyzer},
+	Requires: []*analysis.Analyzer{source.Analyzer, fieldpropagator.Analyzer, fieldtags.Analyzer},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -42,14 +44,18 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 	sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
 	fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
+	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 
-	// Only examine functions that have sources
+	propagations := map[ssa.Node]propagation.Propagation{}
+
+	for _, sources := range sourcesMap {
+		for _, s := range sources {
+			propagations[s.Node] = propagation.Dfs(s.Node, conf, taggedFields)
+		}
+	}
+
 	for fn, sources := range sourcesMap {
 		for _, b := range fn.Blocks {
-			if b == fn.Recover {
-				continue // skipping Recover since it does not have instructions, rather a single block.
-			}
-
 			for _, instr := range b.Instrs {
 				v, ok := instr.(*ssa.Call)
 				if !ok {
@@ -59,11 +65,12 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				callee := v.Call.StaticCallee()
 				switch {
 				case fieldPropagators.IsFieldPropagator(v):
-					sources = append(sources, source.New(v, conf))
-
-				case callee != nil && conf.IsSink(utils.DecomposeFunction(v.Call.StaticCallee())):
+					propagations[v] = propagation.Dfs(v, conf, taggedFields)
+					sources = append(sources, source.New(v))
+				case callee != nil && conf.IsSink(utils.DecomposeFunction(callee)):
 					for _, s := range sources {
-						if s.HasPathTo(instr.(ssa.Node)) && !s.IsSanitizedAt(v) {
+						prop := propagations[s.Node]
+						if prop.HasPathTo(instr.(ssa.Node)) && !prop.IsSanitizedAt(v) {
 							report(pass, s, v)
 							break
 						}
