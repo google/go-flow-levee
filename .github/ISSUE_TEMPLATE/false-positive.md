@@ -1,9 +1,7 @@
 ---
 name: False positive
 about: Report a false positive.
-title: ""
 labels: false positive
-assignees: ''
 
 ---
 
