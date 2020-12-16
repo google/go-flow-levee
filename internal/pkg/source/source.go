@@ -119,30 +119,19 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config.Config, taggedFields field
 	var sources []*Source
 	for _, b := range fn.Blocks {
 		for _, instr := range b.Instrs {
-			// This type switch is used to catch instructions that could produce sources.
-			// All instructions that do not match one of the cases will hit the "default"
-			// and they will not be examined any further.
+			var isSource bool
+
+			// Identify those instructions which produce a source.
 			switch v := instr.(type) {
-			// drop anything that doesn't match one of the following cases
-			default:
-				continue
 
-			// Do not mark allocation values returned by sanitizers as new sources
+			// Values produced by sanitizers
 			case *ssa.Alloc:
-				if isProducedBySanitizer(v, conf) {
-					continue
-				}
+				isSource = !isProducedBySanitizer(v, conf) && IsSourceType(conf, taggedFields, v.Type())
 
-			// Do not mark values returned by sanitizers as new sources.
-			// Do mark as new sources values returned by field propagators.
+			// Return values produced by sanitizers cannot be sources,
 			case *ssa.Call:
-				if isProducedBySanitizer(v, conf) {
-					continue
-				}
-
-				if propagators.IsFieldPropagator(v) {
-					sources = append(sources, New(v))
-				}
+				isSource = !isProducedBySanitizer(v, conf) &&
+					(propagators.IsFieldPropagator(v) || IsSourceType(conf, taggedFields, v.Type()))
 
 			// An Extract is used to obtain a value from an instruction that returns multiple values.
 			// If the extracted value is a Pointer to a Source, it won't have an Alloc, so we need to
@@ -150,27 +139,25 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config.Config, taggedFields field
 			case *ssa.Extract:
 				t := v.Tuple.Type().(*types.Tuple).At(v.Index).Type()
 				if _, ok := t.(*types.Pointer); ok && IsSourceType(conf, taggedFields, t) {
-					sources = append(sources, New(v))
+					isSource = true
 				}
-				continue
 
-			// value received from chan
+			// Values received from <-chan operations can be sources based on type
 			case *ssa.UnOp:
-				// not a <-chan operation
-				if v.Op != token.ARROW {
-					continue
+				isSource = v.Op == token.ARROW && IsSourceType(conf, taggedFields, v.Type())
+
+			// Identify sources by type in field access, element access of a collection, or map and chan collection creation.
+			// Array and slice collections are created via Alloc.  TODO: Then why is there a ssa.MakeSlice?
+			case *ssa.Field, *ssa.FieldAddr,
+				*ssa.Index, *ssa.IndexAddr, *ssa.Lookup,
+				*ssa.MakeMap, *ssa.MakeChan:
+				if v := instr.(ssa.Value); IsSourceType(conf, taggedFields, v.Type()) {
+					isSource = true
 				}
-
-			// value obtained through a field or an index operation
-			case *ssa.Field, *ssa.FieldAddr, *ssa.Index, *ssa.IndexAddr, *ssa.Lookup:
-
-			// chan or map value (arrays and slices are created using Allocs)
-			case *ssa.MakeMap, *ssa.MakeChan:
 			}
 
-			// all of the instructions that the switch lets through are values as per ssa/doc.go
-			if v := instr.(ssa.Value); IsSourceType(conf, taggedFields, v.Type()) {
-				sources = append(sources, New(v.(ssa.Node)))
+			if isSource {
+				sources = append(sources, New(instr.(ssa.Node)))
 			}
 		}
 	}
