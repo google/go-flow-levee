@@ -1,68 +1,34 @@
 #!/bin/bash
 
-GO_SRC_PATH="$(go env GOPATH)/src"
-CURRENT_BRANCH=$(git branch --show-current)
+set -x
 
-if [[ ${CURRENT_BRANCH} == "master" ]]; then
+install_and_run_levee_against_k8s_from_branch() {
+    branch_name=$1
+    echo "Switching to ${branch_name}"
+    git checkout "$branch_name"
+    echo "Installing levee from ${branch_name}"
+    cd cmd/levee || exit
+    go install
+    echo "Running levee(master) against k8s"
+    cd "${GO_SRC_PATH}/k8s.io/kubernetes" || exit
+    CFG_PATH="$(realpath ./hack/testdata/levee/levee-config.yaml)"
+    make clean
+    findings=$(mktemp)
+    make vet WHAT="-vettool=$(which levee) -config=$CFG_PATH" 2> "$findings"
+    cd "${GO_SRC_PATH}/go-flow-levee" || exit
+    return "$findings"
+}
+
+GO_SRC_PATH="$(go env GOPATH)/src"
+FEATURE_BRANCH=$(git branch --show-current)
+
+if [[ ${FEATURE_BRANCH} == "master" ]]; then
     echo  "Please run from feature branch"
     exit 1
 fi
 
-echo "Switching to master"
+MASTER_FINDINGS=install_and_run_levee_against_k8s_from_branch "master"
 
-git checkout master
+FEATURE_BRANCH_FINDINGS=install_and_run_levee_against_k8s_from_branch $FEATURE_BRANCH
 
-echo "Installing levee from master"
-
-cd cmd/levee
-
-go install
-
-echo "Running levee(master) against k8s"
-
-cd $GO_SRC_PATH/k8s.io/kubernetes
-
-CFG_PATH="$(realpath ./hack/testdata/levee/levee-config.yaml)"
-
-make clean
-
-MASTER_FINDINGS=$(mktemp)
-
-make vet WHAT="-vettool=$(which levee) -config=$CFG_PATH" 2> $MASTER_FINDINGS
-
-cd $GO_SRC_PATH/go-flow-levee
-
-echo "Switching to " $CURRENT_BRANCH
-
-git checkout $CURRENT_BRANCH
-
-echo "Installing levee from" $CURRENT_BRANCH
-
-cd cmd/levee
-
-go install
-
-echo "Running levee($CURRENT_BRANCH) against k8s"
-
-cd $GO_SRC_PATH/k8s.io/kubernetes
-
-CFG_PATH="$(realpath ./hack/testdata/levee/levee-config.yaml)"
-
-make clean
-
-BRANCH_FINDINGS=$(mktemp)
-
-make vet WHAT="-vettool=$(which levee) -config=$CFG_PATH" 2> $BRANCH_FINDINGS
-
-cd $GO_SRC_PATH/go-flow-levee
-
-MASTER_FINDINGS_SORTED=$(mktemp)
-BRANCH_FINDINGS_SORTED=$(mktemp)
-
-sort $MASTER_FINDINGS > $MASTER_FINDINGS_SORTED
-rm $MASTER_FINDINGS
-
-sort $BRANCH_FINDINGS > $BRANCH_FINDINGS_SORTED
-rm $BRANCH_FINDINGS
-
-diff $MASTER_FINDINGS_SORTED $BRANCH_FINDINGS_SORTED
+diff <(sort "$MASTER_FINDINGS_SORTED") <(sort "$BRANCH_FINDINGS_SORTED")
