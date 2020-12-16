@@ -35,6 +35,9 @@ func TestDirectFieldAccess(c *core.Source) {
 }
 
 func TestInlinedDirectFieldAccess() {
+	// This pattern is unlikely to occur in real code.
+	// The intent is to get Field instructions in the SSA
+	// so that we can validate that those are handled correctly.
 	core.Sinkf("Data: %v", core.Source{}.Data) // want "a source has reached a sink"
 	core.Sinkf("ID: %v", core.Source{}.ID)
 }

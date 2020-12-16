@@ -112,8 +112,7 @@ func analyzeResults(pass *analysis.Pass, conf *config.Config, tf fieldtags.Resul
 			continue
 		}
 
-		xt := fa.X.Type()
-		field := fa.Field
+		xt, field := fa.X.Type(), fa.Field
 		if conf.IsSourceField(utils.DecomposeField(xt, field)) || tf.IsSourceField(xt, field) {
 			pass.ExportObjectFact(meth.Object(), &isFieldPropagator{})
 		}

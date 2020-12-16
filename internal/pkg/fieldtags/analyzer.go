@@ -89,8 +89,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return ResultType(result), nil
 }
 
-// IsSourceField determines whether a field on a type is a source field.
-// The field is determined via the field's index.
+// IsSourceField determines whether a field on a type is a source field,
+// using the type of the struct holding the field as well as the index
+// of the field.
 func (r ResultType) IsSourceField(t types.Type, field int) bool {
 	// incantation plundered from the docstring for ssa.FieldAddr.Field
 	fieldVar := utils.Dereference(t).Underlying().(*types.Struct).Field(field)
