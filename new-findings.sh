@@ -1,9 +1,9 @@
 #!/bin/bash
 
-go_src_path="$(go env GOPATH)/src"
-current_branch=$(git branch --show-current)
+GO_SRC_PATH="$(go env GOPATH)/src"
+CURRENT_BRANCH=$(git branch --show-current)
 
-if [[ ${current_branch} == "master" ]]; then
+if [[ ${CURRENT_BRANCH} == "master" ]]; then
     echo  "Please run from feature branch"
     exit 1
 fi
@@ -20,49 +20,49 @@ go install
 
 echo "Running levee(master) against k8s"
 
-cd $go_src_path/k8s.io/kubernetes
+cd $GO_SRC_PATH/k8s.io/kubernetes
 
 CFG_PATH="$(realpath ./hack/testdata/levee/levee-config.yaml)"
 
 make clean
 
-master_findings=$(mktemp)
+MASTER_FINDINGS=$(mktemp)
 
-make vet WHAT="-vettool=$(which levee) -config=$CFG_PATH" 2> $master_findings
+make vet WHAT="-vettool=$(which levee) -config=$CFG_PATH" 2> $MASTER_FINDINGS
 
-cd $go_src_path/go-flow-levee
+cd $GO_SRC_PATH/go-flow-levee
 
-echo "Switching to " $current_branch
+echo "Switching to " $CURRENT_BRANCH
 
-git checkout $current_branch
+git checkout $CURRENT_BRANCH
 
-echo "Installing levee from" $current_branch
+echo "Installing levee from" $CURRENT_BRANCH
 
 cd cmd/levee
 
 go install
 
-echo "Running levee($current_branch) against k8s"
+echo "Running levee($CURRENT_BRANCH) against k8s"
 
-cd $go_src_path/k8s.io/kubernetes
+cd $GO_SRC_PATH/k8s.io/kubernetes
 
 CFG_PATH="$(realpath ./hack/testdata/levee/levee-config.yaml)"
 
 make clean
 
-branch_findings=$(mktemp)
+BRANCH_FINDINGS=$(mktemp)
 
-make vet WHAT="-vettool=$(which levee) -config=$CFG_PATH" 2> $branch_findings
+make vet WHAT="-vettool=$(which levee) -config=$CFG_PATH" 2> $BRANCH_FINDINGS
 
-cd $go_src_path/go-flow-levee
+cd $GO_SRC_PATH/go-flow-levee
 
-master_findings_sorted=$(mktemp)
-branch_findings_sorted=$(mktemp)
+master_FINDINGS_SORTED=$(mktemp)
+BRANCH_FINDINGS_SORTED=$(mktemp)
 
-sort $master_findings > $master_findings_sorted
-rm $master_findings
+sort $MASTER_FINDINGS > $master_FINDINGS_SORTED
+rm $MASTER_FINDINGS
 
-sort $branch_findings > $branch_findings_sorted
-rm $branch_findings
+sort $BRANCH_FINDINGS > $BRANCH_FINDINGS_SORTED
+rm $BRANCH_FINDINGS
 
-diff $master_findings_sorted $branch_findings_sorted
+diff $master_FINDINGS_SORTED $BRANCH_FINDINGS_SORTED
