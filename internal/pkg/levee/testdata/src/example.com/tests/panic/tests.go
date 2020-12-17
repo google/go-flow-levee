@@ -27,10 +27,10 @@ func TestPanicIsASinkSanitized(source core.Source) {
 	panic(sanitized)
 }
 
-func TestGoPainIsASink(source core.Source) {
+func TestGoPanicIsASink(source core.Source) {
 	go panic(source) // TODO(#231): want "a source has reached a sink"
 }
 
-func TestDeferPainIsASink(source core.Source) {
+func TestDeferPanicIsASink(source core.Source) {
 	defer panic(source) // TODO(#231): want "a source has reached a sink"
 }
