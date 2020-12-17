@@ -284,7 +284,7 @@ func (fm funcMatcher) MatchFunction(path, receiver, name string) bool {
 	return fm.Package.MatchString(path) && fm.Receiver.MatchString(receiver) && fm.Method.MatchString(name)
 }
 
-var readFileOnce sync.Once
+var readFileOnce *sync.Once = new(sync.Once)
 var readConfigCached *Config
 var readConfigCachedErr error
 
