@@ -56,7 +56,7 @@ func runTest(pass *analysis.Pass) (interface{}, error) {
 					if callee := c.Call.StaticCallee(); callee != nil && conf.IsSink(utils.DecomposeFunction(callee)) {
 						pass.Reportf(i.Pos(), "sink call")
 					}
-				
+
 				case *ssa.Panic:
 					if !conf.AllowPanicOnTaintedValues {
 						pass.Reportf(i.Pos(), "sink call")
