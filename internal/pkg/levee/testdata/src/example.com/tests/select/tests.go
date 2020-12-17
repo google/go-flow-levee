@@ -122,3 +122,27 @@ func TestTaintedInForkedCall(objects chan interface{}) {
 func PutSource(objects chan<- interface{}) {
 	objects <- core.Source{}
 }
+
+func TestRecvFromTaintedAndNonTaintedChans(sources <-chan *core.Source, innocs <-chan *core.Innocuous) {
+	select {
+	case s := <-sources:
+		core.Sink(sources) // want "a source has reached a sink"
+		core.Sink(s)       // want "a source has reached a sink"
+	case i := <-innocs:
+		core.Sink(innocs)
+		core.Sink(i)
+	}
+	core.Sink(sources) // want "a source has reached a sink"
+	core.Sink(innocs)
+}
+
+func TestSendOnTaintedAndNonTaintedChans(i1 chan<- interface{}, i2 chan<- interface{}) {
+	select {
+	case i1 <- core.Source{}:
+		core.Sink(i1) // want "a source has reached a sink"
+	case i2 <- core.Innocuous{}:
+		core.Sink(i2)
+	}
+	core.Sink(i1) // want "a source has reached a sink"
+	core.Sink(i2)
+}
