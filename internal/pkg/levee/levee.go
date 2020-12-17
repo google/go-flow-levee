@@ -66,32 +66,30 @@ func run(pass *analysis.Pass) (interface{}, error) {
 						propagations[v] = propagation.Dfs(v, conf, taggedFields)
 						sources = append(sources, source.New(v))
 					case callee != nil && conf.IsSink(utils.DecomposeFunction(callee)):
-						for _, s := range sources {
-							prop := propagations[s.Node]
-							if prop.HasPathTo(instr.(ssa.Node)) && !prop.IsSanitizedAt(v) {
-								report(pass, s, v)
-								break
-							}
-						}
+						checkIfASourceCanReachASink(pass, sources, instr, propagations)
 					}
 
 				case *ssa.Panic:
 					if conf.AllowPanicOnTaintedValues {
 						continue
 					}
-					for _, s := range sources {
-						prop := propagations[s.Node]
-						if prop.HasPathTo(instr.(ssa.Node)) && !prop.IsSanitizedAt(v) {
-							report(pass, s, v)
-							break
-						}
-					}
+					checkIfASourceCanReachASink(pass, sources, instr, propagations)
 				}
 			}
 		}
 	}
 
 	return nil, nil
+}
+
+func checkIfASourceCanReachASink(pass *analysis.Pass, sources []*source.Source, instr ssa.Instruction, propagations map[ssa.Node]propagation.Propagation) {
+	for _, s := range sources {
+		prop := propagations[s.Node]
+		if prop.HasPathTo(instr.(ssa.Node)) && !prop.IsSanitizedAt(instr) {
+			report(pass, s, instr.(ssa.Node))
+			break
+		}
+	}
 }
 
 func report(pass *analysis.Pass, source *source.Source, sink ssa.Node) {
