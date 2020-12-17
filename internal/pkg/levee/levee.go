@@ -44,15 +44,15 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
 	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 
-	propagations := map[ssa.Node]propagation.Propagation{}
+	propagations := map[*source.Source]propagation.Propagation{}
 
 	for _, sources := range sourcesMap {
 		for _, s := range sources {
-			propagations[s.Node] = propagation.Dfs(s.Node, conf, taggedFields)
+			propagations[s] = propagation.Dfs(s.Node, conf, taggedFields)
 		}
 	}
 
-	for fn, sources := range sourcesMap {
+	for fn := range sourcesMap {
 		for _, b := range fn.Blocks {
 			for _, instr := range b.Instrs {
 				v, ok := instr.(*ssa.Call)
@@ -63,8 +63,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				callee := v.Call.StaticCallee()
 				switch {
 				case callee != nil && conf.IsSink(utils.DecomposeFunction(callee)):
-					for _, s := range sources {
-						prop := propagations[s.Node]
+					for s, prop := range propagations {
 						if prop.HasPathTo(instr.(ssa.Node)) && !prop.IsSanitizedAt(v) {
 							report(pass, s, v)
 							break
