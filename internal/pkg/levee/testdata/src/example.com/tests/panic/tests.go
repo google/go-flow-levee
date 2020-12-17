@@ -34,3 +34,8 @@ func TestGoPanicIsASink(source core.Source) {
 func TestDeferPanicIsASink(source core.Source) {
 	defer panic(source) // TODO(#231): want "a source has reached a sink"
 }
+
+func TestPanicOnNonSourceDoesNotProduceReport(source core.Source) {
+	y := 42
+	panic(y)
+}
