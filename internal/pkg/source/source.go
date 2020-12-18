@@ -127,14 +127,14 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config.Config, taggedFields field
 			default:
 				continue
 
-			// Do not mark allocation values returned by sanitizers as new sources
+			// Values produced by sanitizers are not sources.
 			case *ssa.Alloc:
 				if isProducedBySanitizer(v, conf) {
 					continue
 				}
 
-			// Do not mark values returned by sanitizers as new sources.
-			// Do mark as new sources values returned by field propagators.
+			// Values produced by sanitizers are not sources.
+			// Values produced by field propagators are.
 			case *ssa.Call:
 				if isProducedBySanitizer(v, conf) {
 					continue
@@ -142,6 +142,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config.Config, taggedFields field
 
 				if propagators.IsFieldPropagator(v) {
 					sources = append(sources, New(v))
+					continue
 				}
 
 			// An Extract is used to obtain a value from an instruction that returns multiple values.
