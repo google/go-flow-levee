@@ -12,17 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ---
-allowPanicOnTaintedValues: true
-sinks:
-  - packageRE: "^example.com/core"
-    methodRE: "^Sink$"
-  - packageRE: "^example.com/core"
-    methodRE: "^Do$"
-    receiverRE: "^Sinker$"
-fieldTags:
-  - key: example
-    val: sensitive
-exclude:
-  - packageRE: "^example.com/exclusion$"
-    methodRE: "^Foo$"
-  - packageRE: "^notexample.com/exclusion$"
+AllowPanicOnTaintedValues: true
+Sources:
+- PackageRE: "^nopanic.com/core$"
+  TypeRE: "^Source$"
+  FieldRE: "^Data"

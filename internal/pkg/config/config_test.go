@@ -16,7 +16,6 @@ package config
 
 import (
 	"path/filepath"
-	"sync"
 	"testing"
 
 	"github.com/google/go-flow-levee/internal/pkg/utils"
@@ -25,7 +24,6 @@ import (
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
 )
-
 var testAnalyzer = &analysis.Analyzer{
 	Name:     "config",
 	Run:      runTest,
@@ -77,11 +75,3 @@ func TestConfig(t *testing.T) {
 	analysistest.Run(t, testdata, testAnalyzer, "./src/example.com/...", "./src/notexample.com/...", "./src/panic.com/...")
 }
 
-func TestConfigAllowPanicOnTaintedValues(t *testing.T) {
-	readFileOnce = new(sync.Once)
-	testdata := analysistest.TestData()
-	if err := FlagSet.Set("config", filepath.Join(testdata, "test-config-alt.yaml")); err != nil {
-		t.Fatal(err)
-	}
-	analysistest.Run(t, testdata, testAnalyzer, "./src/example.com/...", "./src/notexample.com/...", "./src/nopanic.com/...")
-}
