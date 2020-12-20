@@ -131,6 +131,10 @@ if *debugging {
     git push origin featurebranch
     ```
 
+6.  Create a Pull Request
+    1.  Goto https://github.com/google/go-flow-levee
+    2.  Click on the "Compare & pull request" button.
+
 ## Source Code Headers
 
 Every file containing source code or data (e.g., YAML configuration files) must include
