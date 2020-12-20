@@ -5,9 +5,11 @@ set -ex
 install_and_run_levee_against_k8s_from_branch() {
     local branch_name=$1
     git checkout "$branch_name"
-    local levee_output="$(mktemp -d)/levee"
+    local levee_output
+    levee_output="$(mktemp -d)/levee"
     go build -o "${levee_output}" "${LEVEE_DIR}/cmd/levee"
-    local cfg_path="$(realpath ${K8S_SRC_PATH}/hack/testdata/levee/levee-config.yaml)"
+    local cfg_path
+    cfg_path="$(realpath "${K8S_SRC_PATH}"/hack/testdata/levee/levee-config.yaml)"
     make -C "${K8S_SRC_PATH}" clean
     FINDINGS=$(mktemp)
     set +e
@@ -15,8 +17,7 @@ install_and_run_levee_against_k8s_from_branch() {
     set -e
 }
 
-CURRENT_DIR=$(pwd)
-LEVEE_DIR=$(dirname $(dirname $(realpath $0)))
+LEVEE_DIR="$(dirname "$(dirname "$(realpath "$0")")")"
 K8S_SRC_PATH="$(go env GOPATH)/src/k8s.io/kubernetes"
 FEATURE_BRANCH=$(git branch --show-current)
 
@@ -31,4 +32,4 @@ MASTER_FINDINGS=$FINDINGS
 install_and_run_levee_against_k8s_from_branch "$FEATURE_BRANCH" 
 FEATURE_BRANCH_FINDINGS=$FINDINGS
 
-diff <(sort ${FEATURE_BRANCH_FINDINGS}) <(sort ${MASTER_FINDINGS})
+diff <(sort "${FEATURE_BRANCH_FINDINGS}") <(sort "${MASTER_FINDINGS}")
