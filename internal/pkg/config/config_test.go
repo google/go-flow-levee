@@ -24,6 +24,7 @@ import (
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
 )
+
 var testAnalyzer = &analysis.Analyzer{
 	Name:     "config",
 	Run:      runTest,
@@ -74,4 +75,3 @@ func TestConfig(t *testing.T) {
 	}
 	analysistest.Run(t, testdata, testAnalyzer, "./src/example.com/...", "./src/notexample.com/...", "./src/panic.com/...")
 }
-
