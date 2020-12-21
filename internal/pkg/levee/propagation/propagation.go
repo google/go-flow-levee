@@ -145,6 +145,11 @@ func (prop *Propagation) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 		}
 
 	case *ssa.Call:
+		// The builtin delete(m map[Type]Type1, key Type) func does not propagate source.
+		if builtin, ok := t.Call.Value.(*ssa.Builtin); ok && builtin.Name() == "delete" {
+			return
+		}
+
 		if callee := t.Call.StaticCallee(); callee != nil && prop.config.IsSanitizer(utils.DecomposeFunction(callee)) {
 			prop.sanitizers = append(prop.sanitizers, &sanitizer.Sanitizer{Call: t})
 		}
