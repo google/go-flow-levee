@@ -58,8 +58,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				switch v := instr.(type) {
 
 				case *ssa.Call:
-					callee := v.Call.StaticCallee()
-					if callee != nil && conf.IsSink(utils.DecomposeFunction(callee)) {
+					if callee := v.Call.StaticCallee(); callee != nil && conf.IsSink(utils.DecomposeFunction(callee)) {
 						reportSourcesReachingSink(pass, sources, instr, propagations)
 					}
 
