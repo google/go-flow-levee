@@ -77,7 +77,7 @@ func identify(u upstream, conf *config.Config, ssaInput *buildssa.SSA, taggedFie
 		var sources []*Source
 		sources = append(sources, sourcesFromParams(u, fn, conf, taggedFields)...)
 		sources = append(sources, sourcesFromClosures(u, fn, conf, taggedFields)...)
-		sources = append(sources, sourcesFromBlocks(u, fn, conf, taggedFields, propagators)...)
+		sources = append(sources, sourcesFromBlocks(u, fn)...)
 
 		if len(sources) > 0 {
 			sourceMap[fn] = sources
@@ -115,7 +115,7 @@ func sourcesFromClosures(u upstream, fn *ssa.Function, conf *config.Config, tagg
 }
 
 // sourcesFromBlocks finds Source values created by instructions within a function's body.
-func sourcesFromBlocks(u upstream, fn *ssa.Function, conf *config.Config, taggedFields fieldtags.ResultType, propagators fieldpropagator.ResultType) []*Source {
+func sourcesFromBlocks(u upstream, fn *ssa.Function) []*Source {
 	var sources []*Source
 	for _, b := range fn.Blocks {
 		for _, instr := range b.Instrs {
@@ -129,18 +129,18 @@ func sourcesFromBlocks(u upstream, fn *ssa.Function, conf *config.Config, tagged
 
 			// Values produced by sanitizers are not sources.
 			case *ssa.Alloc:
-				if isProducedBySanitizer(v, conf) {
+				if isProducedBySanitizer(v, u.conf) {
 					continue
 				}
 
 			// Values produced by sanitizers are not sources.
 			// Values produced by field propagators are.
 			case *ssa.Call:
-				if isProducedBySanitizer(v, conf) {
+				if isProducedBySanitizer(v, u.conf) {
 					continue
 				}
 
-				if propagators.IsFieldPropagator(v) {
+				if u.props.IsFieldPropagator(v) {
 					sources = append(sources, New(v))
 					continue
 				}
@@ -149,7 +149,7 @@ func sourcesFromBlocks(u upstream, fn *ssa.Function, conf *config.Config, tagged
 			// so we need to create a source if the type assert is panicky i.e. CommaOk is false
 			// and the type being asserted is a source type.
 			case *ssa.TypeAssert:
-				if !v.CommaOk && IsSourceType(conf, taggedFields, v.AssertedType) {
+				if !v.CommaOk && IsSourceType(u.conf, u.tags, v.AssertedType) {
 					sources = append(sources, New(v))
 				}
 
@@ -158,7 +158,7 @@ func sourcesFromBlocks(u upstream, fn *ssa.Function, conf *config.Config, tagged
 			// identify the Source from the Extract.
 			case *ssa.Extract:
 				t := v.Tuple.Type().(*types.Tuple).At(v.Index).Type()
-				if _, ok := t.(*types.Pointer); ok && IsSourceType(conf, taggedFields, t) {
+				if _, ok := t.(*types.Pointer); ok && IsSourceType(u.conf, u.tags, t) {
 					sources = append(sources, New(v))
 				}
 				continue
@@ -178,7 +178,7 @@ func sourcesFromBlocks(u upstream, fn *ssa.Function, conf *config.Config, tagged
 			}
 
 			// all of the instructions that the switch lets through are values as per ssa/doc.go
-			if v := instr.(ssa.Value); IsSourceType(conf, taggedFields, v.Type()) {
+			if v := instr.(ssa.Value); IsSourceType(u.conf, u.tags, v.Type()) {
 				sources = append(sources, New(v.(ssa.Node)))
 			}
 		}
