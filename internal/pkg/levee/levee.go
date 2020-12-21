@@ -19,7 +19,6 @@ import (
 	"strings"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
-	"github.com/google/go-flow-levee/internal/pkg/fieldpropagator"
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"github.com/google/go-flow-levee/internal/pkg/levee/propagation"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
@@ -34,7 +33,7 @@ var Analyzer = &analysis.Analyzer{
 	Run:      run,
 	Flags:    config.FlagSet,
 	Doc:      "reports attempts to source data to sinks",
-	Requires: []*analysis.Analyzer{source.Analyzer, fieldpropagator.Analyzer, fieldtags.Analyzer},
+	Requires: []*analysis.Analyzer{source.Analyzer, fieldtags.Analyzer},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -43,7 +42,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		return nil, err
 	}
 	sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
-	fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
 	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 
 	propagations := map[ssa.Node]propagation.Propagation{}
@@ -60,12 +58,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				switch v := instr.(type) {
 
 				case *ssa.Call:
-					callee := v.Call.StaticCallee()
-					switch {
-					case fieldPropagators.IsFieldPropagator(v):
-						propagations[v] = propagation.Dfs(v, conf, taggedFields)
-						sources = append(sources, source.New(v))
-					case callee != nil && conf.IsSink(utils.DecomposeFunction(callee)):
+					if callee := v.Call.StaticCallee(); callee != nil && conf.IsSink(utils.DecomposeFunction(callee)) {
 						reportSourcesReachingSink(pass, sources, instr, propagations)
 					}
 
