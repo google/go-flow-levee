@@ -37,21 +37,22 @@ var Analyzer = &analysis.Analyzer{
 	ResultType: reflect.TypeOf(new(ResultType)).Elem(),
 }
 
-type upstream struct {
+// TODO(do not merge): I would appreciate any suggestions for type / field names.
+// upstreamArgs bundles upstreamArgs results for cleaner function signatures.
+type upstreamArgs struct {
 	ssa   *buildssa.SSA
 	tags  fieldtags.ResultType
 	props fieldpropagator.ResultType
 	conf  *config.Config
 }
 
-func newUpstream(pass *analysis.Pass) (upstream, error) {
-
+func getUpstreamResults(pass *analysis.Pass) (upstreamArgs, error) {
 	conf, err := config.ReadConfig()
 	if err != nil {
-		return upstream{}, err
+		return upstreamArgs{}, err
 	}
 
-	return upstream{
+	return upstreamArgs{
 		ssa:   pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA),
 		tags:  pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType),
 		props: pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType),
@@ -60,7 +61,7 @@ func newUpstream(pass *analysis.Pass) (upstream, error) {
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	u, err := newUpstream(pass)
+	u, err := getUpstreamResults(pass)
 	if err != nil {
 		return nil, err
 	}

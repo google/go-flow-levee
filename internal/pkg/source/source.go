@@ -62,7 +62,7 @@ func New(in ssa.Node) *Source {
 // identify individually examines each Function in the SSA code looking for Sources.
 // It produces a map relating a Function to the Sources it contains.
 // If a Function contains no Sources, it does not appear in the map.
-func identify(u upstream) map[*ssa.Function][]*Source {
+func identify(u upstreamArgs) map[*ssa.Function][]*Source {
 	sourceMap := make(map[*ssa.Function][]*Source)
 
 	for _, fn := range u.ssa.SrcFuncs {
@@ -85,7 +85,7 @@ func identify(u upstream) map[*ssa.Function][]*Source {
 }
 
 // sourcesFromParams identifies Sources that appear within a Function's parameters.
-func sourcesFromParams(fn *ssa.Function, u upstream) []*Source {
+func sourcesFromParams(fn *ssa.Function, u upstreamArgs) []*Source {
 	var sources []*Source
 	for _, p := range fn.Params {
 		if IsSourceType(u.conf, u.tags, p.Type()) {
@@ -99,7 +99,7 @@ func sourcesFromParams(fn *ssa.Function, u upstream) []*Source {
 // A value that is captured by a closure will appear as a Free Variable in the
 // closure. In the SSA, a Free Variable is represented as a Pointer, distinct
 // from the original value.
-func sourcesFromClosures(fn *ssa.Function, u upstream) []*Source {
+func sourcesFromClosures(fn *ssa.Function, u upstreamArgs) []*Source {
 	var sources []*Source
 	for _, p := range fn.FreeVars {
 		switch t := p.Type().(type) {
@@ -113,7 +113,7 @@ func sourcesFromClosures(fn *ssa.Function, u upstream) []*Source {
 }
 
 // sourcesFromBlocks finds Source values created by instructions within a function's body.
-func sourcesFromBlocks(fn *ssa.Function, u upstream) []*Source {
+func sourcesFromBlocks(fn *ssa.Function, u upstreamArgs) []*Source {
 	var sources []*Source
 	for _, b := range fn.Blocks {
 		for _, instr := range b.Instrs {
