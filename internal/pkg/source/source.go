@@ -127,14 +127,14 @@ func sourcesFromBlocks(fn *ssa.Function, u upstreamArgs) []*Source {
 
 			// Values produced by sanitizers are not sources.
 			case *ssa.Alloc:
-				if isProducedBySanitizer(v, u.conf) {
+				if isProducedBySanitizer(v, u) {
 					continue
 				}
 
 			// Values produced by sanitizers are not sources.
 			// Values produced by field propagators are.
 			case *ssa.Call:
-				if isProducedBySanitizer(v, u.conf) {
+				if isProducedBySanitizer(v, u) {
 					continue
 				}
 
@@ -229,7 +229,7 @@ func hasTaggedField(taggedFields fieldtags.ResultType, s *types.Struct) bool {
 	return false
 }
 
-func isProducedBySanitizer(v ssa.Value, conf *config.Config) bool {
+func isProducedBySanitizer(v ssa.Value, u upstreamArgs) bool {
 	for _, instr := range *v.Referrers() {
 		store, ok := instr.(*ssa.Store)
 		if !ok {
@@ -239,7 +239,7 @@ func isProducedBySanitizer(v ssa.Value, conf *config.Config) bool {
 		if !ok {
 			continue
 		}
-		if callee := call.Call.StaticCallee(); callee != nil && conf.IsSanitizer(utils.DecomposeFunction(callee)) {
+		if callee := call.Call.StaticCallee(); callee != nil && u.conf.IsSanitizer(utils.DecomposeFunction(callee)) {
 			return true
 		}
 	}
