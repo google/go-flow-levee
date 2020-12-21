@@ -90,7 +90,7 @@ func identify(conf *config.Config, ssaInput *buildssa.SSA, taggedFields fieldtag
 func sourcesFromParams(fn *ssa.Function, conf *config.Config, taggedFields fieldtags.ResultType) []*Source {
 	var sources []*Source
 	for _, p := range fn.Params {
-		if IsSourceType(conf, taggedFields, p.Type()) {
+		if isSourceType(conf, taggedFields, p.Type()) {
 			sources = append(sources, New(p))
 		}
 	}
@@ -106,7 +106,7 @@ func sourcesFromClosures(fn *ssa.Function, conf *config.Config, taggedFields fie
 	for _, p := range fn.FreeVars {
 		switch t := p.Type().(type) {
 		case *types.Pointer:
-			if IsSourceType(conf, taggedFields, t) {
+			if isSourceType(conf, taggedFields, t) {
 				sources = append(sources, New(p))
 			}
 		}
@@ -149,7 +149,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config.Config, taggedFields field
 			// so we need to create a source if the type assert is panicky i.e. CommaOk is false
 			// and the type being asserted is a source type.
 			case *ssa.TypeAssert:
-				if !v.CommaOk && IsSourceType(conf, taggedFields, v.AssertedType) {
+				if !v.CommaOk && isSourceType(conf, taggedFields, v.AssertedType) {
 					sources = append(sources, New(v))
 				}
 
@@ -158,7 +158,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config.Config, taggedFields field
 			// identify the Source from the Extract.
 			case *ssa.Extract:
 				t := v.Tuple.Type().(*types.Tuple).At(v.Index).Type()
-				if _, ok := t.(*types.Pointer); ok && IsSourceType(conf, taggedFields, t) {
+				if _, ok := t.(*types.Pointer); ok && isSourceType(conf, taggedFields, t) {
 					sources = append(sources, New(v))
 				}
 				continue
@@ -178,7 +178,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config.Config, taggedFields field
 			}
 
 			// all of the instructions that the switch lets through are values as per ssa/doc.go
-			if v := instr.(ssa.Value); IsSourceType(conf, taggedFields, v.Type()) {
+			if v := instr.(ssa.Value); isSourceType(conf, taggedFields, v.Type()) {
 				sources = append(sources, New(v.(ssa.Node)))
 			}
 		}
@@ -186,25 +186,25 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config.Config, taggedFields field
 	return sources
 }
 
-// IsSourceType determines whether a Type is a Source Type.
+// isSourceType determines whether a Type is a Source Type.
 // A Source Type is either:
 // - A Named Type that is classified as a Source
 // - A composite type that contains a Source Type
 // - A Struct Type that contains a tagged field
-func IsSourceType(c *config.Config, tf fieldtags.ResultType, t types.Type) bool {
+func isSourceType(c *config.Config, tf fieldtags.ResultType, t types.Type) bool {
 	deref := utils.Dereference(t)
 	switch tt := deref.(type) {
 	case *types.Named:
-		return c.IsSourceType(utils.DecomposeType(tt)) || IsSourceType(c, tf, tt.Underlying())
+		return c.IsSourceType(utils.DecomposeType(tt)) || isSourceType(c, tf, tt.Underlying())
 	case *types.Array:
-		return IsSourceType(c, tf, tt.Elem())
+		return isSourceType(c, tf, tt.Elem())
 	case *types.Slice:
-		return IsSourceType(c, tf, tt.Elem())
+		return isSourceType(c, tf, tt.Elem())
 	case *types.Chan:
-		return IsSourceType(c, tf, tt.Elem())
+		return isSourceType(c, tf, tt.Elem())
 	case *types.Map:
-		key := IsSourceType(c, tf, tt.Key())
-		elem := IsSourceType(c, tf, tt.Elem())
+		key := isSourceType(c, tf, tt.Key())
+		elem := isSourceType(c, tf, tt.Elem())
 		return key || elem
 	case *types.Struct:
 		return hasTaggedField(tf, tt)

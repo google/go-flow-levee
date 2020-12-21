@@ -16,6 +16,7 @@ package source
 
 import (
 	"go/token"
+	"go/types"
 	"reflect"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
@@ -26,7 +27,13 @@ import (
 	"golang.org/x/tools/go/ssa"
 )
 
-type ResultType = map[*ssa.Function][]*Source
+type ResultType struct {
+	Sources map[*ssa.Function][]*Source
+}
+
+func (result ResultType) IsSourceType(c *config.Config, tags fieldtags.ResultType, t types.Type) bool {
+	return isSourceType(c, tags, t)
+}
 
 var Analyzer = &analysis.Analyzer{
 	Name:       "source",
@@ -55,7 +62,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 
-	return sourceMap, nil
+	return ResultType{sourceMap}, nil
 }
 
 func report(pass *analysis.Pass, pos token.Pos) {

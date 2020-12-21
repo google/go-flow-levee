@@ -41,18 +41,18 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
+	sourceResult := pass.ResultOf[source.Analyzer].(source.ResultType)
 	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 
 	propagations := map[ssa.Node]propagation.Propagation{}
 
-	for _, sources := range sourcesMap {
+	for _, sources := range sourceResult.Sources {
 		for _, s := range sources {
-			propagations[s.Node] = propagation.Dfs(s.Node, conf, taggedFields)
+			propagations[s.Node] = propagation.Dfs(s.Node, conf, taggedFields, sourceResult)
 		}
 	}
 
-	for fn, sources := range sourcesMap {
+	for fn, sources := range sourceResult.Sources {
 		for _, b := range fn.Blocks {
 			for _, instr := range b.Instrs {
 				switch v := instr.(type) {
