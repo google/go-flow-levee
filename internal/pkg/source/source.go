@@ -119,7 +119,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config.Config, taggedFields field
 	var sources []*Source
 	for _, b := range fn.Blocks {
 		for _, instr := range b.Instrs {
-			if n, ok := instr.(ssa.Node); ok && foo(n, conf, propagators, taggedFields) {
+			if n, ok := instr.(ssa.Node); ok && isSourceNode(n, conf, propagators, taggedFields) {
 				sources = append(sources, New(n))
 			}
 		}
@@ -127,7 +127,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config.Config, taggedFields field
 	return sources
 }
 
-func foo(n ssa.Node, conf *config.Config, propagators fieldpropagator.ResultType, taggedFields fieldtags.ResultType) bool {
+func isSourceNode(n ssa.Node, conf *config.Config, propagators fieldpropagator.ResultType, taggedFields fieldtags.ResultType) bool {
 	// This type switch is used to catch instructions that could produce sources.
 	// All instructions that do not match one of the cases will hit the "default"
 	// and they will not be examined any further.
@@ -137,54 +137,42 @@ func foo(n ssa.Node, conf *config.Config, propagators fieldpropagator.ResultType
 		return false
 	// Values produced by sanitizers are not sources.
 	case *ssa.Alloc:
-		if isProducedBySanitizer(v, conf) {
-			return false
-		}
+		return !isProducedBySanitizer(v, conf) && IsSourceType(conf, taggedFields, n.(ssa.Value).Type())
 
 	// Values produced by sanitizers are not sources.
 	// Values produced by field propagators are.
 	case *ssa.Call:
-		if isProducedBySanitizer(v, conf) {
-			return false
-		}
-
-		if propagators.IsFieldPropagator(v) {
-			return true
-		}
+		return !isProducedBySanitizer(v, conf) &&
+			(propagators.IsFieldPropagator(v) || IsSourceType(conf, taggedFields, n.(ssa.Value).Type()))
 
 	// A panicky type assert like s := e.(*core.Source) does not result in ssa.Extract
 	// so we need to create a source if the type assert is panicky i.e. CommaOk is false
 	// and the type being asserted is a source type.
 	case *ssa.TypeAssert:
-		if !v.CommaOk && IsSourceType(conf, taggedFields, v.AssertedType) {
-			return true
-		}
+		return !v.CommaOk && IsSourceType(conf, taggedFields, v.AssertedType)
+		// If v.CommaOk, then we identify the asserted type in *ssa.Extract to avoid tainting the ok
 
 	// An Extract is used to obtain a value from an instruction that returns multiple values.
 	// If the extracted value is a Pointer to a Source, it won't have an Alloc, so we need to
 	// identify the Source from the Extract.
 	case *ssa.Extract:
 		t := v.Tuple.Type().(*types.Tuple).At(v.Index).Type()
-		if _, ok := t.(*types.Pointer); ok && IsSourceType(conf, taggedFields, t) {
-			return true
-		}
-		return false
+		_, ok := t.(*types.Pointer)
+		return ok && IsSourceType(conf, taggedFields, t)
 
 	// value received from chan
 	case *ssa.UnOp:
-		// not a <-chan operation
-		if v.Op != token.ARROW {
-			return false
-		}
+		// Consider only receiver operations, i.e. <-chan
+		return v.Op == token.ARROW && IsSourceType(conf, taggedFields, n.(ssa.Value).Type())
 
 	// value obtained through a field or an index operation
 	case *ssa.Field, *ssa.FieldAddr, *ssa.Index, *ssa.IndexAddr, *ssa.Lookup:
+		return IsSourceType(conf, taggedFields, n.(ssa.Value).Type())
 
 	// chan or map value (arrays and slices are created using Allocs)
 	case *ssa.MakeMap, *ssa.MakeChan:
+		return IsSourceType(conf, taggedFields, n.(ssa.Value).Type())
 	}
-
-	return IsSourceType(conf, taggedFields, n.(ssa.Value).Type())
 }
 
 // IsSourceType determines whether a Type is a Source Type.
