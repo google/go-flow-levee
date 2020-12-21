@@ -128,13 +128,11 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config.Config, taggedFields field
 }
 
 func isSourceNode(n ssa.Node, conf *config.Config, propagators fieldpropagator.ResultType, taggedFields fieldtags.ResultType) bool {
-	// This type switch is used to catch instructions that could produce sources.
-	// All instructions that do not match one of the cases will hit the "default"
-	// and they will not be examined any further.
 	switch v := n.(type) {
-	// drop anything that doesn't match one of the following cases
+	// All sources are explicitly identified.
 	default:
 		return false
+
 	// Values produced by sanitizers are not sources.
 	case *ssa.Alloc:
 		return !isProducedBySanitizer(v, conf) && IsSourceType(conf, taggedFields, n.(ssa.Value).Type())
@@ -145,12 +143,11 @@ func isSourceNode(n ssa.Node, conf *config.Config, propagators fieldpropagator.R
 		return !isProducedBySanitizer(v, conf) &&
 			(propagators.IsFieldPropagator(v) || IsSourceType(conf, taggedFields, n.(ssa.Value).Type()))
 
-	// A panicky type assert like s := e.(*core.Source) does not result in ssa.Extract
-	// so we need to create a source if the type assert is panicky i.e. CommaOk is false
-	// and the type being asserted is a source type.
+	// A type assertion can assert that an interface is of a source type.
+	// Only panicky type asserts will refer to the source Value.
+	// _, ok type assertions are checked as a source type in the ssa.Extract instruction.
 	case *ssa.TypeAssert:
 		return !v.CommaOk && IsSourceType(conf, taggedFields, v.AssertedType)
-		// If v.CommaOk, then we identify the asserted type in *ssa.Extract to avoid tainting the ok
 
 	// An Extract is used to obtain a value from an instruction that returns multiple values.
 	// If the extracted value is a Pointer to a Source, it won't have an Alloc, so we need to
@@ -160,17 +157,17 @@ func isSourceNode(n ssa.Node, conf *config.Config, propagators fieldpropagator.R
 		_, ok := t.(*types.Pointer)
 		return ok && IsSourceType(conf, taggedFields, t)
 
-	// value received from chan
+	// Unary operator <- can receive sources from a channel.
 	case *ssa.UnOp:
-		// Consider only receiver operations, i.e. <-chan
 		return v.Op == token.ARROW && IsSourceType(conf, taggedFields, n.(ssa.Value).Type())
 
-	// value obtained through a field or an index operation
-	case *ssa.Field, *ssa.FieldAddr, *ssa.Index, *ssa.IndexAddr, *ssa.Lookup:
-		return IsSourceType(conf, taggedFields, n.(ssa.Value).Type())
-
-	// chan or map value (arrays and slices are created using Allocs)
-	case *ssa.MakeMap, *ssa.MakeChan:
+	// Field access (Field, FieldAddr),
+	// collection access (Index, IndexAddr, Lookup),
+	// and mutable collection instantiation (MakeMap, MakeChan)
+	// are considered sources if they are of source type.
+	case *ssa.Field, *ssa.FieldAddr,
+		*ssa.Index, *ssa.IndexAddr, *ssa.Lookup,
+		*ssa.MakeMap, *ssa.MakeChan:
 		return IsSourceType(conf, taggedFields, n.(ssa.Value).Type())
 	}
 }
