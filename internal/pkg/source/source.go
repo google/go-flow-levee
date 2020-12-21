@@ -119,7 +119,7 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config.Config, taggedFields field
 	var sources []*Source
 	for _, b := range fn.Blocks {
 		for _, instr := range b.Instrs {
-			if n, ok := instr.(ssa.Node); ok && isSourceNode(n, conf, propagators, taggedFields) {
+			if n := instr.(ssa.Node); isSourceNode(n, conf, propagators, taggedFields) {
 				sources = append(sources, New(n))
 			}
 		}
