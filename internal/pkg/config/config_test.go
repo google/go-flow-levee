@@ -49,15 +49,8 @@ func runTest(pass *analysis.Pass) (interface{}, error) {
 		}
 		for _, b := range f.Blocks {
 			for _, i := range b.Instrs {
-				switch c := i.(type) {
-
-				case *ssa.Call:
+				if c, ok := i.(*ssa.Call); ok {
 					if callee := c.Call.StaticCallee(); callee != nil && conf.IsSink(utils.DecomposeFunction(callee)) {
-						pass.Reportf(i.Pos(), "sink call")
-					}
-
-				case *ssa.Panic:
-					if !conf.AllowPanicOnTaintedValues {
 						pass.Reportf(i.Pos(), "sink call")
 					}
 				}
@@ -73,5 +66,5 @@ func TestConfig(t *testing.T) {
 	if err := FlagSet.Set("config", filepath.Join(testdata, "test-config.yaml")); err != nil {
 		t.Fatal(err)
 	}
-	analysistest.Run(t, testdata, testAnalyzer, "./src/example.com/...", "./src/notexample.com/...", "./src/panic.com/...")
+	analysistest.Run(t, testdata, testAnalyzer, "./...")
 }
