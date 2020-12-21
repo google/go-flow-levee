@@ -19,7 +19,7 @@ type Source struct {
 	ID   int
 }
 
-func Calls() {
+func TestPanickingOnTaintedValueIsAllowed() {
 	s := Source{Data: "password", ID: 1337}
 	panic(s)
 }

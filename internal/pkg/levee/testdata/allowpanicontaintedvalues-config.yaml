@@ -14,6 +14,6 @@
 ---
 AllowPanicOnTaintedValues: true
 Sources:
-- PackageRE: "^nopanic.com/core$"
-  TypeRE: "^Source$"
-  FieldRE: "^Data"
+- Package: "nopanic.com/core"
+  Type: "Source"
+  Field: "Data"

@@ -35,7 +35,7 @@ func TestLevee(t *testing.T) {
 	analysistest.Run(t, dataDir, Analyzer, "./...")
 }
 
-func TestLeveeDoesNotCreateReportsForPanicIfAllowPanicOnTaintedValuesIsSet(t *testing.T) {
+func TestLeveeDoesNotCreateReportsForPanicIfPanicingOnTaintedValuesIsAllowed(t *testing.T) {
 	dataDir := analysistest.TestData()
 	if err := Analyzer.Flags.Set("config", dataDir+"/allowpanicontaintedvalues-config.yaml"); err != nil {
 		t.Error(err)
