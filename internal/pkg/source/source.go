@@ -76,7 +76,7 @@ func identify(u upstream, conf *config.Config, ssaInput *buildssa.SSA, taggedFie
 
 		var sources []*Source
 		sources = append(sources, sourcesFromParams(u, fn, conf, taggedFields)...)
-		sources = append(sources, sourcesFromClosures(u, fn, conf, taggedFields)...)
+		sources = append(sources, sourcesFromClosures(u, fn)...)
 		sources = append(sources, sourcesFromBlocks(u, fn)...)
 
 		if len(sources) > 0 {
@@ -101,12 +101,12 @@ func sourcesFromParams(u upstream, fn *ssa.Function, conf *config.Config, tagged
 // A value that is captured by a closure will appear as a Free Variable in the
 // closure. In the SSA, a Free Variable is represented as a Pointer, distinct
 // from the original value.
-func sourcesFromClosures(u upstream, fn *ssa.Function, conf *config.Config, taggedFields fieldtags.ResultType) []*Source {
+func sourcesFromClosures(u upstream, fn *ssa.Function) []*Source {
 	var sources []*Source
 	for _, p := range fn.FreeVars {
 		switch t := p.Type().(type) {
 		case *types.Pointer:
-			if IsSourceType(conf, taggedFields, t) {
+			if IsSourceType(u.conf, u.tags, t) {
 				sources = append(sources, New(p))
 			}
 		}
