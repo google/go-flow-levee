@@ -37,6 +37,28 @@ var Analyzer = &analysis.Analyzer{
 	ResultType: reflect.TypeOf(new(ResultType)).Elem(),
 }
 
+type upstream struct {
+	ssa   *buildssa.SSA
+	tags  fieldtags.ResultType
+	props fieldpropagator.ResultType
+	conf  *config.Config
+}
+
+func newUpstream(pass *analysis.Pass) (upstream, error) {
+
+	conf, err := config.ReadConfig()
+	if err != nil {
+		return upstream{}, err
+	}
+
+	return upstream{
+		ssa:   pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA),
+		tags:  pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType),
+		props: pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType),
+		conf:  conf,
+	}, nil
+}
+
 func run(pass *analysis.Pass) (interface{}, error) {
 	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
@@ -47,7 +69,12 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		return nil, err
 	}
 
-	sourceMap := identify(conf, ssaInput, taggedFields, fieldPropagators)
+	u, err := newUpstream(pass)
+	if err != nil {
+		return nil, err
+	}
+
+	sourceMap := identify(u, conf, ssaInput, taggedFields, fieldPropagators)
 
 	for _, srcs := range sourceMap {
 		for _, s := range srcs {

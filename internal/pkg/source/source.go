@@ -64,7 +64,7 @@ func New(in ssa.Node) *Source {
 // identify individually examines each Function in the SSA code looking for Sources.
 // It produces a map relating a Function to the Sources it contains.
 // If a Function contains no Sources, it does not appear in the map.
-func identify(conf *config.Config, ssaInput *buildssa.SSA, taggedFields fieldtags.ResultType, propagators fieldpropagator.ResultType) map[*ssa.Function][]*Source {
+func identify(u upstream, conf *config.Config, ssaInput *buildssa.SSA, taggedFields fieldtags.ResultType, propagators fieldpropagator.ResultType) map[*ssa.Function][]*Source {
 	sourceMap := make(map[*ssa.Function][]*Source)
 
 	for _, fn := range ssaInput.SrcFuncs {
@@ -75,9 +75,9 @@ func identify(conf *config.Config, ssaInput *buildssa.SSA, taggedFields fieldtag
 		}
 
 		var sources []*Source
-		sources = append(sources, sourcesFromParams(fn, conf, taggedFields)...)
-		sources = append(sources, sourcesFromClosures(fn, conf, taggedFields)...)
-		sources = append(sources, sourcesFromBlocks(fn, conf, taggedFields, propagators)...)
+		sources = append(sources, sourcesFromParams(u, fn, conf, taggedFields)...)
+		sources = append(sources, sourcesFromClosures(u, fn, conf, taggedFields)...)
+		sources = append(sources, sourcesFromBlocks(u, fn, conf, taggedFields, propagators)...)
 
 		if len(sources) > 0 {
 			sourceMap[fn] = sources
@@ -87,7 +87,7 @@ func identify(conf *config.Config, ssaInput *buildssa.SSA, taggedFields fieldtag
 }
 
 // sourcesFromParams identifies Sources that appear within a Function's parameters.
-func sourcesFromParams(fn *ssa.Function, conf *config.Config, taggedFields fieldtags.ResultType) []*Source {
+func sourcesFromParams(u upstream, fn *ssa.Function, conf *config.Config, taggedFields fieldtags.ResultType) []*Source {
 	var sources []*Source
 	for _, p := range fn.Params {
 		if IsSourceType(conf, taggedFields, p.Type()) {
@@ -101,7 +101,7 @@ func sourcesFromParams(fn *ssa.Function, conf *config.Config, taggedFields field
 // A value that is captured by a closure will appear as a Free Variable in the
 // closure. In the SSA, a Free Variable is represented as a Pointer, distinct
 // from the original value.
-func sourcesFromClosures(fn *ssa.Function, conf *config.Config, taggedFields fieldtags.ResultType) []*Source {
+func sourcesFromClosures(u upstream, fn *ssa.Function, conf *config.Config, taggedFields fieldtags.ResultType) []*Source {
 	var sources []*Source
 	for _, p := range fn.FreeVars {
 		switch t := p.Type().(type) {
@@ -115,7 +115,7 @@ func sourcesFromClosures(fn *ssa.Function, conf *config.Config, taggedFields fie
 }
 
 // sourcesFromBlocks finds Source values created by instructions within a function's body.
-func sourcesFromBlocks(fn *ssa.Function, conf *config.Config, taggedFields fieldtags.ResultType, propagators fieldpropagator.ResultType) []*Source {
+func sourcesFromBlocks(u upstream, fn *ssa.Function, conf *config.Config, taggedFields fieldtags.ResultType, propagators fieldpropagator.ResultType) []*Source {
 	var sources []*Source
 	for _, b := range fn.Blocks {
 		for _, instr := range b.Instrs {
