@@ -16,6 +16,9 @@ digraph {
 		"t8 = fmt.Println(t7...)\n(Call)" [shape=rectangle];
 		"return\n(Return)" [shape=diamond];
 	}
+	"a\n(Parameter)" -> "t2 = make interface{} <- int (a)\n(MakeInterface)" [color=red];
+	"b\n(Parameter)" -> "t4 = make interface{} <- int (b)\n(MakeInterface)" [color=red];
+	"c\n(Parameter)" -> "t6 = make interface{} <- string (c)\n(MakeInterface)" [color=red];
 	"t0 = new [3]interface{} (varargs)\n(Alloc)" -> "t1 = &t0[0:int]\n(IndexAddr)" [color=red];
 	"t0 = new [3]interface{} (varargs)\n(Alloc)" -> "t3 = &t0[1:int]\n(IndexAddr)" [color=red];
 	"t0 = new [3]interface{} (varargs)\n(Alloc)" -> "t5 = &t0[2:int]\n(IndexAddr)" [color=red];

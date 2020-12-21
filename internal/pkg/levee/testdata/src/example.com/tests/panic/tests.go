@@ -12,29 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package typeassert
+package panic
 
 import (
 	"example.com/core"
 )
 
-func TestSourceAssertedFromTaintedEface(s core.Source) {
-	var e interface{} = s
-	core.Sink(e.(core.Source)) // want "a source has reached a sink"
+func TestPanicIsASink(source core.Source) {
+	panic(source) // want "a source has reached a sink"
 }
 
-func TestSourcePointerAssertedFromTaintedEface(s *core.Source) {
-	var e interface{} = s
-	core.Sink(e.(*core.Source)) // want "a source has reached a sink"
+func TestPanicIsASinkSanitized(source core.Source) {
+	sanitized := core.Sanitize(source)[0]
+	panic(sanitized)
 }
 
-func TestSourcePointerAssertedFromParameterEface(e interface{}) {
-	s := e.(*core.Source)
-	core.Sink(s) // want "a source has reached a sink"
+func TestGoPanicIsASink(source core.Source) {
+	go panic(source) // TODO(#231): want "a source has reached a sink"
 }
 
-func TestSourcePointerAssertedFromParameterEfaceCommaOk(e interface{}) {
-	s, ok := e.(*core.Source)
-	core.Sink(s) // want "a source has reached a sink"
-	core.Sink(ok)
+func TestDeferPanicIsASink(source core.Source) {
+	defer panic(source) // TODO(#231): want "a source has reached a sink"
+}
+
+func TestPanicOnNonSourceDoesNotProduceReport(source core.Source) {
+	y := 42
+	panic(y)
 }
