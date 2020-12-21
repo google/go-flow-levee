@@ -184,6 +184,8 @@ func sourcesFromBlocks(fn *ssa.Function, u upstreamArgs) []*Source {
 	return sources
 }
 
+// TODO(do not merge / discuss): We should consider refactoring so that this belongs to a result type rather than having propagation do direct invocation.
+// That would allow us to use the upstreamArgs + hasTaggedField as well.
 // IsSourceType determines whether a Type is a Source Type.
 // A Source Type is either:
 // - A Named Type that is classified as a Source
