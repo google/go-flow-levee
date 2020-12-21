@@ -119,20 +119,19 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config.Config, taggedFields field
 	var sources []*Source
 	for _, b := range fn.Blocks {
 		for _, instr := range b.Instrs {
-			// all of the instructions that the switch lets through are values as per ssa/doc.go
-			if foo(instr, conf, propagators, taggedFields) {
-				sources = append(sources, New(instr.(ssa.Node)))
+			if n, ok := instr.(ssa.Node); ok && foo(n, conf, propagators, taggedFields) {
+				sources = append(sources, New(n))
 			}
 		}
 	}
 	return sources
 }
 
-func foo(instr ssa.Instruction, conf *config.Config, propagators fieldpropagator.ResultType, taggedFields fieldtags.ResultType) bool {
+func foo(n ssa.Node, conf *config.Config, propagators fieldpropagator.ResultType, taggedFields fieldtags.ResultType) bool {
 	// This type switch is used to catch instructions that could produce sources.
 	// All instructions that do not match one of the cases will hit the "default"
 	// and they will not be examined any further.
-	switch v := instr.(type) {
+	switch v := n.(type) {
 	// drop anything that doesn't match one of the following cases
 	default:
 		return false
@@ -185,7 +184,7 @@ func foo(instr ssa.Instruction, conf *config.Config, propagators fieldpropagator
 	case *ssa.MakeMap, *ssa.MakeChan:
 	}
 
-	return IsSourceType(conf, taggedFields, instr.(ssa.Value).Type())
+	return IsSourceType(conf, taggedFields, n.(ssa.Value).Type())
 }
 
 // IsSourceType determines whether a Type is a Source Type.
