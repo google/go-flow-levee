@@ -75,7 +75,7 @@ func identify(u upstream, conf *config.Config, ssaInput *buildssa.SSA, taggedFie
 		}
 
 		var sources []*Source
-		sources = append(sources, sourcesFromParams(u, fn, conf, taggedFields)...)
+		sources = append(sources, sourcesFromParams(u, fn)...)
 		sources = append(sources, sourcesFromClosures(u, fn)...)
 		sources = append(sources, sourcesFromBlocks(u, fn)...)
 
@@ -87,10 +87,10 @@ func identify(u upstream, conf *config.Config, ssaInput *buildssa.SSA, taggedFie
 }
 
 // sourcesFromParams identifies Sources that appear within a Function's parameters.
-func sourcesFromParams(u upstream, fn *ssa.Function, conf *config.Config, taggedFields fieldtags.ResultType) []*Source {
+func sourcesFromParams(u upstream, fn *ssa.Function) []*Source {
 	var sources []*Source
 	for _, p := range fn.Params {
-		if IsSourceType(conf, taggedFields, p.Type()) {
+		if IsSourceType(u.conf, u.tags, p.Type()) {
 			sources = append(sources, New(p))
 		}
 	}
