@@ -60,21 +60,12 @@ func newUpstream(pass *analysis.Pass) (upstream, error) {
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
-	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
-	fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
-
-	conf, err := config.ReadConfig()
-	if err != nil {
-		return nil, err
-	}
-
 	u, err := newUpstream(pass)
 	if err != nil {
 		return nil, err
 	}
 
-	sourceMap := identify(u, conf, ssaInput, taggedFields, fieldPropagators)
+	sourceMap := identify(u)
 
 	for _, srcs := range sourceMap {
 		for _, s := range srcs {

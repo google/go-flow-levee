@@ -21,10 +21,8 @@ import (
 	"go/types"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
-	"github.com/google/go-flow-levee/internal/pkg/fieldpropagator"
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
-	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
 )
 
@@ -64,13 +62,13 @@ func New(in ssa.Node) *Source {
 // identify individually examines each Function in the SSA code looking for Sources.
 // It produces a map relating a Function to the Sources it contains.
 // If a Function contains no Sources, it does not appear in the map.
-func identify(u upstream, conf *config.Config, ssaInput *buildssa.SSA, taggedFields fieldtags.ResultType, propagators fieldpropagator.ResultType) map[*ssa.Function][]*Source {
+func identify(u upstream) map[*ssa.Function][]*Source {
 	sourceMap := make(map[*ssa.Function][]*Source)
 
-	for _, fn := range ssaInput.SrcFuncs {
+	for _, fn := range u.ssa.SrcFuncs {
 		// no need to analyze the body of sinks, nor of excluded functions
 		path, recv, name := utils.DecomposeFunction(fn)
-		if conf.IsSink(path, recv, name) || conf.IsExcluded(path, recv, name) {
+		if u.conf.IsSink(path, recv, name) || u.conf.IsExcluded(path, recv, name) {
 			continue
 		}
 
