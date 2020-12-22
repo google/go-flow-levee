@@ -203,6 +203,12 @@ func (prop *Propagation) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 	case *ssa.Send:
 		prop.dfs(t.Chan.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 
+	case *ssa.Slice:
+		prop.visitReferrers(n, maxInstrReached, lastBlockVisited)
+		// This allows taint to propagate backwards into the sliced value
+		// when the resulting value is tainted
+		prop.dfs(t.X.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+
 	// These nodes' operands should not be visited, because they can only receive
 	// taint from their operands, not propagate taint to them.
 	case *ssa.BinOp, *ssa.ChangeInterface, *ssa.ChangeType, *ssa.Convert, *ssa.Extract, *ssa.MakeChan, *ssa.MakeMap, *ssa.MakeSlice, *ssa.Phi, *ssa.Range:
@@ -217,7 +223,7 @@ func (prop *Propagation) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 		prop.visitOperands(n, maxInstrReached, lastBlockVisited)
 
 	// These nodes are both Instructions and Values, and currently have no special restrictions.
-	case *ssa.MakeInterface, *ssa.Slice, *ssa.TypeAssert, *ssa.UnOp:
+	case *ssa.MakeInterface, *ssa.TypeAssert, *ssa.UnOp:
 		prop.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		prop.visitOperands(n, maxInstrReached, lastBlockVisited)
 
