@@ -57,8 +57,7 @@ func TestDeletingFromTaintedMapDoesNotTaintKey(key *string, sources map[*string]
 	// The key needs to be a pointer parameter, because we don't traverse to non-pointer
 	// arguments of a call, and we don't traverse to Allocs.
 	delete(sources, key)
-	// TODO(#186): no report should be produced here
-	core.Sink(key) // want "a source has reached a sink"
+	core.Sink(key)
 }
 
 func TestMapUpdateWithTaintedValueDoesNotTaintTheKey(key string, value core.Source, sources map[string]core.Source) {

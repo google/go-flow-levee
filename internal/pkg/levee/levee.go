@@ -19,7 +19,6 @@ import (
 	"strings"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
-	"github.com/google/go-flow-levee/internal/pkg/fieldpropagator"
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"github.com/google/go-flow-levee/internal/pkg/levee/propagation"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
@@ -34,7 +33,7 @@ var Analyzer = &analysis.Analyzer{
 	Run:      run,
 	Flags:    config.FlagSet,
 	Doc:      "reports attempts to source data to sinks",
-	Requires: []*analysis.Analyzer{source.Analyzer, fieldpropagator.Analyzer, fieldtags.Analyzer},
+	Requires: []*analysis.Analyzer{source.Analyzer, fieldtags.Analyzer},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -43,7 +42,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		return nil, err
 	}
 	sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
-	fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
 	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 
 	propagations := map[ssa.Node]propagation.Propagation{}
@@ -57,30 +55,34 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	for fn, sources := range sourcesMap {
 		for _, b := range fn.Blocks {
 			for _, instr := range b.Instrs {
-				v, ok := instr.(*ssa.Call)
-				if !ok {
-					continue
-				}
+				switch v := instr.(type) {
 
-				callee := v.Call.StaticCallee()
-				switch {
-				case fieldPropagators.IsFieldPropagator(v):
-					propagations[v] = propagation.PropagateTaint(v, conf, taggedFields)
-					sources = append(sources, source.New(v))
-				case callee != nil && conf.IsSink(utils.DecomposeFunction(callee)):
-					for _, s := range sources {
-						prop := propagations[s.Node]
-						if prop.HasPathTo(instr.(ssa.Node)) && !prop.IsSanitizedAt(v) {
-							report(pass, s, v)
-							break
-						}
+				case *ssa.Call:
+					if callee := v.Call.StaticCallee(); callee != nil && conf.IsSink(utils.DecomposeFunction(callee)) {
+						reportSourcesReachingSink(pass, sources, instr, propagations)
 					}
+
+				case *ssa.Panic:
+					if conf.AllowPanicOnTaintedValues {
+						continue
+					}
+					reportSourcesReachingSink(pass, sources, instr, propagations)
 				}
 			}
 		}
 	}
 
 	return nil, nil
+}
+
+func reportSourcesReachingSink(pass *analysis.Pass, sources []*source.Source, instr ssa.Instruction, propagations map[ssa.Node]propagation.Propagation) {
+	for _, s := range sources {
+		prop := propagations[s.Node]
+		if prop.HasPathTo(instr.(ssa.Node)) && !prop.IsSanitizedAt(instr) {
+			report(pass, s, instr.(ssa.Node))
+			break
+		}
+	}
 }
 
 func report(pass *analysis.Pass, source *source.Source, sink ssa.Node) {

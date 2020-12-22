@@ -51,7 +51,7 @@ func TestPanicTypeAssertSource(i interface{}) {
 	s := i.(core.Source)
 	_ = s
 	// The dominating type assertion would panic if i were not a source type.
-	core.Sink(i) // TODO(210) want "a source has reached a sink"
+	core.Sink(i) // want "a source has reached a sink"
 }
 
 func TestPanicTypeAssertInnocuous(i interface{}) {

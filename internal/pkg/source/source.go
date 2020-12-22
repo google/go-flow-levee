@@ -21,6 +21,7 @@ import (
 	"go/types"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
+	"github.com/google/go-flow-levee/internal/pkg/fieldpropagator"
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
@@ -63,7 +64,7 @@ func New(in ssa.Node) *Source {
 // identify individually examines each Function in the SSA code looking for Sources.
 // It produces a map relating a Function to the Sources it contains.
 // If a Function contains no Sources, it does not appear in the map.
-func identify(conf *config.Config, ssaInput *buildssa.SSA, taggedFields fieldtags.ResultType) map[*ssa.Function][]*Source {
+func identify(conf *config.Config, ssaInput *buildssa.SSA, taggedFields fieldtags.ResultType, propagators fieldpropagator.ResultType) map[*ssa.Function][]*Source {
 	sourceMap := make(map[*ssa.Function][]*Source)
 
 	for _, fn := range ssaInput.SrcFuncs {
@@ -76,7 +77,7 @@ func identify(conf *config.Config, ssaInput *buildssa.SSA, taggedFields fieldtag
 		var sources []*Source
 		sources = append(sources, sourcesFromParams(fn, conf, taggedFields)...)
 		sources = append(sources, sourcesFromClosures(fn, conf, taggedFields)...)
-		sources = append(sources, sourcesFromBlocks(fn, conf, taggedFields)...)
+		sources = append(sources, sourcesFromBlocks(fn, conf, taggedFields, propagators)...)
 
 		if len(sources) > 0 {
 			sourceMap[fn] = sources
@@ -114,7 +115,7 @@ func sourcesFromClosures(fn *ssa.Function, conf *config.Config, taggedFields fie
 }
 
 // sourcesFromBlocks finds Source values created by instructions within a function's body.
-func sourcesFromBlocks(fn *ssa.Function, conf *config.Config, taggedFields fieldtags.ResultType) []*Source {
+func sourcesFromBlocks(fn *ssa.Function, conf *config.Config, taggedFields fieldtags.ResultType, propagators fieldpropagator.ResultType) []*Source {
 	var sources []*Source
 	for _, b := range fn.Blocks {
 		for _, instr := range b.Instrs {
@@ -126,10 +127,30 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config.Config, taggedFields field
 			default:
 				continue
 
-			// local variable or value returned from a call
-			case *ssa.Alloc, *ssa.Call:
-				if isProducedBySanitizer(v.(ssa.Value), conf) {
+			// Values produced by sanitizers are not sources.
+			case *ssa.Alloc:
+				if isProducedBySanitizer(v, conf) {
 					continue
+				}
+
+			// Values produced by sanitizers are not sources.
+			// Values produced by field propagators are.
+			case *ssa.Call:
+				if isProducedBySanitizer(v, conf) {
+					continue
+				}
+
+				if propagators.IsFieldPropagator(v) {
+					sources = append(sources, New(v))
+					continue
+				}
+
+			// A panicky type assert like s := e.(*core.Source) does not result in ssa.Extract
+			// so we need to create a source if the type assert is panicky i.e. CommaOk is false
+			// and the type being asserted is a source type.
+			case *ssa.TypeAssert:
+				if !v.CommaOk && IsSourceType(conf, taggedFields, v.AssertedType) {
+					sources = append(sources, New(v))
 				}
 
 			// An Extract is used to obtain a value from an instruction that returns multiple values.
