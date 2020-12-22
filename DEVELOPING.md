@@ -8,10 +8,10 @@ In addition we recommend running master and feature branch versions of levee aga
 
 Note: The script makes the following assumptions
 1. k8s repo is at $(GOPATH)/src/k8s.io/kuberenetes
-2. You are running the script from withing your go-flow-levee directory and have your feature branch checked out.
+2. You are running the script from within your go-flow-levee directory and have your feature branch checked out.
 
 ```bash
-./hach/new-findings.sh
+./hack/verify-kubernetes.sh
 ```
 
 ## Recommended Reading
