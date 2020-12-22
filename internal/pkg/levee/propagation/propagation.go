@@ -44,7 +44,7 @@ type Propagation struct {
 // Taint performs a depth-first search of the graph formed by SSA Referrers and
 // Operands relationships, beginning at the given root node.
 func Taint(n ssa.Node, conf *config.Config, taggedFields fieldtags.ResultType) Propagation {
-	record := Propagation{
+	prop := Propagation{
 		root:         n,
 		tainted:      make(map[ssa.Node]bool),
 		config:       conf,
@@ -52,10 +52,10 @@ func Taint(n ssa.Node, conf *config.Config, taggedFields fieldtags.ResultType) P
 	}
 	maxInstrReached := map[*ssa.BasicBlock]int{}
 
-	record.taintReferrers(n, maxInstrReached, nil)
-	record.taint(n, maxInstrReached, nil, false)
+	prop.taintReferrers(n, maxInstrReached, nil)
+	prop.taint(n, maxInstrReached, nil, false)
 
-	return record
+	return prop
 }
 
 // taint performs a depth-first search of the graph formed by SSA Referrers and
