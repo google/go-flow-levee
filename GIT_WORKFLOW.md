@@ -21,7 +21,7 @@
 
 3.  Branch
 
-    Get your local master upto date:
+    Get your local master up to date:
 
     ```bash
     cd $(go env GOPATH)/src/go-flow-levee
