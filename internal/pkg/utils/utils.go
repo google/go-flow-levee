@@ -34,19 +34,6 @@ func Dereference(t types.Type) types.Type {
 	}
 }
 
-// FieldName returns the name of the field identified by the FieldAddr.
-// It is the responsibility of the caller to ensure that the returned value is a non-empty string.
-func FieldName(fa *ssa.FieldAddr) string {
-	// fa.Type() refers to the accessed field's type.
-	// fa.X.Type() refers to the surrounding struct's type.
-	d := Dereference(fa.X.Type())
-	st, ok := d.Underlying().(*types.Struct)
-	if !ok {
-		return ""
-	}
-	return st.Field(fa.Field).Name()
-}
-
 // DecomposeType returns the path and name of a Named type
 // Returns empty strings if the type is not *types.Named
 func DecomposeType(t types.Type) (path, name string) {
@@ -60,6 +47,17 @@ func DecomposeType(t types.Type) (path, name string) {
 	}
 
 	return path, n.Obj().Name()
+}
+
+// DecomposeField returns the decomposed type of the
+// struct containing the field, as well as the field's name.
+// If the referenced struct's type is not a named type,
+// the type path and name will both be empty strings.
+func DecomposeField(t types.Type, field int) (typePath, typeName, fieldName string) {
+	deref := Dereference(t)
+	typePath, typeName = DecomposeType(deref)
+	fieldName = deref.Underlying().(*types.Struct).Field(field).Name()
+	return
 }
 
 func unqualifiedName(v *types.Var) string {

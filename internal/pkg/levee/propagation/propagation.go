@@ -167,15 +167,11 @@ func (prop *Propagation) taintNeighbors(n ssa.Node, maxInstrReached map[*ssa.Bas
 			}
 		}
 
+	case *ssa.Field:
+		prop.taintField(n, maxInstrReached, lastBlockVisited, t.X.Type(), t.Field)
+
 	case *ssa.FieldAddr:
-		deref := utils.Dereference(t.X.Type())
-		typPath, typName := utils.DecomposeType(deref)
-		fieldName := utils.FieldName(t)
-		if !prop.config.IsSourceField(typPath, typName, fieldName) && !prop.taggedFields.IsSourceFieldAddr(t) {
-			return
-		}
-		prop.taintReferrers(n, maxInstrReached, lastBlockVisited)
-		prop.taintOperands(n, maxInstrReached, lastBlockVisited)
+		prop.taintField(n, maxInstrReached, lastBlockVisited, t.X.Type(), t.Field)
 
 	// Everything but the actual integer Index should be visited.
 	case *ssa.Index:
@@ -218,7 +214,7 @@ func (prop *Propagation) taintNeighbors(n ssa.Node, maxInstrReached map[*ssa.Bas
 		prop.taintOperands(n, maxInstrReached, lastBlockVisited)
 
 	// These nodes are both Instructions and Values, and currently have no special restrictions.
-	case *ssa.Field, *ssa.MakeInterface, *ssa.Select, *ssa.Slice, *ssa.TypeAssert, *ssa.UnOp:
+	case *ssa.MakeInterface, *ssa.Select, *ssa.Slice, *ssa.TypeAssert, *ssa.UnOp:
 		prop.taintReferrers(n, maxInstrReached, lastBlockVisited)
 		prop.taintOperands(n, maxInstrReached, lastBlockVisited)
 
@@ -228,6 +224,14 @@ func (prop *Propagation) taintNeighbors(n ssa.Node, maxInstrReached map[*ssa.Bas
 	default:
 		fmt.Printf("unexpected node received: %T %v; please report this issue\n", n, n)
 	}
+}
+
+func (prop *Propagation) taintField(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, t types.Type, field int) {
+	if !prop.config.IsSourceField(utils.DecomposeField(t, field)) && !prop.taggedFields.IsSourceField(t, field) {
+		return
+	}
+	prop.taintReferrers(n, maxInstrReached, lastBlockVisited)
+	prop.taintOperands(n, maxInstrReached, lastBlockVisited)
 }
 
 func (prop *Propagation) taintReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
