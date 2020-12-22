@@ -49,7 +49,7 @@
     **Note:** Please avoid force-pushing, as it can break links to commits and cause GitHub to lose track of comment threads.
 
 6.  Create a Pull Request
-    1.  Goto https://github.com/google/go-flow-levee
+    1.  Go to https://github.com/google/go-flow-levee
     2.  Click on the "Compare & pull request" button.
 
     **Note:** When merging your PR, please use a squash merge.
