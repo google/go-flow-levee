@@ -41,3 +41,20 @@ func TestRangeOverInterfaceSlice() {
 		core.Sink(i)
 	}
 }
+
+func TestSliceBoundariesAreNotTainted(lo, hi, max int) {
+	sources := [1]core.Source{{Data: "secret"}}
+	slice := sources[lo:hi:max]
+	core.Sink(lo)
+	core.Sink(hi)
+	core.Sink(max)
+	_ = slice
+}
+
+func TestSlicedArrayIsTainted() {
+	innocs := [1]interface{}{nil}
+	slice := innocs[:]
+	slice[0] = core.Source{Data: "secret"}
+	core.Sink(innocs) // want "a source has reached a sink"
+	_ = slice
+}
