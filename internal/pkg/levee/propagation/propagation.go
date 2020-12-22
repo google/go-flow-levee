@@ -257,18 +257,15 @@ func (prop *Propagation) visitOperands(n ssa.Node, maxInstrReached map[*ssa.Basi
 
 func (prop *Propagation) visitSelect(sel *ssa.Select, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	// Select returns a tuple whose first 2 elements are irrelevant for our
-	// analysis. The 3rd tuple element maps to the 1st Recv state, the 4th
-	// element maps to the 2nd state, and so on. Since Extract indices are
-	// 0-based, the Extract corresponding to the current Recv state
-	// therefore has an Index that is 1 greater than the current recvCount
-	// when that state is reached.
+	// analysis. Subsequent elements correspond to Recv states, which map
+	// 1:1 with Extracts.
 	// See the ssa package code for more details.
-	recvCount := 0
+	recvIndex := 0
 	extractIndex := map[*ssa.SelectState]int{}
 	for _, ss := range sel.States {
 		if ss.Dir == types.RecvOnly {
-			recvCount++
-			extractIndex[ss] = recvCount + 1
+			extractIndex[ss] = recvIndex + 2
+			recvIndex++
 		}
 	}
 
