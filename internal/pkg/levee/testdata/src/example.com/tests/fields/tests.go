@@ -38,8 +38,8 @@ func TestInlinedDirectFieldAccess() {
 	// This pattern is unlikely to occur in real code.
 	// The intent is to get Field instructions in the SSA
 	// so that we can validate that those are handled correctly.
-	core.Sinkf("Data: %v", core.Source{"password1234"}.Data) // want "a source has reached a sink"
-	core.Sinkf("ID: %v", core.Source{}.ID)
+	core.Sinkf("Data: %v", core.Source{Data: "password1234", ID: 1234}.Data) // want "a source has reached a sink"
+	core.Sinkf("ID: %v", core.Source{Data: "password1234", ID: 1234}.ID)
 }
 
 func TestProtoStyleFieldAccessorSanitizedPII(c *core.Source) {
