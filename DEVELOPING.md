@@ -85,7 +85,7 @@ if *debugging {
 
 ## Git workflow
 
-To see the preferred git workflow see the [git workflow guide](GIT_WORKFLOW.md)
+Please follow our preferred [git workflow](GIT_WORKFLOW.md).
 
 ## Source Code Headers
 
