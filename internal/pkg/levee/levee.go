@@ -45,7 +45,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 
 	for fn, sources := range funcSources {
-		propagations := map[*source.Source]propagation.Propagation{}
+		propagations := make(map[*source.Source]propagation.Propagation, len(sources))
 		for _, s := range sources {
 			propagations[s] = propagation.Dfs(s.Node, conf, taggedFields)
 		}
