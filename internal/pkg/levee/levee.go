@@ -48,7 +48,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 	for _, sources := range sourcesMap {
 		for _, s := range sources {
-			propagations[s.Node] = propagation.PropagateTaint(s.Node, conf, taggedFields)
+			propagations[s.Node] = propagation.Taint(s.Node, conf, taggedFields)
 		}
 	}
 
