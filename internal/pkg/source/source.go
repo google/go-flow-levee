@@ -127,9 +127,21 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config.Config, taggedFields field
 			default:
 				continue
 
-			// Do not mark allocation values returned by sanitizers as new sources
+			// Values produced by sanitizers are not sources.
 			case *ssa.Alloc:
 				if isProducedBySanitizer(v, conf) {
+					continue
+				}
+
+			// Values produced by sanitizers are not sources.
+			// Values produced by field propagators are.
+			case *ssa.Call:
+				if isProducedBySanitizer(v, conf) {
+					continue
+				}
+
+				if propagators.IsFieldPropagator(v) {
+					sources = append(sources, New(v))
 					continue
 				}
 
@@ -138,17 +150,6 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config.Config, taggedFields field
 			// and the type being asserted is a source type.
 			case *ssa.TypeAssert:
 				if !v.CommaOk && IsSourceType(conf, taggedFields, v.AssertedType) {
-					sources = append(sources, New(v))
-				}
-
-			// Do not mark values returned by sanitizers as new sources.
-			// Do mark as new sources values returned by field propagators.
-			case *ssa.Call:
-				if isProducedBySanitizer(v, conf) {
-					continue
-				}
-
-				if propagators.IsFieldPropagator(v) {
 					sources = append(sources, New(v))
 				}
 

@@ -55,26 +55,33 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	for fn := range sourcesMap {
 		for _, b := range fn.Blocks {
 			for _, instr := range b.Instrs {
-				v, ok := instr.(*ssa.Call)
-				if !ok {
-					continue
-				}
+				switch v := instr.(type) {
 
-				callee := v.Call.StaticCallee()
-				switch {
-				case callee != nil && conf.IsSink(utils.DecomposeFunction(callee)):
-					for s, prop := range propagations {
-						if prop.HasPathTo(instr.(ssa.Node)) && !prop.IsSanitizedAt(v) {
-							report(pass, s, v)
-							break
-						}
+				case *ssa.Call:
+					if callee := v.Call.StaticCallee(); callee != nil && conf.IsSink(utils.DecomposeFunction(callee)) {
+						reportSourcesReachingSink(pass, instr, propagations)
 					}
+
+				case *ssa.Panic:
+					if conf.AllowPanicOnTaintedValues {
+						continue
+					}
+					reportSourcesReachingSink(pass, instr, propagations)
 				}
 			}
 		}
 	}
 
 	return nil, nil
+}
+
+func reportSourcesReachingSink(pass *analysis.Pass, instr ssa.Instruction, propagations map[*source.Source]propagation.Propagation) {
+	for source, prop := range propagations {
+		if prop.HasPathTo(instr.(ssa.Node)) && !prop.IsSanitizedAt(instr) {
+			report(pass, source, instr.(ssa.Node))
+			break
+		}
+	}
 }
 
 func report(pass *analysis.Pass, source *source.Source, sink ssa.Node) {

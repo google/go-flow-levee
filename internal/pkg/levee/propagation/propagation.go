@@ -145,6 +145,11 @@ func (prop *Propagation) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 		}
 
 	case *ssa.Call:
+		// The builtin delete(m map[Type]Type1, key Type) func does not propagate a taint.
+		if builtin, ok := t.Call.Value.(*ssa.Builtin); ok && builtin.Name() == "delete" {
+			return
+		}
+
 		if callee := t.Call.StaticCallee(); callee != nil && prop.config.IsSanitizer(utils.DecomposeFunction(callee)) {
 			prop.sanitizers = append(prop.sanitizers, &sanitizer.Sanitizer{Call: t})
 		}
@@ -162,15 +167,11 @@ func (prop *Propagation) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 			}
 		}
 
+	case *ssa.Field:
+		prop.visitField(n, maxInstrReached, lastBlockVisited, t.X.Type(), t.Field)
+
 	case *ssa.FieldAddr:
-		deref := utils.Dereference(t.X.Type())
-		typPath, typName := utils.DecomposeType(deref)
-		fieldName := utils.FieldName(t)
-		if !prop.config.IsSourceField(typPath, typName, fieldName) && !prop.taggedFields.IsSourceFieldAddr(t) {
-			return
-		}
-		prop.visitReferrers(n, maxInstrReached, lastBlockVisited)
-		prop.visitOperands(n, maxInstrReached, lastBlockVisited)
+		prop.visitField(n, maxInstrReached, lastBlockVisited, t.X.Type(), t.Field)
 
 	// Everything but the actual integer Index should be visited.
 	case *ssa.Index:
@@ -213,7 +214,7 @@ func (prop *Propagation) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 		prop.visitOperands(n, maxInstrReached, lastBlockVisited)
 
 	// These nodes are both Instructions and Values, and currently have no special restrictions.
-	case *ssa.Field, *ssa.MakeInterface, *ssa.Select, *ssa.Slice, *ssa.TypeAssert, *ssa.UnOp:
+	case *ssa.MakeInterface, *ssa.Select, *ssa.Slice, *ssa.TypeAssert, *ssa.UnOp:
 		prop.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		prop.visitOperands(n, maxInstrReached, lastBlockVisited)
 
@@ -223,6 +224,14 @@ func (prop *Propagation) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 	default:
 		fmt.Printf("unexpected node received: %T %v; please report this issue\n", n, n)
 	}
+}
+
+func (prop *Propagation) visitField(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, t types.Type, field int) {
+	if !prop.config.IsSourceField(utils.DecomposeField(t, field)) && !prop.taggedFields.IsSourceField(t, field) {
+		return
+	}
+	prop.visitReferrers(n, maxInstrReached, lastBlockVisited)
+	prop.visitOperands(n, maxInstrReached, lastBlockVisited)
 }
 
 func (prop *Propagation) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
