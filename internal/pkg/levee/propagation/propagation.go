@@ -202,7 +202,7 @@ func (prop *Propagation) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 	case *ssa.Slice:
 		prop.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		// This allows taint to propagate backwards into the sliced value
-		// when the resulting slice is tainted
+		// when the resulting value is tainted
 		prop.dfs(t.X.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 
 	// These nodes' operands should not be visited, because they can only receive
