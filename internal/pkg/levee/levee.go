@@ -41,32 +41,29 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
+	funcSources := pass.ResultOf[source.Analyzer].(source.ResultType)
 	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 
-	propagations := map[ssa.Node]propagation.Propagation{}
-
-	for _, sources := range sourcesMap {
+	for fn, sources := range funcSources {
+		propagations := make(map[*source.Source]propagation.Propagation, len(sources))
 		for _, s := range sources {
-			propagations[s.Node] = propagation.Dfs(s.Node, conf, taggedFields)
+			propagations[s] = propagation.Dfs(s.Node, conf, taggedFields)
 		}
-	}
 
-	for fn, sources := range sourcesMap {
 		for _, b := range fn.Blocks {
 			for _, instr := range b.Instrs {
 				switch v := instr.(type) {
 
 				case *ssa.Call:
 					if callee := v.Call.StaticCallee(); callee != nil && conf.IsSink(utils.DecomposeFunction(callee)) {
-						reportSourcesReachingSink(pass, sources, instr, propagations)
+						reportSourcesReachingSink(pass, propagations, instr)
 					}
 
 				case *ssa.Panic:
 					if conf.AllowPanicOnTaintedValues {
 						continue
 					}
-					reportSourcesReachingSink(pass, sources, instr, propagations)
+					reportSourcesReachingSink(pass, propagations, instr)
 				}
 			}
 		}
@@ -75,11 +72,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func reportSourcesReachingSink(pass *analysis.Pass, sources []*source.Source, instr ssa.Instruction, propagations map[ssa.Node]propagation.Propagation) {
-	for _, s := range sources {
-		prop := propagations[s.Node]
-		if prop.HasPathTo(instr.(ssa.Node)) && !prop.IsSanitizedAt(instr) {
-			report(pass, s, instr.(ssa.Node))
+func reportSourcesReachingSink(pass *analysis.Pass, propagations map[*source.Source]propagation.Propagation, sink ssa.Instruction) {
+	for source, prop := range propagations {
+		if prop.HasPathTo(sink.(ssa.Node)) && !prop.IsSanitizedAt(sink) {
+			report(pass, source, sink.(ssa.Node))
 			break
 		}
 	}
