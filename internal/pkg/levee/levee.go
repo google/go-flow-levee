@@ -41,10 +41,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	fnSources := pass.ResultOf[source.Analyzer].(source.ResultType)
+	funcSources := pass.ResultOf[source.Analyzer].(source.ResultType)
 	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 
-	for fn, sources := range fnSources {
+	for fn, sources := range funcSources {
 		propagations := map[*source.Source]propagation.Propagation{}
 		for _, s := range sources {
 			propagations[s] = propagation.Dfs(s.Node, conf, taggedFields)
@@ -56,14 +56,14 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 				case *ssa.Call:
 					if callee := v.Call.StaticCallee(); callee != nil && conf.IsSink(utils.DecomposeFunction(callee)) {
-						reportSourcesReachingSink(pass, instr, propagations)
+						reportSourcesReachingSink(pass, propagations, instr)
 					}
 
 				case *ssa.Panic:
 					if conf.AllowPanicOnTaintedValues {
 						continue
 					}
-					reportSourcesReachingSink(pass, instr, propagations)
+					reportSourcesReachingSink(pass, propagations, instr)
 				}
 			}
 		}
@@ -72,10 +72,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func reportSourcesReachingSink(pass *analysis.Pass, instr ssa.Instruction, propagations map[*source.Source]propagation.Propagation) {
+func reportSourcesReachingSink(pass *analysis.Pass, propagations map[*source.Source]propagation.Propagation, sink ssa.Instruction) {
 	for source, prop := range propagations {
-		if prop.HasPathTo(instr.(ssa.Node)) && !prop.IsSanitizedAt(instr) {
-			report(pass, source, instr.(ssa.Node))
+		if prop.HasPathTo(sink.(ssa.Node)) && !prop.IsSanitizedAt(sink) {
+			report(pass, source, sink.(ssa.Node))
 			break
 		}
 	}
