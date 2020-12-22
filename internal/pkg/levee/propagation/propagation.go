@@ -320,15 +320,14 @@ func (prop *Propagation) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) b
 	return false
 }
 
-// HasPathTo determines whether a Node can be reached
-// from the Propagation's root.
-func (prop Propagation) HasPathTo(n ssa.Node) bool {
-	return prop.marked[n]
+// IsTainted determines whether an instruction is tainted by the Propagation.
+func (prop Propagation) IsTainted(instr ssa.Instruction) bool {
+	return prop.marked[instr.(ssa.Node)] && !prop.isSanitizedAt(instr)
 }
 
-// IsSanitizedAt determines whether the Propagation's root is sanitized
-// when it reaches the given instruction.
-func (prop Propagation) IsSanitizedAt(instr ssa.Instruction) bool {
+// isSanitizedAt determines whether the taint propagated from the Propagation's root
+// is sanitized when it reaches the target instruction.
+func (prop Propagation) isSanitizedAt(instr ssa.Instruction) bool {
 	for _, san := range prop.sanitizers {
 		if san.Dominates(instr) {
 			return true

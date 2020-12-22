@@ -74,7 +74,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 func reportSourcesReachingSink(pass *analysis.Pass, propagations map[*source.Source]propagation.Propagation, sink ssa.Instruction) {
 	for source, prop := range propagations {
-		if prop.HasPathTo(sink.(ssa.Node)) && !prop.IsSanitizedAt(sink) {
+		if prop.IsTainted(sink) {
 			report(pass, source, sink.(ssa.Node))
 			break
 		}
