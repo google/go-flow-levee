@@ -250,9 +250,10 @@ func (prop *Propagation) visitSelect(sel *ssa.Select, maxInstrReached map[*ssa.B
 	// The Send operations have to be processed before the Recv operations in case a channel
 	// is written to in one branch and read from in a different branch. This matters if the
 	// branches are reachable from each other, e.g. when the select is in a loop.
+
 	for _, s := range sel.States {
-		switch s.Dir {
-		case types.SendOnly:
+		if s.Dir == types.SendOnly {
+			// If the sent value (Send) is tainted, propagate taint to the channel
 			if prop.marked[s.Send.(ssa.Node)] {
 				prop.dfs(s.Chan.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 			}
@@ -265,22 +266,22 @@ func (prop *Propagation) visitSelect(sel *ssa.Select, maxInstrReached map[*ssa.B
 
 	recvStateCount := 0
 	for _, s := range sel.States {
-		switch s.Dir {
-		case types.RecvOnly:
+		if s.Dir == types.RecvOnly {
+			recvStateCount++
 			if !prop.marked[s.Chan.(ssa.Node)] {
 				continue
 			}
+			// If the channel is tainted, propagate taint to the appropriate Extract
 			for _, r := range *sel.Referrers() {
 				e, ok := r.(*ssa.Extract)
 				// Select returns a tuple whose first 2 elements are irrelevant for our
 				// analysis. The other elements map 1:1 with each of the recv states.
 				// See the docs for ssa.Extract for more details.
-				if !ok || e.Index != recvStateCount+2 {
+				if !ok || e.Index != recvStateCount+1 {
 					continue
 				}
 				prop.dfs(e, maxInstrReached, lastBlockVisited, false)
 			}
-			recvStateCount++
 		}
 	}
 }

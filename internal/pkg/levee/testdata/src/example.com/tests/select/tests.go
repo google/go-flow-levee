@@ -146,3 +146,39 @@ func TestSendOnTaintedAndNonTaintedChans(i1 chan<- interface{}, i2 chan<- interf
 	core.Sink(i1) // want "a source has reached a sink"
 	core.Sink(i2)
 }
+
+func TestDaisyChain(srcs chan core.Source, i1, i2, i3, i4 chan interface{}) {
+	select {
+	case s := <-srcs:
+		i1 <- s
+	case z := <-i1:
+		i2 <- z
+	case y := <-i2:
+		i3 <- y
+	case x := <-i3:
+		i4 <- x
+	}
+	core.Sink(srcs) // want "a source has reached a sink"
+	core.Sink(i1)   // want "a source has reached a sink"
+	core.Sink(i2)   // TODO(#211) want "a source has reached a sink"
+	core.Sink(i3)   // TODO(#211) want "a source has reached a sink"
+	core.Sink(i4)   // TODO(#211) want "a source has reached a sink"
+}
+
+func TestDaisyChainCasesInReverseOrder(srcs chan core.Source, i1, i2, i3, i4 chan interface{}) {
+	select {
+	case x := <-i3:
+		i4 <- x
+	case y := <-i2:
+		i3 <- y
+	case z := <-i1:
+		i2 <- z
+	case s := <-srcs:
+		i1 <- s
+	}
+	core.Sink(srcs) // want "a source has reached a sink"
+	core.Sink(i1)   // want "a source has reached a sink"
+	core.Sink(i2)   // TODO(#211) want "a source has reached a sink"
+	core.Sink(i3)   // TODO(#211) want "a source has reached a sink"
+	core.Sink(i4)   // TODO(#211) want "a source has reached a sink"
+}
