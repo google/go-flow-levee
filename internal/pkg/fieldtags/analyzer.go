@@ -22,10 +22,10 @@ import (
 	"reflect"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
+	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
-	"golang.org/x/tools/go/ssa"
 )
 
 // ResultType is a map from types.Object to bool.
@@ -89,11 +89,13 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return ResultType(result), nil
 }
 
-// IsSourceFieldAddr determines whether a ssa.FieldAddr is a source, that is whether it refers to a field previously identified as a source.
-func (r ResultType) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
+// IsSourceField determines whether a field on a type is a source field,
+// using the type of the struct holding the field as well as the index
+// of the field.
+func (r ResultType) IsSourceField(t types.Type, field int) bool {
 	// incantation plundered from the docstring for ssa.FieldAddr.Field
-	field := fa.X.Type().Underlying().(*types.Pointer).Elem().Underlying().(*types.Struct).Field(fa.Field)
-	return r.IsSource(field)
+	fieldVar := utils.Dereference(t).Underlying().(*types.Struct).Field(field)
+	return r.IsSource(fieldVar)
 }
 
 // IsSource determines whether a types.Var is a source, that is whether it refers to a field previously identified as a source.

@@ -44,11 +44,12 @@ func init() {
 
 // Config contains matchers and analysis scope information.
 type Config struct {
-	Sources    []sourceMatcher
-	Sinks      []funcMatcher
-	Sanitizers []funcMatcher
-	FieldTags  []fieldTagMatcher
-	Exclude    []funcMatcher
+	Sources                   []sourceMatcher
+	Sinks                     []funcMatcher
+	Sanitizers                []funcMatcher
+	FieldTags                 []fieldTagMatcher
+	Exclude                   []funcMatcher
+	AllowPanicOnTaintedValues bool
 }
 
 // IsSourceFieldTag determines whether a field tag made up of a key and value
