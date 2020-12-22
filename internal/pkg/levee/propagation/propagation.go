@@ -145,7 +145,7 @@ func (prop *Propagation) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 		}
 
 	case *ssa.Call:
-		// The builtin delete(m map[Type]Type1, key Type) func does not propagate source.
+		// The builtin delete(m map[Type]Type1, key Type) func does not propagate a taint.
 		if builtin, ok := t.Call.Value.(*ssa.Builtin); ok && builtin.Name() == "delete" {
 			return
 		}
