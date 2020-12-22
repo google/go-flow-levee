@@ -7,7 +7,7 @@ When creating a pull request, you must verify that your changes are safe by runn
 In addition we recommend running master and feature branch versions of levee against k8s and diffing the results to see if your changes have led to some new findings. To make this easier we have created a script that will run both master and your feature branch version of levee against k8s and print the diff.
 
 Note: The script makes the following assumptions
-1. k8s repo is at $(GOPATH)/src/k8s.io/kuberenetes
+1. The kubernetes repository on your machine is at `$(GOPATH)/src/k8s.io/kuberenetes`.
 2. You are running the script from within your go-flow-levee directory and have your feature branch checked out.
 
 ```bash
