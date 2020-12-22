@@ -52,8 +52,8 @@ func Dfs(n ssa.Node, conf *config.Config, taggedFields fieldtags.ResultType) Pro
 	}
 	maxInstrReached := map[*ssa.BasicBlock]int{}
 
-	record.visitReferrers(n, maxInstrReached, nil)
 	record.dfs(n, maxInstrReached, nil, false)
+	record.visitReferrers(n, maxInstrReached, nil)
 
 	return record
 }
@@ -194,11 +194,20 @@ func (prop *Propagation) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 	case *ssa.MapUpdate:
 		prop.dfs(t.Map.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 
+	case *ssa.Select:
+		prop.visitSelect(t, maxInstrReached, lastBlockVisited)
+
 	// The only Operand that can be tainted by a Send is the Chan.
 	// The Value can propagate taint to the Chan, but not receive it.
 	// Send has no referrers, it is only an Instruction, not a Value.
 	case *ssa.Send:
 		prop.dfs(t.Chan.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+
+	case *ssa.Slice:
+		prop.visitReferrers(n, maxInstrReached, lastBlockVisited)
+		// This allows taint to propagate backwards into the sliced value
+		// when the resulting value is tainted
+		prop.dfs(t.X.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 
 	// These nodes' operands should not be visited, because they can only receive
 	// taint from their operands, not propagate taint to them.
@@ -214,7 +223,7 @@ func (prop *Propagation) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 		prop.visitOperands(n, maxInstrReached, lastBlockVisited)
 
 	// These nodes are both Instructions and Values, and currently have no special restrictions.
-	case *ssa.MakeInterface, *ssa.Select, *ssa.Slice, *ssa.TypeAssert, *ssa.UnOp:
+	case *ssa.MakeInterface, *ssa.TypeAssert, *ssa.UnOp:
 		prop.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		prop.visitOperands(n, maxInstrReached, lastBlockVisited)
 
@@ -249,6 +258,42 @@ func (prop *Propagation) visitOperands(n ssa.Node, maxInstrReached map[*ssa.Basi
 			continue
 		}
 		prop.dfs((*o).(ssa.Node), maxInstrReached, lastBlockVisited, false)
+	}
+}
+
+func (prop *Propagation) visitSelect(sel *ssa.Select, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+	// Select returns a tuple whose first 2 elements are irrelevant for our
+	// analysis. Subsequent elements correspond to Recv states, which map
+	// 1:1 with Extracts.
+	// See the ssa package code for more details.
+	recvIndex := 0
+	extractIndex := map[*ssa.SelectState]int{}
+	for _, ss := range sel.States {
+		if ss.Dir == types.RecvOnly {
+			extractIndex[ss] = recvIndex + 2
+			recvIndex++
+		}
+	}
+
+	for _, s := range sel.States {
+		switch {
+		// If the sent value (Send) is tainted, propagate taint to the channel
+		case s.Dir == types.SendOnly && prop.marked[s.Send.(ssa.Node)]:
+			prop.dfs(s.Chan.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+
+		// If the channel is tainted, propagate taint to the appropriate Extract
+		case s.Dir == types.RecvOnly && prop.marked[s.Chan.(ssa.Node)]:
+			if sel.Referrers() == nil {
+				continue
+			}
+			for _, r := range *sel.Referrers() {
+				e, ok := r.(*ssa.Extract)
+				if !ok || e.Index != extractIndex[s] {
+					continue
+				}
+				prop.dfs(e, maxInstrReached, lastBlockVisited, false)
+			}
+		}
 	}
 }
 

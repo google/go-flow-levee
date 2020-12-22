@@ -72,6 +72,10 @@ if *debugging {
 }
 ```
 
+## Git workflow
+
+Please follow our preferred [git workflow](GIT_WORKFLOW.md).
+
 ## Source Code Headers
 
 Every file containing source code or data (e.g., YAML configuration files) must include
