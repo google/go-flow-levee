@@ -19,7 +19,8 @@ import (
 	"strings"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
-	"github.com/google/go-flow-levee/internal/pkg/fieldpropagator"
+	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
+	"github.com/google/go-flow-levee/internal/pkg/levee/propagation"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ssa"
@@ -32,7 +33,7 @@ var Analyzer = &analysis.Analyzer{
 	Run:      run,
 	Flags:    config.FlagSet,
 	Doc:      "reports attempts to source data to sinks",
-	Requires: []*analysis.Analyzer{source.Analyzer, fieldpropagator.Analyzer},
+	Requires: []*analysis.Analyzer{source.Analyzer, fieldtags.Analyzer},
 }
 
 type reportItems struct {
@@ -45,35 +46,32 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	sourcesMap := pass.ResultOf[source.Analyzer].(source.ResultType)
-	fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
+	funcSources := pass.ResultOf[source.Analyzer].(source.ResultType)
+	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 
 	var items []reportItems
-	// Only examine functions that have sources
-	for fn, sources := range sourcesMap {
+	for fn, sources := range funcSources {
+		propagations := make(map[*source.Source]propagation.Propagation, len(sources))
+		for _, s := range sources {
+			propagations[s] = propagation.Dfs(s.Node, conf, taggedFields)
+		}
+
 		for _, b := range fn.Blocks {
-			if b == fn.Recover {
-				continue // skipping Recover since it does not have instructions, rather a single block.
-			}
-
 			for _, instr := range b.Instrs {
-				v, ok := instr.(*ssa.Call)
-				if !ok {
-					continue
-				}
+				switch v := instr.(type) {
 
-				callee := v.Call.StaticCallee()
-				switch {
-				case fieldPropagators.IsFieldPropagator(v):
-					sources = append(sources, source.New(v, conf))
-
-				case callee != nil && conf.IsSink(utils.DecomposeFunction(v.Call.StaticCallee())):
-					for _, s := range sources {
-						if s.HasPathTo(instr.(ssa.Node)) && !s.IsSanitizedAt(v) {
-							items = append(items, reportItems{s, v})
-							break
-						}
+				case *ssa.Call:
+					if callee := v.Call.StaticCallee(); callee != nil && conf.IsSink(utils.DecomposeFunction(callee)) {
+						// build items
+						reportSourcesReachingSink(pass, propagations, instr)
 					}
+
+				case *ssa.Panic:
+					if conf.AllowPanicOnTaintedValues {
+						continue
+					}
+					// build items
+					reportSourcesReachingSink(pass, propagations, instr)
 				}
 			}
 		}
@@ -81,6 +79,15 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 	reportAllItems(pass, conf, items)
 	return nil, nil
+}
+
+func reportSourcesReachingSink(pass *analysis.Pass, propagations map[*source.Source]propagation.Propagation, sink ssa.Instruction) {
+	for source, prop := range propagations {
+		if prop.IsTainted(sink) {
+			report(pass, source, sink.(ssa.Node))
+			break
+		}
+	}
 }
 
 type ErrMessageFact string

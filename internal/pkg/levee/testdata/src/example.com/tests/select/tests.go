@@ -61,7 +61,7 @@ func TestTaintedAndSinkedInDifferentBranches(objects chan interface{}) {
 	select {
 	case objects <- core.Source{}:
 	case s := <-objects:
-		// TODO want no report here, because objects is only tainted if the
+		// TODO(#211) want no report here, because objects is only tainted if the
 		// other branch is taken, and only one branch can be taken
 		core.Sink(s) // want "a source has reached a sink"
 	}
@@ -102,7 +102,7 @@ func TestTaintedInForkedClosure(objects chan interface{}) {
 
 	select {
 	case s := <-objects:
-		core.Sink(s) // TODO want "a source has reached a sink"
+		core.Sink(s) // TODO(#99) want "a source has reached a sink"
 	default:
 		return
 	}
@@ -113,7 +113,7 @@ func TestTaintedInForkedCall(objects chan interface{}) {
 
 	select {
 	case s := <-objects:
-		core.Sink(s) // TODO want "a source has reached a sink"
+		core.Sink(s) // TODO(#99) want "a source has reached a sink"
 	default:
 		return
 	}
@@ -121,4 +121,84 @@ func TestTaintedInForkedCall(objects chan interface{}) {
 
 func PutSource(objects chan<- interface{}) {
 	objects <- core.Source{}
+}
+
+func TestRecvFromTaintedAndNonTaintedChans(sources <-chan *core.Source, innocs <-chan *core.Innocuous) {
+	select {
+	case s := <-sources:
+		core.Sink(sources) // want "a source has reached a sink"
+		core.Sink(s)       // want "a source has reached a sink"
+	case i := <-innocs:
+		core.Sink(innocs)
+		core.Sink(i)
+	}
+	core.Sink(sources) // want "a source has reached a sink"
+	core.Sink(innocs)
+}
+
+func TestSendOnTaintedAndNonTaintedChans(i1 chan<- interface{}, i2 chan<- interface{}) {
+	select {
+	case i1 <- core.Source{}:
+		core.Sink(i1) // want "a source has reached a sink"
+	case i2 <- core.Innocuous{}:
+		core.Sink(i2)
+	}
+	core.Sink(i1) // want "a source has reached a sink"
+	core.Sink(i2)
+}
+
+func TestDaisyChain(srcs chan core.Source, i1, i2, i3, i4 chan interface{}) {
+	select {
+	case s := <-srcs:
+		i1 <- s
+	case z := <-i1:
+		i2 <- z
+	case y := <-i2:
+		i3 <- y
+	case x := <-i3:
+		i4 <- x
+	}
+	core.Sink(srcs) // want "a source has reached a sink"
+	core.Sink(i1)   // want "a source has reached a sink"
+	core.Sink(i2)
+	core.Sink(i3)
+	core.Sink(i4)
+}
+
+func TestDaisyChainCasesInReverseOrder(srcs chan core.Source, i1, i2, i3, i4 chan interface{}) {
+	select {
+	case x := <-i3:
+		i4 <- x
+	case y := <-i2:
+		i3 <- y
+	case z := <-i1:
+		i2 <- z
+	case s := <-srcs:
+		i1 <- s
+	}
+	core.Sink(srcs) // want "a source has reached a sink"
+	core.Sink(i1)   // want "a source has reached a sink"
+	core.Sink(i2)
+	core.Sink(i3)
+	core.Sink(i4)
+}
+
+func TestDaisyChainInLoop(srcs chan core.Source, i1, i2, i3, i4 chan interface{}) {
+	for i := 0; i < 4; i++ {
+		select {
+		case s := <-srcs:
+			i1 <- s
+		case z := <-i1:
+			i2 <- z
+		case y := <-i2:
+			i3 <- y
+		case x := <-i3:
+			i4 <- x
+		}
+	}
+	core.Sink(srcs) // want "a source has reached a sink"
+	core.Sink(i1)   // want "a source has reached a sink"
+	core.Sink(i2)   // want "a source has reached a sink"
+	core.Sink(i3)   // want "a source has reached a sink"
+	core.Sink(i4)   // want "a source has reached a sink"
 }

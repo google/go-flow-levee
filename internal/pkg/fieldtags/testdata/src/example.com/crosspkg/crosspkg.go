@@ -12,20 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package propagation
+package crosspkg
 
-import "fmt"
+import "example.com/core"
 
-type foo struct {
-	name string
-}
-
-func f1() {
-	f := &foo{name: "bar"} // want "propagator"
-	transformedFoo := propagator(f)
-	fmt.Println(transformedFoo)
-}
-
-func propagator(in *foo) string {
-	return in.name + "transformed"
+type PersonWrapper struct {
+	p          core.Person
+	crossField string `levee:"source"` // want crossField:"tagged field"
 }

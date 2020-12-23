@@ -12,23 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package sourcetest
+package panic
 
-// source container
-type Source struct {
-	Data string // source field
-	ID   int    // public
+import (
+	"example.com/core"
+)
+
+func TestPanicIsASink(source core.Source) {
+	panic(source) // want "a source has reached a sink"
 }
 
-func CreateSource() (Source, error) {
-	return Source{}, nil // want "source identified"
+func TestPanicIsASinkSanitized(source core.Source) {
+	sanitized := core.Sanitize(source)[0]
+	panic(sanitized)
 }
 
-func NewSource() (*Source, error) {
-	return &Source{}, nil // want "source identified"
+func TestGoPanicIsASink(source core.Source) {
+	go panic(source) // TODO(#231): want "a source has reached a sink"
 }
 
-type TaggedSource struct {
-	Data string `levee:"source"`
-	ID   int
+func TestDeferPanicIsASink(source core.Source) {
+	defer panic(source) // TODO(#231): want "a source has reached a sink"
+}
+
+func TestPanicOnNonSourceDoesNotProduceReport(source core.Source) {
+	y := 42
+	panic(y)
 }

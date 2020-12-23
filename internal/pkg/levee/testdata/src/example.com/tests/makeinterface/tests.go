@@ -12,21 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package sanitization
+package deletethis
 
-import "fmt"
+import (
+	"example.com/core"
+)
 
-type foo struct {
-	name     string
-	password string
+func TestTaintingInterfaceValueDoesNotTaintContainedValue(s *core.Source, str string) {
+	var x interface{} = str
+	colocate(s, x)
+	// TODO(#209): no report should be produced below
+	core.Sink(str) // want "a source has reached a sink"
 }
 
-func f1() {
-	f := &foo{name: "n", password: "p"} // want "sanitizer"
-	sanitizer(f)
-	fmt.Println(f)
-}
-
-func sanitizer(in *foo) {
-	in.password = "redacted"
-}
+func colocate(s *core.Source, x interface{}) {}

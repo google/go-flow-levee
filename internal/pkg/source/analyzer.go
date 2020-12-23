@@ -19,6 +19,8 @@ import (
 	"reflect"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
+	"github.com/google/go-flow-levee/internal/pkg/fieldpropagator"
+	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
@@ -28,21 +30,24 @@ type ResultType = map[*ssa.Function][]*Source
 
 var Analyzer = &analysis.Analyzer{
 	Name:       "source",
-	Doc:        "This analyzer identifies ssa.Values as dataflow sources.",
+	Doc:        "This analyzer identifies ssa.Values that are sources.",
 	Flags:      config.FlagSet,
 	Run:        run,
-	Requires:   []*analysis.Analyzer{buildssa.Analyzer},
+	Requires:   []*analysis.Analyzer{buildssa.Analyzer, fieldtags.Analyzer, fieldpropagator.Analyzer},
 	ResultType: reflect.TypeOf(new(ResultType)).Elem(),
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
+	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
+	fieldPropagators := pass.ResultOf[fieldpropagator.Analyzer].(fieldpropagator.ResultType)
+
 	conf, err := config.ReadConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	sourceMap := identify(conf, ssaInput)
+	sourceMap := identify(conf, ssaInput, taggedFields, fieldPropagators)
 
 	for _, srcs := range sourceMap {
 		for _, s := range srcs {

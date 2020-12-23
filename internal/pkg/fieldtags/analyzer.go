@@ -20,13 +20,12 @@ import (
 	"go/ast"
 	"go/types"
 	"reflect"
-	"strings"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
+	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
-	"golang.org/x/tools/go/ssa"
 )
 
 // ResultType is a map from types.Object to bool.
@@ -35,12 +34,21 @@ type ResultType map[types.Object]bool
 
 var Analyzer = &analysis.Analyzer{
 	Name: "fieldtags",
-	Doc:  "This analyzer identifies Source fields based on their tags. Tags are expected to satisfy the `go vet -structtag` format.",
+	Doc:  "This analyzer identifies Source fields based on their tags.",
 	Run:  run,
 	Requires: []*analysis.Analyzer{
 		inspect.Analyzer,
 	},
 	ResultType: reflect.TypeOf(new(ResultType)).Elem(),
+	FactTypes:  []analysis.Fact{new(isTaggedField)},
+}
+
+type isTaggedField struct{}
+
+func (i isTaggedField) AFact() {}
+
+func (i isTaggedField) String() string {
+	return "tagged field"
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -50,7 +58,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	inspectResult := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	taggedFields := map[types.Object]bool{}
 
 	nodeFilter := []ast.Node{
 		(*ast.StructType)(nil),
@@ -68,20 +75,27 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			fNames := make([]string, len(f.Names))
 			for i, ident := range f.Names {
 				fNames[i] = ident.Name
-				taggedFields[pass.TypesInfo.ObjectOf(ident)] = true
+				pass.ExportObjectFact(pass.TypesInfo.ObjectOf(ident), &isTaggedField{})
 			}
-			pass.Reportf(f.Pos(), "tagged field: %s", strings.Join(fNames, ", "))
 		}
 	})
 
-	return ResultType(taggedFields), nil
+	// return all facts accumulated down the current path in the dependency graph
+	result := map[types.Object]bool{}
+	for _, f := range pass.AllObjectFacts() {
+		result[f.Object] = true
+	}
+
+	return ResultType(result), nil
 }
 
-// IsSourceFieldAddr determines whether a ssa.FieldAddr is a source, that is whether it refers to a field previously identified as a source.
-func (r ResultType) IsSourceFieldAddr(fa *ssa.FieldAddr) bool {
+// IsSourceField determines whether a field on a type is a source field,
+// using the type of the struct holding the field as well as the index
+// of the field.
+func (r ResultType) IsSourceField(t types.Type, field int) bool {
 	// incantation plundered from the docstring for ssa.FieldAddr.Field
-	field := fa.X.Type().Underlying().(*types.Pointer).Elem().Underlying().(*types.Struct).Field(fa.Field)
-	return r.IsSource(field)
+	fieldVar := utils.Dereference(t).Underlying().(*types.Struct).Field(field)
+	return r.IsSource(fieldVar)
 }
 
 // IsSource determines whether a types.Var is a source, that is whether it refers to a field previously identified as a source.

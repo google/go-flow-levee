@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package fieldtags
+package core
 
 type Person struct {
-	password, creds          string      `levee:"source"`               // want "tagged field: password, creds"
-	secret                   string      `json:"secret" levee:"source"` // want "tagged field: secret"
-	another                  interface{} "levee:\"source\""             // want "tagged field: another"
-	hasCustomFieldTag        string      `example:"sensitive"`          // want "tagged field: hasCustomFieldTag"
-	hasTagWithMultipleValues string      `example:"val,sensitive,long"` // want "tagged field: hasTagWithMultipleValues"
+	password, creds          string      `levee:"source"`               // want password:"tagged field" creds:"tagged field"
+	secret                   string      `json:"secret" levee:"source"` // want secret:"tagged field"
+	another                  interface{} "levee:\"source\""             // want another:"tagged field"
+	hasCustomFieldTag        string      `example:"sensitive"`          // want hasCustomFieldTag:"tagged field"
+	hasTagWithMultipleValues string      `example:"val,sensitive,long"` // want hasTagWithMultipleValues:"tagged field"
 	name                     string      `some_key:"non_secret"`
 	spaceAfterFinalQuote     string      `key:"value" `
 	someNotTaggedField       int
@@ -27,6 +27,6 @@ type Person struct {
 
 type Nester struct {
 	Nested struct {
-		adminSecret string `levee:"source"` // want "tagged field: adminSecret"
+		adminSecret string `levee:"source"` // want adminSecret:"tagged field"
 	}
 }

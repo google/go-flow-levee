@@ -55,7 +55,7 @@ func TestSanitizationByReference(s core.Source) {
 
 func TestIncorrectSanitizationByValue(s core.Source) {
 	core.Sanitize(s)
-	core.Sink(s) // TODO want "a source has reached a sink"
+	core.Sink(s) // TODO(#105): want "a source has reached a sink"
 }
 
 func TestOnlySanitizedIfLoopIsTaken() {
@@ -83,7 +83,7 @@ func TestMaybeTaintedInLoopButSanitizedBeforeLoopExit() {
 		}
 		e = core.Sanitize(e)[0]
 	}
-	// TODO want no report here
+	// TODO(#155) want no report here
 	core.Sink(e) // want "a source has reached a sink"
 }
 
@@ -93,7 +93,7 @@ func TestTaintedInIfButSanitizedBeforeIfExit() {
 		e = core.Source{}
 		e = core.Sanitize(e)[0]
 	}
-	// TODO want no report here
+	// TODO(#155) want no report here
 	core.Sink(e) // want "a source has reached a sink"
 }
 
@@ -104,7 +104,7 @@ func TestPointerTaintedInIfButSanitizedBeforeIfExit() {
 		core.SanitizePtr(s)
 		e = s
 	}
-	// TODO want no report here
+	// TODO(#155) want no report here
 	core.Sink(e) // want "a source has reached a sink"
 }
 

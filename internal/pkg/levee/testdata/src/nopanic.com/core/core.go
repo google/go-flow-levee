@@ -12,30 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package domination
+package core
 
-import (
-	"fmt"
-	"time"
-)
-
-type foo struct {
-	name     string
-	password string
+type Source struct {
+	Data string
+	ID   int
 }
 
-func f1() {
-	f := &foo{name: "n", password: "p"} // want `sanitizer\(t0\) sink\(t0\) `
-	if time.Now().Year() == 2020 {
-		sanitizer(f)
-	}
-	sink(f)
-}
-
-func sanitizer(in *foo) {
-	in.password = "redacted"
-}
-
-func sink(in *foo) {
-	fmt.Print(in)
+func TestPanickingOnTaintedValueIsAllowed() {
+	s := Source{Data: "password", ID: 1337}
+	panic(s)
 }
