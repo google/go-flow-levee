@@ -52,8 +52,8 @@ func Dfs(n ssa.Node, conf *config.Config, taggedFields fieldtags.ResultType) Pro
 	}
 	maxInstrReached := map[*ssa.BasicBlock]int{}
 
-	record.visitReferrers(n, maxInstrReached, nil)
 	record.dfs(n, maxInstrReached, nil, false)
+	record.visitReferrers(n, maxInstrReached, nil)
 
 	return record
 }
@@ -145,6 +145,11 @@ func (prop *Propagation) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 		}
 
 	case *ssa.Call:
+		// The builtin delete(m map[Type]Type1, key Type) func does not propagate a taint.
+		if builtin, ok := t.Call.Value.(*ssa.Builtin); ok && builtin.Name() == "delete" {
+			return
+		}
+
 		if callee := t.Call.StaticCallee(); callee != nil && prop.config.IsSanitizer(utils.DecomposeFunction(callee)) {
 			prop.sanitizers = append(prop.sanitizers, &sanitizer.Sanitizer{Call: t})
 		}
@@ -162,15 +167,11 @@ func (prop *Propagation) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 			}
 		}
 
+	case *ssa.Field:
+		prop.visitField(n, maxInstrReached, lastBlockVisited, t.X.Type(), t.Field)
+
 	case *ssa.FieldAddr:
-		deref := utils.Dereference(t.X.Type())
-		typPath, typName := utils.DecomposeType(deref)
-		fieldName := utils.FieldName(t)
-		if !prop.config.IsSourceField(typPath, typName, fieldName) && !prop.taggedFields.IsSourceFieldAddr(t) {
-			return
-		}
-		prop.visitReferrers(n, maxInstrReached, lastBlockVisited)
-		prop.visitOperands(n, maxInstrReached, lastBlockVisited)
+		prop.visitField(n, maxInstrReached, lastBlockVisited, t.X.Type(), t.Field)
 
 	// Everything but the actual integer Index should be visited.
 	case *ssa.Index:
@@ -193,11 +194,20 @@ func (prop *Propagation) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 	case *ssa.MapUpdate:
 		prop.dfs(t.Map.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 
+	case *ssa.Select:
+		prop.visitSelect(t, maxInstrReached, lastBlockVisited)
+
 	// The only Operand that can be tainted by a Send is the Chan.
 	// The Value can propagate taint to the Chan, but not receive it.
 	// Send has no referrers, it is only an Instruction, not a Value.
 	case *ssa.Send:
 		prop.dfs(t.Chan.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+
+	case *ssa.Slice:
+		prop.visitReferrers(n, maxInstrReached, lastBlockVisited)
+		// This allows taint to propagate backwards into the sliced value
+		// when the resulting value is tainted
+		prop.dfs(t.X.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 
 	// These nodes' operands should not be visited, because they can only receive
 	// taint from their operands, not propagate taint to them.
@@ -213,7 +223,7 @@ func (prop *Propagation) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 		prop.visitOperands(n, maxInstrReached, lastBlockVisited)
 
 	// These nodes are both Instructions and Values, and currently have no special restrictions.
-	case *ssa.Field, *ssa.MakeInterface, *ssa.Select, *ssa.Slice, *ssa.TypeAssert, *ssa.UnOp:
+	case *ssa.MakeInterface, *ssa.TypeAssert, *ssa.UnOp:
 		prop.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		prop.visitOperands(n, maxInstrReached, lastBlockVisited)
 
@@ -223,6 +233,14 @@ func (prop *Propagation) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 	default:
 		fmt.Printf("unexpected node received: %T %v; please report this issue\n", n, n)
 	}
+}
+
+func (prop *Propagation) visitField(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, t types.Type, field int) {
+	if !prop.config.IsSourceField(utils.DecomposeField(t, field)) && !prop.taggedFields.IsSourceField(t, field) {
+		return
+	}
+	prop.visitReferrers(n, maxInstrReached, lastBlockVisited)
+	prop.visitOperands(n, maxInstrReached, lastBlockVisited)
 }
 
 func (prop *Propagation) visitReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
@@ -240,6 +258,42 @@ func (prop *Propagation) visitOperands(n ssa.Node, maxInstrReached map[*ssa.Basi
 			continue
 		}
 		prop.dfs((*o).(ssa.Node), maxInstrReached, lastBlockVisited, false)
+	}
+}
+
+func (prop *Propagation) visitSelect(sel *ssa.Select, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+	// Select returns a tuple whose first 2 elements are irrelevant for our
+	// analysis. Subsequent elements correspond to Recv states, which map
+	// 1:1 with Extracts.
+	// See the ssa package code for more details.
+	recvIndex := 0
+	extractIndex := map[*ssa.SelectState]int{}
+	for _, ss := range sel.States {
+		if ss.Dir == types.RecvOnly {
+			extractIndex[ss] = recvIndex + 2
+			recvIndex++
+		}
+	}
+
+	for _, s := range sel.States {
+		switch {
+		// If the sent value (Send) is tainted, propagate taint to the channel
+		case s.Dir == types.SendOnly && prop.marked[s.Send.(ssa.Node)]:
+			prop.dfs(s.Chan.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+
+		// If the channel is tainted, propagate taint to the appropriate Extract
+		case s.Dir == types.RecvOnly && prop.marked[s.Chan.(ssa.Node)]:
+			if sel.Referrers() == nil {
+				continue
+			}
+			for _, r := range *sel.Referrers() {
+				e, ok := r.(*ssa.Extract)
+				if !ok || e.Index != extractIndex[s] {
+					continue
+				}
+				prop.dfs(e, maxInstrReached, lastBlockVisited, false)
+			}
+		}
 	}
 }
 
@@ -266,15 +320,14 @@ func (prop *Propagation) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) b
 	return false
 }
 
-// HasPathTo determines whether a Node can be reached
-// from the Propagation's root.
-func (prop Propagation) HasPathTo(n ssa.Node) bool {
-	return prop.marked[n]
+// IsTainted determines whether an instruction is tainted by the Propagation.
+func (prop Propagation) IsTainted(instr ssa.Instruction) bool {
+	return prop.marked[instr.(ssa.Node)] && !prop.isSanitizedAt(instr)
 }
 
-// IsSanitizedAt determines whether the Propagation's root is sanitized
-// when it reaches the given instruction.
-func (prop Propagation) IsSanitizedAt(instr ssa.Instruction) bool {
+// isSanitizedAt determines whether the taint propagated from the Propagation's root
+// is sanitized when it reaches the target instruction.
+func (prop Propagation) isSanitizedAt(instr ssa.Instruction) bool {
 	for _, san := range prop.sanitizers {
 		if san.Dominates(instr) {
 			return true
