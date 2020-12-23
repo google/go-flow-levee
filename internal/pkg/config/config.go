@@ -44,7 +44,7 @@ func init() {
 
 // Config contains matchers and analysis scope information.
 type Config struct {
-	MessageOnError            string
+	ReportMessage             string
 	Sources                   []sourceMatcher
 	Sinks                     []funcMatcher
 	Sanitizers                []funcMatcher
@@ -296,13 +296,11 @@ func ReadConfig() (*Config, error) {
 		bytes, err := ioutil.ReadFile(configFile)
 		if err != nil {
 			readConfigCachedErr = fmt.Errorf("error reading analysis config: %v", err)
-			fmt.Println(readConfigCachedErr)
 			return
 		}
 
 		if err := yaml.UnmarshalStrict(bytes, c); err != nil {
 			readConfigCachedErr = err
-			fmt.Println(readConfigCachedErr)
 			return
 		}
 		readConfigCached = c

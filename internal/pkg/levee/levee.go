@@ -37,8 +37,8 @@ var Analyzer = &analysis.Analyzer{
 }
 
 type reportItems struct {
-	s *source.Source
-	v *ssa.Call
+	source *source.Source
+	sink   *ssa.Call
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -99,13 +99,13 @@ func (emf ErrMessageFact) String() string {
 }
 
 func reportAllItems(pass *analysis.Pass, conf *config.Config, items []reportItems) {
-	if len(items) > 0 && conf.MessageOnError != "" {
-		fact := ErrMessageFact(conf.MessageOnError)
+	if len(items) > 0 && conf.ReportMessage != "" {
+		fact := ErrMessageFact(conf.ReportMessage)
 		pass.ExportPackageFact(&fact)
 	}
 
 	for _, item := range items {
-		report(pass, item.s, item.v)
+		report(pass, item.source, item.sink)
 	}
 }
 
