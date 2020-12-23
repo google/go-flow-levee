@@ -119,71 +119,57 @@ func sourcesFromBlocks(fn *ssa.Function, conf *config.Config, taggedFields field
 	var sources []*Source
 	for _, b := range fn.Blocks {
 		for _, instr := range b.Instrs {
-			// This type switch is used to catch instructions that could produce sources.
-			// All instructions that do not match one of the cases will hit the "default"
-			// and they will not be examined any further.
-			switch v := instr.(type) {
-			// drop anything that doesn't match one of the following cases
-			default:
-				continue
-
-			// Values produced by sanitizers are not sources.
-			case *ssa.Alloc:
-				if isProducedBySanitizer(v, conf) {
-					continue
-				}
-
-			// Values produced by sanitizers are not sources.
-			// Values produced by field propagators are.
-			case *ssa.Call:
-				if isProducedBySanitizer(v, conf) {
-					continue
-				}
-
-				if propagators.IsFieldPropagator(v) {
-					sources = append(sources, New(v))
-					continue
-				}
-
-			// A panicky type assert like s := e.(*core.Source) does not result in ssa.Extract
-			// so we need to create a source if the type assert is panicky i.e. CommaOk is false
-			// and the type being asserted is a source type.
-			case *ssa.TypeAssert:
-				if !v.CommaOk && IsSourceType(conf, taggedFields, v.AssertedType) {
-					sources = append(sources, New(v))
-				}
-
-			// An Extract is used to obtain a value from an instruction that returns multiple values.
-			// If the extracted value is a Pointer to a Source, it won't have an Alloc, so we need to
-			// identify the Source from the Extract.
-			case *ssa.Extract:
-				t := v.Tuple.Type().(*types.Tuple).At(v.Index).Type()
-				if _, ok := t.(*types.Pointer); ok && IsSourceType(conf, taggedFields, t) {
-					sources = append(sources, New(v))
-				}
-				continue
-
-			// value received from chan
-			case *ssa.UnOp:
-				// not a <-chan operation
-				if v.Op != token.ARROW {
-					continue
-				}
-
-			// value obtained through a field or an index operation
-			case *ssa.Field, *ssa.FieldAddr, *ssa.Index, *ssa.IndexAddr, *ssa.Lookup:
-
-			// chan or map value (arrays and slices are created using Allocs)
-			case *ssa.MakeMap, *ssa.MakeChan:
-			}
-
-			// all of the instructions that the switch lets through are values as per ssa/doc.go
-			if v := instr.(ssa.Value); IsSourceType(conf, taggedFields, v.Type()) {
-				sources = append(sources, New(v.(ssa.Node)))
+			if n := instr.(ssa.Node); isSourceNode(n, conf, propagators, taggedFields) {
+				sources = append(sources, New(n))
 			}
 		}
 	}
 	return sources
+}
+
+func isSourceNode(n ssa.Node, conf *config.Config, propagators fieldpropagator.ResultType, taggedFields fieldtags.ResultType) bool {
+	switch v := n.(type) {
+	// All sources are explicitly identified.
+	default:
+		return false
+
+	// Values produced by sanitizers are not sources.
+	case *ssa.Alloc:
+		return !isProducedBySanitizer(v, conf) && IsSourceType(conf, taggedFields, n.(ssa.Value).Type())
+
+	// Values produced by sanitizers are not sources.
+	// Values produced by field propagators are.
+	case *ssa.Call:
+		return !isProducedBySanitizer(v, conf) &&
+			(propagators.IsFieldPropagator(v) || IsSourceType(conf, taggedFields, n.(ssa.Value).Type()))
+
+	// A type assertion can assert that an interface is of a source type.
+	// Only panicky type asserts will refer to the source Value.
+	// The typed value returned in (value, ok) type assertions are examined in the case for ssa.Extract instructions.
+	case *ssa.TypeAssert:
+		return !v.CommaOk && IsSourceType(conf, taggedFields, v.AssertedType)
+
+	// An Extract is used to obtain a value from an instruction that returns multiple values.
+	// If the extracted value is a Pointer to a Source, it won't have an Alloc, so we need to
+	// identify the Source from the Extract.
+	case *ssa.Extract:
+		t := v.Tuple.Type().(*types.Tuple).At(v.Index).Type()
+		_, ok := t.(*types.Pointer)
+		return ok && IsSourceType(conf, taggedFields, t)
+
+	// Unary operator <- can receive sources from a channel.
+	case *ssa.UnOp:
+		return v.Op == token.ARROW && IsSourceType(conf, taggedFields, n.(ssa.Value).Type())
+
+	// Field access (Field, FieldAddr),
+	// collection access (Index, IndexAddr, Lookup),
+	// and mutable collection instantiation (MakeMap, MakeChan)
+	// are considered sources if they are of source type.
+	case *ssa.Field, *ssa.FieldAddr,
+		*ssa.Index, *ssa.IndexAddr, *ssa.Lookup,
+		*ssa.MakeMap, *ssa.MakeChan:
+		return IsSourceType(conf, taggedFields, n.(ssa.Value).Type())
+	}
 }
 
 // IsSourceType determines whether a Type is a Source Type.
