@@ -145,27 +145,7 @@ func (prop *Propagation) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 		}
 
 	case *ssa.Call:
-		// The builtin delete(m map[Type]Type1, key Type) func does not propagate a taint.
-		if builtin, ok := t.Call.Value.(*ssa.Builtin); ok && builtin.Name() == "delete" {
-			return
-		}
-
-		if callee := t.Call.StaticCallee(); callee != nil && prop.config.IsSanitizer(utils.DecomposeFunction(callee)) {
-			prop.sanitizers = append(prop.sanitizers, &sanitizer.Sanitizer{Call: t})
-		}
-
-		// This is to avoid attaching calls where the source is the receiver, ex:
-		// core.Sinkf("Source id: %v", wrapper.Source.GetID())
-		if recv := t.Call.Signature().Recv(); recv != nil && source.IsSourceType(prop.config, prop.taggedFields, recv.Type()) {
-			return
-		}
-
-		prop.visitReferrers(n, maxInstrReached, lastBlockVisited)
-		for _, a := range t.Call.Args {
-			if canBeTaintedByCall(a.Type()) {
-				prop.dfs(a.(ssa.Node), maxInstrReached, lastBlockVisited, false)
-			}
-		}
+		prop.visitCall(t, maxInstrReached, lastBlockVisited)
 
 	case *ssa.Field:
 		prop.visitField(n, maxInstrReached, lastBlockVisited, t.X.Type(), t.Field)
@@ -258,6 +238,50 @@ func (prop *Propagation) visitOperands(n ssa.Node, maxInstrReached map[*ssa.Basi
 			continue
 		}
 		prop.dfs((*o).(ssa.Node), maxInstrReached, lastBlockVisited, false)
+	}
+}
+
+func (prop *Propagation) visitCall(call *ssa.Call, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+	// Some builtins require special handling
+	if builtin, ok := call.Call.Value.(*ssa.Builtin); ok {
+		switch builtin.Name() {
+		// Only the slice being appended to and the referrers can be tainted.
+		// (The elements being appended cannot be tainted.)
+		case "append":
+			prop.visitCallArg(call.Call.Args[0], maxInstrReached, lastBlockVisited)
+			prop.visitReferrers(call, maxInstrReached, lastBlockVisited)
+			return
+
+		// Only the first argument (dst) can be tainted. (The src cannot be tainted.)
+		case "copy":
+			prop.visitCallArg(call.Call.Args[0], maxInstrReached, lastBlockVisited)
+			return
+
+		// The builtin delete(m map[Type]Type1, key Type) func does not propagate a taint.
+		case "delete":
+			return
+		}
+	}
+
+	if callee := call.Call.StaticCallee(); callee != nil && prop.config.IsSanitizer(utils.DecomposeFunction(callee)) {
+		prop.sanitizers = append(prop.sanitizers, &sanitizer.Sanitizer{Call: call})
+	}
+
+	// This is to avoid attaching calls where the source is the receiver, ex:
+	// core.Sinkf("Source id: %v", wrapper.Source.GetID())
+	if recv := call.Call.Signature().Recv(); recv != nil && source.IsSourceType(prop.config, prop.taggedFields, recv.Type()) {
+		return
+	}
+
+	prop.visitReferrers(call, maxInstrReached, lastBlockVisited)
+	for _, a := range call.Call.Args {
+		prop.visitCallArg(a, maxInstrReached, lastBlockVisited)
+	}
+}
+
+func (prop *Propagation) visitCallArg(arg ssa.Value, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+	if canBeTaintedByCall(arg.Type()) {
+		prop.dfs(arg.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 	}
 }
 
