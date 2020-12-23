@@ -145,7 +145,7 @@ func isSourceNode(n ssa.Node, conf *config.Config, propagators fieldpropagator.R
 
 	// A type assertion can assert that an interface is of a source type.
 	// Only panicky type asserts will refer to the source Value.
-	// _, ok type assertions are checked as a source type in the ssa.Extract instruction.
+	// The typed value returned in (value, ok) type assertions are examined in the case for ssa.Extract instructions.
 	case *ssa.TypeAssert:
 		return !v.CommaOk && IsSourceType(conf, taggedFields, v.AssertedType)
 
