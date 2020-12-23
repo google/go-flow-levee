@@ -245,10 +245,13 @@ func (prop *Propagation) visitCall(call *ssa.Call, maxInstrReached map[*ssa.Basi
 	// Some builtins require special handling
 	if builtin, ok := call.Call.Value.(*ssa.Builtin); ok {
 		switch builtin.Name() {
-		// Only the slice being appended to and the referrers can be tainted.
-		// (The elements being appended cannot be tainted.)
+		// The values being appended cannot be tainted.
 		case "append":
+			// The slice argument needs to be tainted because if its underlying array has
+			// enough remaining capacity, the appended values will be written to it.
 			prop.visitCallArg(call.Call.Args[0], maxInstrReached, lastBlockVisited)
+			// The returned slice is tainted if either the slice argument or the values
+			// are tainted, so we need to visit the referrers.
 			prop.visitReferrers(call, maxInstrReached, lastBlockVisited)
 			return
 
