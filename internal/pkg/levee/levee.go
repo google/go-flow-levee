@@ -36,9 +36,9 @@ var Analyzer = &analysis.Analyzer{
 	Requires: []*analysis.Analyzer{source.Analyzer, fieldtags.Analyzer},
 }
 
-type reportItems struct {
+type reportItem struct {
 	source *source.Source
-	sink   *ssa.Call
+	sink   ssa.Instruction
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -49,7 +49,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	funcSources := pass.ResultOf[source.Analyzer].(source.ResultType)
 	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 
-	var items []reportItems
+	var items []reportItem
 	for fn, sources := range funcSources {
 		propagations := make(map[*source.Source]propagation.Propagation, len(sources))
 		for _, s := range sources {
@@ -62,8 +62,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 				case *ssa.Call:
 					if callee := v.Call.StaticCallee(); callee != nil && conf.IsSink(utils.DecomposeFunction(callee)) {
-						// build items
-						reportSourcesReachingSink(pass, propagations, instr)
+						items = append(items, itemsToReportAtThisInstruction(propagations, instr)...)
 					}
 
 				case *ssa.Panic:
@@ -71,23 +70,27 @@ func run(pass *analysis.Pass) (interface{}, error) {
 						continue
 					}
 					// build items
-					reportSourcesReachingSink(pass, propagations, instr)
+					items = append(items, itemsToReportAtThisInstruction(propagations, instr)...)
 				}
 			}
 		}
 	}
 
-	reportAllItems(pass, conf, items)
+	reportAllItems(pass, items)
 	return nil, nil
 }
 
-func reportSourcesReachingSink(pass *analysis.Pass, propagations map[*source.Source]propagation.Propagation, sink ssa.Instruction) {
-	for source, prop := range propagations {
+func itemsToReportAtThisInstruction(propagations map[*source.Source]propagation.Propagation, sink ssa.Instruction) []reportItem {
+	var items []reportItem
+	for src, prop := range propagations {
 		if prop.IsTainted(sink) {
-			report(pass, source, sink.(ssa.Node))
-			break
+			items = append(items, reportItem{
+				source: src,
+				sink:   sink,
+			})
 		}
 	}
+	return items
 }
 
 type ErrMessageFact string
@@ -98,14 +101,9 @@ func (emf ErrMessageFact) String() string {
 	return string(emf)
 }
 
-func reportAllItems(pass *analysis.Pass, conf *config.Config, items []reportItems) {
-	if len(items) > 0 && conf.ReportMessage != "" {
-		fact := ErrMessageFact(conf.ReportMessage)
-		pass.ExportPackageFact(&fact)
-	}
-
+func reportAllItems(pass *analysis.Pass, items []reportItem) {
 	for _, item := range items {
-		report(pass, item.source, item.sink)
+		report(pass, item.source, item.sink.(ssa.Node))
 	}
 }
 
