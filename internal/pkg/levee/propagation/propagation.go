@@ -277,7 +277,7 @@ func (prop *Propagation) visitBuiltin(c *ssa.Call, builtinName string, maxInstrR
 	// Only the first argument (dst) can be tainted. (The src cannot be tainted.)
 	case "copy":
 		prop.visitCallArg(c.Call.Args[0], maxInstrReached, lastBlockVisited)
-	// The builtin delete(m map[Type]Type1, key Type) func does not propagate a taint.
+	// The builtin delete(m map[Type]Type1, key Type) func does not propagate taint.
 	case "delete":
 	}
 }
