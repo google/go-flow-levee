@@ -244,26 +244,8 @@ func (prop *Propagation) visitOperands(n ssa.Node, maxInstrReached map[*ssa.Basi
 func (prop *Propagation) visitCall(call *ssa.Call, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	// Some builtins require special handling
 	if builtin, ok := call.Call.Value.(*ssa.Builtin); ok {
-		switch builtin.Name() {
-		// The values being appended cannot be tainted.
-		case "append":
-			// The slice argument needs to be tainted because if its underlying array has
-			// enough remaining capacity, the appended values will be written to it.
-			prop.visitCallArg(call.Call.Args[0], maxInstrReached, lastBlockVisited)
-			// The returned slice is tainted if either the slice argument or the values
-			// are tainted, so we need to visit the referrers.
-			prop.visitReferrers(call, maxInstrReached, lastBlockVisited)
-			return
-
-		// Only the first argument (dst) can be tainted. (The src cannot be tainted.)
-		case "copy":
-			prop.visitCallArg(call.Call.Args[0], maxInstrReached, lastBlockVisited)
-			return
-
-		// The builtin delete(m map[Type]Type1, key Type) func does not propagate a taint.
-		case "delete":
-			return
-		}
+		prop.visitBuiltin(call, builtin.Name(), maxInstrReached, lastBlockVisited)
+		return
 	}
 
 	if callee := call.Call.StaticCallee(); callee != nil && prop.config.IsSanitizer(utils.DecomposeFunction(callee)) {
@@ -279,6 +261,24 @@ func (prop *Propagation) visitCall(call *ssa.Call, maxInstrReached map[*ssa.Basi
 	prop.visitReferrers(call, maxInstrReached, lastBlockVisited)
 	for _, a := range call.Call.Args {
 		prop.visitCallArg(a, maxInstrReached, lastBlockVisited)
+	}
+}
+
+func (prop *Propagation) visitBuiltin(c *ssa.Call, builtinName string, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+	switch builtinName {
+	// The values being appended cannot be tainted.
+	case "append":
+		// The slice argument needs to be tainted because if its underlying array has
+		// enough remaining capacity, the appended values will be written to it.
+		prop.visitCallArg(c.Call.Args[0], maxInstrReached, lastBlockVisited)
+		// The returned slice is tainted if either the slice argument or the values
+		// are tainted, so we need to visit the referrers.
+		prop.visitReferrers(c, maxInstrReached, lastBlockVisited)
+	// Only the first argument (dst) can be tainted. (The src cannot be tainted.)
+	case "copy":
+		prop.visitCallArg(c.Call.Args[0], maxInstrReached, lastBlockVisited)
+	// The builtin delete(m map[Type]Type1, key Type) func does not propagate a taint.
+	case "delete":
 	}
 }
 
