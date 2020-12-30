@@ -94,8 +94,8 @@ func methods(ssaProg *ssa.Program, t types.Type) []*ssa.Function {
 }
 
 func methodValues(ssaProg *ssa.Program, t types.Type) []*ssa.Function {
-	mset := ssaProg.MethodSets.MethodSet(t)
 	var methodValues []*ssa.Function
+	mset := ssaProg.MethodSets.MethodSet(t)
 	for i := 0; i < mset.Len(); i++ {
 		if meth := ssaProg.MethodValue(mset.At(i)); meth != nil {
 			methodValues = append(methodValues, meth)
