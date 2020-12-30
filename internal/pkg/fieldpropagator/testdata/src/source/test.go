@@ -45,6 +45,10 @@ func (s Source) DataDeref() string { // want DataDeref:"field propagator identif
 	return *s.dataPtr
 }
 
+func (s Source) ShowData() string { // want ShowData:"field propagator identified"
+	return "Data: " + s.data
+}
+
 var isAdmin bool
 
 func (s Source) MaybeData() string { // want MaybeData:"field propagator identified"

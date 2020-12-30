@@ -23,9 +23,11 @@ import (
 
 func TestFieldAccessors(s core.Source, ptr *core.Source) {
 	core.Sinkf("Data: %v", s.GetData()) // want "a source has reached a sink"
+	core.Sinkf(s.ShowData())            // want "a source has reached a sink"
 	core.Sinkf("ID: %v", s.GetID())
 
 	core.Sinkf("Data: %v", ptr.GetData()) // want "a source has reached a sink"
+	core.Sinkf(ptr.ShowData())            // want "a source has reached a sink"
 	core.Sinkf("ID: %v", ptr.GetID())
 }
 
