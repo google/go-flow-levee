@@ -72,11 +72,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if !ok || !conf.IsSourceType(utils.DecomposeType(ssaType.Type())) {
 			continue
 		}
-		methods := ssaProg.MethodSets.MethodSet(ssaType.Type())
-		for i := 0; i < methods.Len(); i++ {
-			if meth := ssaProg.MethodValue(methods.At(i)); meth != nil {
-				analyzeBlocks(pass, conf, taggedFields, meth)
-			}
+		for _, meth := range methods(ssaProg, ssaType.Type()) {
+			analyzeBlocks(pass, conf, taggedFields, meth)
 		}
 	}
 
@@ -85,6 +82,26 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		isFieldPropagator[f.Object] = true
 	}
 	return ResultType(isFieldPropagator), nil
+}
+
+func methods(ssaProg *ssa.Program, t types.Type) []*ssa.Function {
+	var methods []*ssa.Function
+	// The method sets of T and *T are disjoint.
+	// In Go code, a variable of type T has access to all
+	// the methods of type *T due to an implicit address operation.
+	methods = append(methods, methodValues(ssaProg, t)...)
+	return append(methods, methodValues(ssaProg, types.NewPointer(t))...)
+}
+
+func methodValues(ssaProg *ssa.Program, t types.Type) []*ssa.Function {
+	var methodValues []*ssa.Function
+	mset := ssaProg.MethodSets.MethodSet(t)
+	for i := 0; i < mset.Len(); i++ {
+		if meth := ssaProg.MethodValue(mset.At(i)); meth != nil {
+			methodValues = append(methodValues, meth)
+		}
+	}
+	return methodValues
 }
 
 func analyzeBlocks(pass *analysis.Pass, conf *config.Config, tf fieldtags.ResultType, meth *ssa.Function) {
