@@ -20,7 +20,7 @@ import (
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
-	"github.com/google/go-flow-levee/internal/pkg/levee/propagation"
+	"github.com/google/go-flow-levee/internal/pkg/propagation"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ssa"
