@@ -22,6 +22,7 @@ import (
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
+	"github.com/google/go-flow-levee/internal/pkg/propagation"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
@@ -49,7 +50,7 @@ var Analyzer = &analysis.Analyzer{
 	Name: "fieldpropagator",
 	Doc: `This analyzer identifies field propagators.
 
-A field propagator is a function that returns a source field.`,
+A field propagator is a function that returns a value that is tainted by a source field.`,
 	Flags:      config.FlagSet,
 	Run:        run,
 	Requires:   []*analysis.Analyzer{buildssa.Analyzer, fieldtags.Analyzer},
@@ -105,43 +106,41 @@ func methodValues(ssaProg *ssa.Program, t types.Type) []*ssa.Function {
 }
 
 func analyzeBlocks(pass *analysis.Pass, conf *config.Config, tf fieldtags.ResultType, meth *ssa.Function) {
-	// Function does not return anything
-	if res := meth.Signature.Results(); res == nil || (*res).Len() == 0 {
-		return
-	}
+	var propagations []propagation.Propagation
+
 	for _, b := range meth.Blocks {
-		if len(b.Instrs) == 0 {
-			continue
-		}
-		lastInstr := b.Instrs[len(b.Instrs)-1]
-		ret, ok := lastInstr.(*ssa.Return)
-		if !ok {
-			continue
-		}
-		analyzeResults(pass, conf, tf, meth, ret.Results)
-	}
-}
-
-func analyzeResults(pass *analysis.Pass, conf *config.Config, tf fieldtags.ResultType, meth *ssa.Function, results []ssa.Value) {
-	for _, r := range results {
-		fa, ok := fieldAddr(r)
-		if !ok {
-			continue
-		}
-
-		xt, field := fa.X.Type(), fa.Field
-		if conf.IsSourceField(utils.DecomposeField(xt, field)) || tf.IsSourceField(xt, field) {
-			pass.ExportObjectFact(meth.Object(), &isFieldPropagator{})
+		for _, instr := range b.Instrs {
+			var (
+				txType types.Type
+				field  int
+			)
+			switch t := instr.(type) {
+			case *ssa.Field:
+				txType = t.X.Type()
+				field = t.Field
+			case *ssa.FieldAddr:
+				txType = t.X.Type()
+				field = t.Field
+			default:
+				continue
+			}
+			if conf.IsSourceField(utils.DecomposeField(txType, field)) || tf.IsSourceField(txType, field) {
+				propagations = append(propagations, propagation.Dfs(instr.(ssa.Node), conf, tf))
+			}
 		}
 	}
-}
 
-func fieldAddr(x ssa.Value) (*ssa.FieldAddr, bool) {
-	switch t := x.(type) {
-	case *ssa.FieldAddr:
-		return t, true
-	case *ssa.UnOp:
-		return fieldAddr(t.X)
+	for _, b := range meth.Blocks {
+		for _, instr := range b.Instrs {
+			ret, ok := instr.(*ssa.Return)
+			if !ok {
+				continue
+			}
+			for _, prop := range propagations {
+				if prop.IsTainted(ret) {
+					pass.ExportObjectFact(meth.Object(), &isFieldPropagator{})
+				}
+			}
+		}
 	}
-	return nil, false
 }
