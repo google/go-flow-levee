@@ -24,7 +24,7 @@ import (
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
-	"github.com/google/go-flow-levee/internal/pkg/source"
+	"github.com/google/go-flow-levee/internal/pkg/sourcetype"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/pointer"
 	"golang.org/x/tools/go/ssa"
@@ -156,7 +156,7 @@ func (prop *Propagation) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 
 		// This is to avoid attaching calls where the source is the receiver, ex:
 		// core.Sinkf("Source id: %v", wrapper.Source.GetID())
-		if recv := t.Call.Signature().Recv(); recv != nil && source.IsSourceType(prop.config, prop.taggedFields, recv.Type()) {
+		if recv := t.Call.Signature().Recv(); recv != nil && sourcetype.IsSourceType(prop.config, prop.taggedFields, recv.Type()) {
 			return
 		}
 
