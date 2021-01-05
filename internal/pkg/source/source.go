@@ -103,12 +103,9 @@ func sourcesFromParams(fn *ssa.Function, conf *config.Config, taggedFields field
 // from the original value.
 func sourcesFromClosures(fn *ssa.Function, conf *config.Config, taggedFields fieldtags.ResultType) []*Source {
 	var sources []*Source
-	for _, p := range fn.FreeVars {
-		switch t := p.Type().(type) {
-		case *types.Pointer:
-			if sourcetype.IsSourceType(conf, taggedFields, t) {
-				sources = append(sources, New(p))
-			}
+	for _, fv := range fn.FreeVars {
+		if ptr, ok := fv.Type().(*types.Pointer); ok && sourcetype.IsSourceType(conf, taggedFields, ptr) {
+			sources = append(sources, New(fv))
 		}
 	}
 	return sources
