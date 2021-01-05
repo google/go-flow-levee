@@ -28,6 +28,10 @@ func (s Source) GetData() string {
 	return s.Data
 }
 
+func (s Source) ShowData() string {
+	return "Data: " + s.Data
+}
+
 func (s Source) Copy() (Source, error) {
 	return s, nil
 }
