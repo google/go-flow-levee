@@ -29,7 +29,11 @@ func (s Source) Secret() string { // want Secret:"field propagator identified"
 	return s.secret
 }
 
-func (s Source) Data() string { // want Data:"field propagator identified"
+func (s Source) DataValueReceiver() string { // want DataValueReceiver:"field propagator identified"
+	return s.data
+}
+
+func (s *Source) DataPointerReceiver() string { // want DataPointerReceiver:"field propagator identified"
 	return s.data
 }
 
@@ -43,6 +47,10 @@ func (s Source) DataPtr() *string { // want DataPtr:"field propagator identified
 
 func (s Source) DataDeref() string { // want DataDeref:"field propagator identified"
 	return *s.dataPtr
+}
+
+func (s Source) ShowData() string { // want ShowData:"field propagator identified"
+	return "Data: " + s.data
 }
 
 var isAdmin bool
