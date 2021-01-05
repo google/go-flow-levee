@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package propagation implements the core taint propagation analysis that
-// can be used to determine what ssa Nodes can be reached from a given Node.
+// can be used to determine what ssa Nodes are tainted if a given Node is a source.
 package propagation
 
 import (
@@ -41,10 +41,10 @@ type Propagation struct {
 	taggedFields fieldtags.ResultType
 }
 
-// Dfs performs a depth-first search of the graph formed by SSA Referrers and
+// DFS performs a depth-first search of the graph formed by SSA Referrers and
 // Operands relationships, beginning at the given root node.
-func Dfs(n ssa.Node, conf *config.Config, taggedFields fieldtags.ResultType) Propagation {
-	record := Propagation{
+func DFS(n ssa.Node, conf *config.Config, taggedFields fieldtags.ResultType) Propagation {
+	prop := Propagation{
 		root:         n,
 		marked:       make(map[ssa.Node]bool),
 		config:       conf,
@@ -52,10 +52,11 @@ func Dfs(n ssa.Node, conf *config.Config, taggedFields fieldtags.ResultType) Pro
 	}
 	maxInstrReached := map[*ssa.BasicBlock]int{}
 
-	record.dfs(n, maxInstrReached, nil, false)
-	record.visitReferrers(n, maxInstrReached, nil)
+	prop.dfs(n, maxInstrReached, nil, false)
+	// ensure immediate referrers are visited
+	prop.visitReferrers(n, maxInstrReached, nil)
 
-	return record
+	return prop
 }
 
 // dfs performs a depth-first search of the graph formed by SSA Referrers and
@@ -139,7 +140,7 @@ func (prop *Propagation) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 		//    finds this Alloc
 		// b) it is not a Source value, in which case we should not visit it.
 		// However, if the Alloc is an array, then that means the source that we are visiting from
-		// is being placed into an array, slice or varags, so we do need to keep visiting.
+		// is being placed into an array, slice or varargs, so we do need to keep visiting.
 		if _, isArray := utils.Dereference(t.Type()).(*types.Array); isArray {
 			prop.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		}
