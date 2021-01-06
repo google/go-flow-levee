@@ -63,6 +63,20 @@ To explicitly match an empty string, such as top-level functions without a recei
 
 Taint propagation is performed automatically and does not need to be explicitly configured.
 
+### Allowing panics on tainted values
+
+By default, the `panic` builtin is considered a sink.
+Indeed, if a tainted value reaches a call to `panic`,
+it is likely that this tainted value will escape the program's memory.
+The analyzer makes no attempt to determine whether a `panic` can actually can occur,
+nor does it try to determine whether each call to `panic` will be caught by a call to `recover`.
+
+If you do not wish `panic` to be considered a sink, add the following line to your configuration:
+
+```yaml
+AllowPanicOnTaintedValues: true
+```
+
 ### Restricting analysis scope
 
 Functions can be explicitly excluded from analysis using string literals or regexps,
