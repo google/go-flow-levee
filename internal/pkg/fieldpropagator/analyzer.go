@@ -125,7 +125,7 @@ func analyzeBlocks(pass *analysis.Pass, conf *config.Config, tf fieldtags.Result
 				continue
 			}
 			if conf.IsSourceField(utils.DecomposeField(txType, field)) || tf.IsSourceField(txType, field) {
-				propagations = append(propagations, propagation.DFS(instr.(ssa.Node), conf, tf))
+				propagations = append(propagations, propagation.Taint(instr.(ssa.Node), conf, tf))
 			}
 		}
 	}
