@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package fieldpropagator implements identification of field propagators.
-// A field propagator is a function that returns a source field.
+// A field propagator is a function that returns a value tainted by a source field.
 package fieldpropagator
 
 import (
@@ -22,13 +22,14 @@ import (
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
+	"github.com/google/go-flow-levee/internal/pkg/propagation"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
 )
 
-// ResultType is a map telling whether an object (really a function) is a field propagator.
+// ResultType is a set of objects that are field propagators.
 type ResultType map[types.Object]bool
 
 // IsFieldPropagator determines whether a call is a field propagator.
@@ -49,7 +50,7 @@ var Analyzer = &analysis.Analyzer{
 	Name: "fieldpropagator",
 	Doc: `This analyzer identifies field propagators.
 
-A field propagator is a function that returns a source field.`,
+A field propagator is a function that returns a value that is tainted by a source field.`,
 	Flags:      config.FlagSet,
 	Run:        run,
 	Requires:   []*analysis.Analyzer{buildssa.Analyzer, fieldtags.Analyzer},
@@ -72,11 +73,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if !ok || !conf.IsSourceType(utils.DecomposeType(ssaType.Type())) {
 			continue
 		}
-		methods := ssaProg.MethodSets.MethodSet(ssaType.Type())
-		for i := 0; i < methods.Len(); i++ {
-			if meth := ssaProg.MethodValue(methods.At(i)); meth != nil {
-				analyzeBlocks(pass, conf, taggedFields, meth)
-			}
+		for _, meth := range methods(ssaProg, ssaType.Type()) {
+			analyzeBlocks(pass, conf, taggedFields, meth)
 		}
 	}
 
@@ -87,44 +85,62 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return ResultType(isFieldPropagator), nil
 }
 
+func methods(ssaProg *ssa.Program, t types.Type) []*ssa.Function {
+	var methods []*ssa.Function
+	// The method sets of T and *T are disjoint.
+	// In Go code, a variable of type T has access to all
+	// the methods of type *T due to an implicit address operation.
+	methods = append(methods, methodValues(ssaProg, t)...)
+	return append(methods, methodValues(ssaProg, types.NewPointer(t))...)
+}
+
+func methodValues(ssaProg *ssa.Program, t types.Type) []*ssa.Function {
+	var methodValues []*ssa.Function
+	mset := ssaProg.MethodSets.MethodSet(t)
+	for i := 0; i < mset.Len(); i++ {
+		if meth := ssaProg.MethodValue(mset.At(i)); meth != nil {
+			methodValues = append(methodValues, meth)
+		}
+	}
+	return methodValues
+}
+
 func analyzeBlocks(pass *analysis.Pass, conf *config.Config, tf fieldtags.ResultType, meth *ssa.Function) {
-	// Function does not return anything
-	if res := meth.Signature.Results(); res == nil || (*res).Len() == 0 {
-		return
-	}
+	var propagations []propagation.Propagation
+
 	for _, b := range meth.Blocks {
-		if len(b.Instrs) == 0 {
-			continue
-		}
-		lastInstr := b.Instrs[len(b.Instrs)-1]
-		ret, ok := lastInstr.(*ssa.Return)
-		if !ok {
-			continue
-		}
-		analyzeResults(pass, conf, tf, meth, ret.Results)
-	}
-}
-
-func analyzeResults(pass *analysis.Pass, conf *config.Config, tf fieldtags.ResultType, meth *ssa.Function, results []ssa.Value) {
-	for _, r := range results {
-		fa, ok := fieldAddr(r)
-		if !ok {
-			continue
-		}
-
-		xt, field := fa.X.Type(), fa.Field
-		if conf.IsSourceField(utils.DecomposeField(xt, field)) || tf.IsSourceField(xt, field) {
-			pass.ExportObjectFact(meth.Object(), &isFieldPropagator{})
+		for _, instr := range b.Instrs {
+			var (
+				txType types.Type
+				field  int
+			)
+			switch t := instr.(type) {
+			case *ssa.Field:
+				txType = t.X.Type()
+				field = t.Field
+			case *ssa.FieldAddr:
+				txType = t.X.Type()
+				field = t.Field
+			default:
+				continue
+			}
+			if conf.IsSourceField(utils.DecomposeField(txType, field)) || tf.IsSourceField(txType, field) {
+				propagations = append(propagations, propagation.DFS(instr.(ssa.Node), conf, tf))
+			}
 		}
 	}
-}
 
-func fieldAddr(x ssa.Value) (*ssa.FieldAddr, bool) {
-	switch t := x.(type) {
-	case *ssa.FieldAddr:
-		return t, true
-	case *ssa.UnOp:
-		return fieldAddr(t.X)
+	for _, b := range meth.Blocks {
+		for _, instr := range b.Instrs {
+			ret, ok := instr.(*ssa.Return)
+			if !ok {
+				continue
+			}
+			for _, prop := range propagations {
+				if prop.IsTainted(ret) {
+					pass.ExportObjectFact(meth.Object(), &isFieldPropagator{})
+				}
+			}
+		}
 	}
-	return nil, false
 }

@@ -31,11 +31,8 @@ import (
 
 var (
 	// FlagSet should be used by analyzers to reuse -config flag.
-	FlagSet                    flag.FlagSet
-	configFile                 string
-	validFuncMatcherFields     []string = []string{"package", "packagere", "receiver", "receiverre", "method", "methodre"}
-	validSourceMatcherFields   []string = []string{"package", "packagere", "type", "typere", "field", "fieldre"}
-	validFieldTagMatcherFields []string = []string{"key", "val", "value"}
+	FlagSet    flag.FlagSet
+	configFile string
 )
 
 func init() {
@@ -78,8 +75,8 @@ func (c Config) IsSourceFieldTag(tag string) bool {
 
 // IsExcluded determines if a function matches one of the exclusion patterns.
 func (c Config) IsExcluded(path, recv, name string) bool {
-	for _, pm := range c.Exclude {
-		if pm.MatchFunction(path, recv, name) {
+	for _, exc := range c.Exclude {
+		if exc.MatchFunction(path, recv, name) {
 			return true
 		}
 	}
@@ -88,8 +85,8 @@ func (c Config) IsExcluded(path, recv, name string) bool {
 
 // IsSink determines whether a function is a sink.
 func (c Config) IsSink(path, recv, name string) bool {
-	for _, p := range c.Sinks {
-		if p.MatchFunction(path, recv, name) {
+	for _, sink := range c.Sinks {
+		if sink.MatchFunction(path, recv, name) {
 			return true
 		}
 	}
@@ -98,28 +95,28 @@ func (c Config) IsSink(path, recv, name string) bool {
 
 // IsSanitizer determines whether a function is a sanitizer.
 func (c Config) IsSanitizer(path, recv, name string) bool {
-	for _, p := range c.Sanitizers {
-		if p.MatchFunction(path, recv, name) {
+	for _, san := range c.Sanitizers {
+		if san.MatchFunction(path, recv, name) {
 			return true
 		}
 	}
 	return false
 }
 
-// IsSourceType determines whether a type is a source to analyze.
+// IsSourceType determines whether a type is a source.
 func (c Config) IsSourceType(path, name string) bool {
-	for _, p := range c.Sources {
-		if p.MatchType(path, name) {
+	for _, source := range c.Sources {
+		if source.MatchType(path, name) {
 			return true
 		}
 	}
 	return false
 }
 
-// IsSourceField determines whether a field contains secret.
+// IsSourceField determines whether a field is a source.
 func (c Config) IsSourceField(path, typeName, fieldName string) bool {
-	for _, p := range c.Sources {
-		if p.MatchField(path, typeName, fieldName) {
+	for _, source := range c.Sources {
+		if source.MatchField(path, typeName, fieldName) {
 			return true
 		}
 	}
@@ -147,12 +144,14 @@ type fieldTagMatcher struct {
 	Val string
 }
 
+// this type uses the default unmarshaller and mirrors configuration key-value pairs
 type rawFieldTagMatcher struct {
 	Key string
 	Val string
 }
 
 func (ft *fieldTagMatcher) UnmarshalJSON(bytes []byte) error {
+	validFieldTagMatcherFields := []string{"key", "val", "value"}
 	if err := validateFieldNames(&bytes, "fieldTagMatcher", validFieldTagMatcherFields); err != nil {
 		return err
 	}
@@ -188,7 +187,7 @@ type sourceMatcher struct {
 	Field   stringMatcher
 }
 
-// this type uses the default unmarshaler and mirrors configuration key-value pairs
+// this type uses the default unmarshaller and mirrors configuration key-value pairs
 type rawSourceMatcher struct {
 	Package   *literalMatcher
 	Type      *literalMatcher
@@ -199,6 +198,7 @@ type rawSourceMatcher struct {
 }
 
 func (s *sourceMatcher) UnmarshalJSON(bytes []byte) error {
+	validSourceMatcherFields := []string{"package", "packageRE", "type", "typeRE", "field", "fieldRE"}
 	if err := validateFieldNames(&bytes, "sourceMatcher", validSourceMatcherFields); err != nil {
 		return err
 	}
@@ -232,7 +232,7 @@ func (s sourceMatcher) MatchType(path, typeName string) bool {
 }
 
 func (s sourceMatcher) MatchField(path, typeName, fieldName string) bool {
-	return s.Package.MatchString(path) && s.Type.MatchString(typeName) && s.Field.MatchString(fieldName)
+	return s.MatchType(path, typeName) && s.Field.MatchString(fieldName)
 }
 
 type funcMatcher struct {
@@ -241,7 +241,7 @@ type funcMatcher struct {
 	Method   stringMatcher
 }
 
-// this type uses the default unmarshaler and mirrors configuration key-value pairs
+// this type uses the default unmarshaller and mirrors configuration key-value pairs
 type rawFuncMatcher struct {
 	Package    *literalMatcher
 	Receiver   *literalMatcher
@@ -252,6 +252,7 @@ type rawFuncMatcher struct {
 }
 
 func (fm *funcMatcher) UnmarshalJSON(bytes []byte) error {
+	validFuncMatcherFields := []string{"package", "packageRE", "receiver", "receiverRE", "method", "methodRE"}
 	if err := validateFieldNames(&bytes, "funcMatcher", validFuncMatcherFields); err != nil {
 		return err
 	}
