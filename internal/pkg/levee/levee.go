@@ -82,8 +82,10 @@ func reportSourcesReachingSink(conf *config.Config, pass *analysis.Pass, propaga
 
 func report(conf *config.Config, pass *analysis.Pass, source *source.Source, sink ssa.Node) {
 	var b strings.Builder
-	b.WriteString(strings.Trim(conf.ReportMessage, "\n") + "\n")
-	fmt.Fprintf(&b, "source: %v\n", pass.Fset.Position(source.Pos()))
-	fmt.Fprintf(&b, "sink: %v", pass.Fset.Position(sink.Pos()))
+	b.WriteString("a source has reached a sink")
+	fmt.Fprintf(&b, "\n source: %v", pass.Fset.Position(source.Pos()))
+	if conf.ReportMessage != "" {
+		fmt.Fprintf(&b, "\n %v", conf.ReportMessage)
+	}
 	pass.Reportf(sink.Pos(), b.String())
 }
