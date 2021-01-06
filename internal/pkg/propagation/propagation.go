@@ -259,13 +259,13 @@ func (prop *Propagation) visitCall(call *ssa.Call, maxInstrReached map[*ssa.Basi
 	if recv := call.Call.Signature().Recv(); recv != nil && sourcetype.IsSourceType(prop.config, prop.taggedFields, recv.Type()) {
 		visitingFromArg := false
 		for _, a := range call.Call.Args[1:] {
-			if prop.marked[a.(ssa.Node)] {
+			if prop.tainted[a.(ssa.Node)] {
 				visitingFromArg = true
 			}
 		}
 		if !visitingFromArg {
 			// unmark the node so that it may be visited again when taint propagates to an argument
-			prop.marked[call] = false
+			prop.tainted[call] = false
 			return
 		}
 	}
