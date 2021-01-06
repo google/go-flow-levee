@@ -47,7 +47,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	for fn, sources := range funcSources {
 		propagations := make(map[*source.Source]propagation.Propagation, len(sources))
 		for _, s := range sources {
-			propagations[s] = propagation.DFS(s.Node, conf, taggedFields)
+			propagations[s] = propagation.Taint(s.Node, conf, taggedFields)
 		}
 
 		for _, b := range fn.Blocks {
