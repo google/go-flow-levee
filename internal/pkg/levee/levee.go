@@ -82,7 +82,8 @@ func reportSourcesReachingSink(conf *config.Config, pass *analysis.Pass, propaga
 
 func report(conf *config.Config, pass *analysis.Pass, source *source.Source, sink ssa.Node) {
 	var b strings.Builder
-	b.WriteString(strings.Trim(conf.ReportMessage, "\n"))
-	fmt.Fprintf(&b, ", source: %v", pass.Fset.Position(source.Pos()))
+	b.WriteString(strings.Trim(conf.ReportMessage, "\n") + "\n")
+	fmt.Fprintf(&b, "source: %v\n", pass.Fset.Position(source.Pos()))
+	fmt.Fprintf(&b, "sink: %v", pass.Fset.Position(sink.Pos()))
 	pass.Reportf(sink.Pos(), b.String())
 }
