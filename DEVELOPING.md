@@ -4,15 +4,15 @@
 
 When creating a pull request, you must verify that your changes are safe by running them on a large codebase such as [https://github.com/kubernetes/kubernetes](https://github.com/kubernetes/kubernetes). This is not intended as a replacement for proper automated testing. Running without error on a large codebase provides an additional level of confidence, since a large codebase is likely to contain edge cases that you may not have considered. Indeed, such edge cases have caused failures in the past ([#74](https://github.com/google/go-flow-levee/pull/74), [#143](https://github.com/google/go-flow-levee/pull/143)).
 
-In addition we recommend running master and feature branch versions of levee against k8s and diffing the results to see if your changes have led to some new findings. To make this easier we have created a script that will run both master and your feature branch version of levee against k8s and print the diff.
-
-Note: The script makes the following assumptions
-1. The kubernetes repository on your machine is at `$(GOPATH)/src/k8s.io/kuberenetes`.
-2. You are running the script from within your go-flow-levee directory and have your feature branch checked out.
+In addition we recommend running master and feature branch versions of levee against k8s and diffing the results to see if your changes have led to some new findings. To make this easier we have created a script that will run both master and your feature branch version of levee against k8s and print the diff:
 
 ```bash
 ./hack/verify-kubernetes.sh
 ```
+
+Note: The script makes the following assumptions
+1. The kubernetes repository on your machine is at `$(GOPATH)/src/k8s.io/kubernetes`.
+2. You are running the script from the root of the go-flow-levee repository and have your feature branch checked out.
 
 ## Recommended Reading
 

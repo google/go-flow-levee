@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package fieldpropagator implements identification of field propagators.
-// A field propagator is a function that returns a source field.
+// A field propagator is a function that returns a value tainted by a source field.
 package fieldpropagator
 
 import (
@@ -29,7 +29,7 @@ import (
 	"golang.org/x/tools/go/ssa"
 )
 
-// ResultType is a map telling whether an object (really a function) is a field propagator.
+// ResultType is a set of objects that are field propagators.
 type ResultType map[types.Object]bool
 
 // IsFieldPropagator determines whether a call is a field propagator.
@@ -125,7 +125,7 @@ func analyzeBlocks(pass *analysis.Pass, conf *config.Config, tf fieldtags.Result
 				continue
 			}
 			if conf.IsSourceField(utils.DecomposeField(txType, field)) || tf.IsSourceField(txType, field) {
-				propagations = append(propagations, propagation.Dfs(instr.(ssa.Node), conf, tf))
+				propagations = append(propagations, propagation.DFS(instr.(ssa.Node), conf, tf))
 			}
 		}
 	}

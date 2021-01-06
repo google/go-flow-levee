@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package propagation implements the core taint propagation analysis that
-// can be used to determine what ssa Nodes can be reached from a given Node.
+// can be used to determine what ssa Nodes are tainted if a given Node is a source.
 package propagation
 
 import (
@@ -41,10 +41,10 @@ type Propagation struct {
 	taggedFields fieldtags.ResultType
 }
 
-// Dfs performs a depth-first search of the graph formed by SSA Referrers and
+// DFS performs a depth-first search of the graph formed by SSA Referrers and
 // Operands relationships, beginning at the given root node.
-func Dfs(n ssa.Node, conf *config.Config, taggedFields fieldtags.ResultType) Propagation {
-	record := Propagation{
+func DFS(n ssa.Node, conf *config.Config, taggedFields fieldtags.ResultType) Propagation {
+	prop := Propagation{
 		root:         n,
 		marked:       make(map[ssa.Node]bool),
 		config:       conf,
@@ -52,10 +52,11 @@ func Dfs(n ssa.Node, conf *config.Config, taggedFields fieldtags.ResultType) Pro
 	}
 	maxInstrReached := map[*ssa.BasicBlock]int{}
 
-	record.dfs(n, maxInstrReached, nil, false)
-	record.visitReferrers(n, maxInstrReached, nil)
+	prop.dfs(n, maxInstrReached, nil, false)
+	// ensure immediate referrers are visited
+	prop.visitReferrers(n, maxInstrReached, nil)
 
-	return record
+	return prop
 }
 
 // dfs performs a depth-first search of the graph formed by SSA Referrers and
@@ -139,44 +140,13 @@ func (prop *Propagation) visit(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 		//    finds this Alloc
 		// b) it is not a Source value, in which case we should not visit it.
 		// However, if the Alloc is an array, then that means the source that we are visiting from
-		// is being placed into an array, slice or varags, so we do need to keep visiting.
+		// is being placed into an array, slice or varargs, so we do need to keep visiting.
 		if _, isArray := utils.Dereference(t.Type()).(*types.Array); isArray {
 			prop.visitReferrers(n, maxInstrReached, lastBlockVisited)
 		}
 
 	case *ssa.Call:
-		// The builtin delete(m map[Type]Type1, key Type) func does not propagate a taint.
-		if builtin, ok := t.Call.Value.(*ssa.Builtin); ok && builtin.Name() == "delete" {
-			return
-		}
-
-		if callee := t.Call.StaticCallee(); callee != nil && prop.config.IsSanitizer(utils.DecomposeFunction(callee)) {
-			prop.sanitizers = append(prop.sanitizers, &sanitizer.Sanitizer{Call: t})
-		}
-
-		// When the receiver of a method call is a Source, we want to stop traversing unless one of the other (non-receiver) arguments
-		// is tainted. Source methods that return tainted values irrespective of whether an argument is tainted are identified by the
-		// fieldpropagator analyzer and will get their own traversal.
-		if recv := t.Call.Signature().Recv(); recv != nil && sourcetype.IsSourceType(prop.config, prop.taggedFields, recv.Type()) {
-			visitingFromArg := false
-			for _, a := range t.Call.Args[1:] {
-				if prop.marked[a.(ssa.Node)] {
-					visitingFromArg = true
-				}
-			}
-			if !visitingFromArg {
-				// unmark the node so that it may be visited again when taint propagates to an argument
-				prop.marked[t] = false
-				return
-			}
-		}
-
-		prop.visitReferrers(n, maxInstrReached, lastBlockVisited)
-		for _, a := range t.Call.Args {
-			if canBeTaintedByCall(a.Type()) {
-				prop.dfs(a.(ssa.Node), maxInstrReached, lastBlockVisited, false)
-			}
-		}
+		prop.visitCall(t, maxInstrReached, lastBlockVisited)
 
 	case *ssa.Field:
 		prop.visitField(n, maxInstrReached, lastBlockVisited, t.X.Type(), t.Field)
@@ -269,6 +239,64 @@ func (prop *Propagation) visitOperands(n ssa.Node, maxInstrReached map[*ssa.Basi
 			continue
 		}
 		prop.dfs((*o).(ssa.Node), maxInstrReached, lastBlockVisited, false)
+	}
+}
+
+func (prop *Propagation) visitCall(call *ssa.Call, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+	// Some builtins require special handling
+	if builtin, ok := call.Call.Value.(*ssa.Builtin); ok {
+		prop.visitBuiltin(call, builtin.Name(), maxInstrReached, lastBlockVisited)
+		return
+	}
+
+	if callee := call.Call.StaticCallee(); callee != nil && prop.config.IsSanitizer(utils.DecomposeFunction(callee)) {
+		prop.sanitizers = append(prop.sanitizers, &sanitizer.Sanitizer{Call: call})
+	}
+
+	// Do not traverse through a method call if it is being reached via a Source receiver.
+	// Do traverse if the call is being reached through a tainted argument.
+	// Source methods that return tainted values regardless of their arguments should be identified by the fieldpropagator analyzer.
+	if recv := call.Call.Signature().Recv(); recv != nil && sourcetype.IsSourceType(prop.config, prop.taggedFields, recv.Type()) {
+		visitingFromArg := false
+		for _, a := range call.Call.Args[1:] {
+			if prop.marked[a.(ssa.Node)] {
+				visitingFromArg = true
+			}
+		}
+		if !visitingFromArg {
+			// unmark the node so that it may be visited again when taint propagates to an argument
+			prop.marked[call] = false
+			return
+		}
+	}
+
+	prop.visitReferrers(call, maxInstrReached, lastBlockVisited)
+	for _, a := range call.Call.Args {
+		prop.visitCallArg(a, maxInstrReached, lastBlockVisited)
+	}
+}
+
+func (prop *Propagation) visitBuiltin(c *ssa.Call, builtinName string, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+	switch builtinName {
+	// The values being appended cannot be tainted.
+	case "append":
+		// The slice argument needs to be tainted because if its underlying array has
+		// enough remaining capacity, the appended values will be written to it.
+		prop.visitCallArg(c.Call.Args[0], maxInstrReached, lastBlockVisited)
+		// The returned slice is tainted if either the slice argument or the values
+		// are tainted, so we need to visit the referrers.
+		prop.visitReferrers(c, maxInstrReached, lastBlockVisited)
+	// Only the first argument (dst) can be tainted. (The src cannot be tainted.)
+	case "copy":
+		prop.visitCallArg(c.Call.Args[0], maxInstrReached, lastBlockVisited)
+	// The builtin delete(m map[Type]Type1, key Type) func does not propagate taint.
+	case "delete":
+	}
+}
+
+func (prop *Propagation) visitCallArg(arg ssa.Value, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+	if canBeTaintedByCall(arg.Type()) {
+		prop.dfs(arg.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 	}
 }
 
