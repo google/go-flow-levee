@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ---
-MessageOnError: >
-  This is a generic message that will contextualize a user's reporting.
-  It will be copied wholesale and reported once per package where a finding is reported.
+ReportMessage: >
+  a source has reached a sink
 
 Sources:
 - PackageRE: "^example.com/core$"

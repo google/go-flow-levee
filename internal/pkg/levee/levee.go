@@ -21,11 +21,10 @@ import (
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"github.com/google/go-flow-levee/internal/pkg/propagation"
+	"github.com/google/go-flow-levee/internal/pkg/source"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ssa"
-
-	"github.com/google/go-flow-levee/internal/pkg/source"
 )
 
 var Analyzer = &analysis.Analyzer{
@@ -36,11 +35,6 @@ var Analyzer = &analysis.Analyzer{
 	Requires: []*analysis.Analyzer{source.Analyzer, fieldtags.Analyzer},
 }
 
-type reportItem struct {
-	source *source.Source
-	sink   ssa.Instruction
-}
-
 func run(pass *analysis.Pass) (interface{}, error) {
 	conf, err := config.ReadConfig()
 	if err != nil {
@@ -49,7 +43,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	funcSources := pass.ResultOf[source.Analyzer].(source.ResultType)
 	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 
-	var items []reportItem
 	for fn, sources := range funcSources {
 		propagations := make(map[*source.Source]propagation.Propagation, len(sources))
 		for _, s := range sources {
@@ -62,54 +55,34 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 				case *ssa.Call:
 					if callee := v.Call.StaticCallee(); callee != nil && conf.IsSink(utils.DecomposeFunction(callee)) {
-						items = append(items, itemsToReportAtThisInstruction(propagations, instr)...)
+						reportSourcesReachingSink(conf, pass, propagations, instr)
 					}
 
 				case *ssa.Panic:
 					if conf.AllowPanicOnTaintedValues {
 						continue
 					}
-					// build items
-					items = append(items, itemsToReportAtThisInstruction(propagations, instr)...)
+					reportSourcesReachingSink(conf, pass, propagations, instr)
 				}
 			}
 		}
 	}
 
-	reportAllItems(pass, items)
 	return nil, nil
 }
 
-func itemsToReportAtThisInstruction(propagations map[*source.Source]propagation.Propagation, sink ssa.Instruction) []reportItem {
-	var items []reportItem
+func reportSourcesReachingSink(conf *config.Config, pass *analysis.Pass, propagations map[*source.Source]propagation.Propagation, sink ssa.Instruction) {
 	for src, prop := range propagations {
 		if prop.IsTainted(sink) {
-			items = append(items, reportItem{
-				source: src,
-				sink:   sink,
-			})
+			report(conf, pass, src, sink.(ssa.Node))
+			break
 		}
 	}
-	return items
 }
 
-type ErrMessageFact string
-
-func (_ ErrMessageFact) AFact() {}
-
-func (emf ErrMessageFact) String() string {
-	return string(emf)
-}
-
-func reportAllItems(pass *analysis.Pass, items []reportItem) {
-	for _, item := range items {
-		report(pass, item.source, item.sink.(ssa.Node))
-	}
-}
-
-func report(pass *analysis.Pass, source *source.Source, sink ssa.Node) {
+func report(conf *config.Config, pass *analysis.Pass, source *source.Source, sink ssa.Node) {
 	var b strings.Builder
-	b.WriteString("a source has reached a sink")
+	b.WriteString(strings.Trim(conf.ReportMessage, "\n"))
 	fmt.Fprintf(&b, ", source: %v", pass.Fset.Position(source.Pos()))
 	pass.Reportf(sink.Pos(), b.String())
 }
