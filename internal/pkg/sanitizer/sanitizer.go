@@ -38,10 +38,6 @@ func (s Sanitizer) Dominates(target ssa.Instruction) bool {
 		return false
 	}
 
-	if s.Call.Block().Dominates(target.Block()) && s.Call.Block() != target.Block() {
-		return true
-	}
-
 	if s.Call.Block() == target.Block() {
 		sanitizationIdx := math.MaxInt64
 		targetIdx := 0
@@ -57,5 +53,5 @@ func (s Sanitizer) Dominates(target ssa.Instruction) bool {
 		return sanitizationIdx < targetIdx
 	}
 
-	return false
+	return s.Call.Block().Dominates(target.Block())
 }
