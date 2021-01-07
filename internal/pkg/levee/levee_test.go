@@ -24,17 +24,6 @@ import (
 
 var debugging *bool = flag.Bool("debug", false, "run the debug analyzer")
 
-func TestLevee(t *testing.T) {
-	dataDir := analysistest.TestData()
-	if err := Analyzer.Flags.Set("config", dataDir+"/test-config.yaml"); err != nil {
-		t.Error(err)
-	}
-	if *debugging {
-		Analyzer.Requires = append(Analyzer.Requires, debug.Analyzer)
-	}
-	analysistest.Run(t, dataDir, Analyzer, "./...")
-}
-
 func TestLeveeDoesNotCreateReportsForPanicIfPanicingOnTaintedValuesIsAllowed(t *testing.T) {
 	dataDir := analysistest.TestData()
 	if err := Analyzer.Flags.Set("config", dataDir+"/allowpanicontaintedvalues-config.yaml"); err != nil {
@@ -44,4 +33,15 @@ func TestLeveeDoesNotCreateReportsForPanicIfPanicingOnTaintedValuesIsAllowed(t *
 		Analyzer.Requires = append(Analyzer.Requires, debug.Analyzer)
 	}
 	analysistest.Run(t, dataDir, Analyzer, "./src/nopanic.com/...")
+}
+
+func TestLevee(t *testing.T) {
+	dataDir := analysistest.TestData()
+	if err := Analyzer.Flags.Set("config", dataDir+"/test-config.yaml"); err != nil {
+		t.Error(err)
+	}
+	if *debugging {
+		Analyzer.Requires = append(Analyzer.Requires, debug.Analyzer)
+	}
+	analysistest.Run(t, dataDir, Analyzer, "./...")
 }
