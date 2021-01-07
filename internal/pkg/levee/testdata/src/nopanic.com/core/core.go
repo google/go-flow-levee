@@ -19,6 +19,13 @@ type Source struct {
 	ID   int
 }
 
+func Sink(...interface{}) {}
+
+func TestTaintedValuesAreNotAllowedToReachSinks() {
+	s := Source{Data: "password", ID: 1337}
+	Sink(s) // want "a source has reached a sink"
+}
+
 func TestPanickingOnTaintedValueIsAllowed() {
 	s := Source{Data: "password", ID: 1337}
 	panic(s)

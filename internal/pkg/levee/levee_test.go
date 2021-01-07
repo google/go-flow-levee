@@ -32,7 +32,7 @@ func TestLevee(t *testing.T) {
 	if *debugging {
 		Analyzer.Requires = append(Analyzer.Requires, debug.Analyzer)
 	}
-	analysistest.Run(t, dataDir, Analyzer, "./...")
+	analysistest.Run(t, dataDir, Analyzer, "./src/example.com/...")
 }
 
 func TestLeveeDoesNotCreateReportsForPanicIfPanicingOnTaintedValuesIsAllowed(t *testing.T) {
