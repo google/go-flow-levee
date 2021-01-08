@@ -46,18 +46,16 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	for fn, sources := range funcSources {
 		propagations := make(map[*source.Source]propagation.Propagation, len(sources))
 		for _, s := range sources {
-			propagations[s] = propagation.Dfs(s.Node, conf, taggedFields)
+			propagations[s] = propagation.Taint(s.Node, conf, taggedFields)
 		}
 
 		for _, b := range fn.Blocks {
 			for _, instr := range b.Instrs {
 				switch v := instr.(type) {
-
 				case *ssa.Call:
 					if callee := v.Call.StaticCallee(); callee != nil && conf.IsSink(utils.DecomposeFunction(callee)) {
 						reportSourcesReachingSink(conf, pass, propagations, instr)
 					}
-
 				case *ssa.Panic:
 					if conf.AllowPanicOnTaintedValues {
 						continue

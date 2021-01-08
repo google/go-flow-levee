@@ -31,11 +31,8 @@ import (
 
 var (
 	// FlagSet should be used by analyzers to reuse -config flag.
-	FlagSet                    flag.FlagSet
-	configFile                 string
-	validFuncMatcherFields     []string = []string{"package", "packagere", "receiver", "receiverre", "method", "methodre"}
-	validSourceMatcherFields   []string = []string{"package", "packagere", "type", "typere", "field", "fieldre"}
-	validFieldTagMatcherFields []string = []string{"key", "val", "value"}
+	FlagSet    flag.FlagSet
+	configFile string
 )
 
 func init() {
@@ -79,8 +76,8 @@ func (c Config) IsSourceFieldTag(tag string) bool {
 
 // IsExcluded determines if a function matches one of the exclusion patterns.
 func (c Config) IsExcluded(path, recv, name string) bool {
-	for _, pm := range c.Exclude {
-		if pm.MatchFunction(path, recv, name) {
+	for _, exc := range c.Exclude {
+		if exc.MatchFunction(path, recv, name) {
 			return true
 		}
 	}
@@ -89,8 +86,8 @@ func (c Config) IsExcluded(path, recv, name string) bool {
 
 // IsSink determines whether a function is a sink.
 func (c Config) IsSink(path, recv, name string) bool {
-	for _, p := range c.Sinks {
-		if p.MatchFunction(path, recv, name) {
+	for _, sink := range c.Sinks {
+		if sink.MatchFunction(path, recv, name) {
 			return true
 		}
 	}
@@ -99,28 +96,28 @@ func (c Config) IsSink(path, recv, name string) bool {
 
 // IsSanitizer determines whether a function is a sanitizer.
 func (c Config) IsSanitizer(path, recv, name string) bool {
-	for _, p := range c.Sanitizers {
-		if p.MatchFunction(path, recv, name) {
+	for _, san := range c.Sanitizers {
+		if san.MatchFunction(path, recv, name) {
 			return true
 		}
 	}
 	return false
 }
 
-// IsSourceType determines whether a type is a source to analyze.
+// IsSourceType determines whether a type is a source.
 func (c Config) IsSourceType(path, name string) bool {
-	for _, p := range c.Sources {
-		if p.MatchType(path, name) {
+	for _, source := range c.Sources {
+		if source.MatchType(path, name) {
 			return true
 		}
 	}
 	return false
 }
 
-// IsSourceField determines whether a field contains secret.
+// IsSourceField determines whether a field is a source.
 func (c Config) IsSourceField(path, typeName, fieldName string) bool {
-	for _, p := range c.Sources {
-		if p.MatchField(path, typeName, fieldName) {
+	for _, source := range c.Sources {
+		if source.MatchField(path, typeName, fieldName) {
 			return true
 		}
 	}
@@ -148,12 +145,14 @@ type fieldTagMatcher struct {
 	Val string
 }
 
+// this type uses the default unmarshaller and mirrors configuration key-value pairs
 type rawFieldTagMatcher struct {
 	Key string
 	Val string
 }
 
 func (ft *fieldTagMatcher) UnmarshalJSON(bytes []byte) error {
+	validFieldTagMatcherFields := []string{"key", "val", "value"}
 	if err := validateFieldNames(&bytes, "fieldTagMatcher", validFieldTagMatcherFields); err != nil {
 		return err
 	}
@@ -189,7 +188,7 @@ type sourceMatcher struct {
 	Field   stringMatcher
 }
 
-// this type uses the default unmarshaler and mirrors configuration key-value pairs
+// this type uses the default unmarshaller and mirrors configuration key-value pairs
 type rawSourceMatcher struct {
 	Package   *literalMatcher
 	Type      *literalMatcher
@@ -200,6 +199,7 @@ type rawSourceMatcher struct {
 }
 
 func (s *sourceMatcher) UnmarshalJSON(bytes []byte) error {
+	validSourceMatcherFields := []string{"package", "packageRE", "type", "typeRE", "field", "fieldRE"}
 	if err := validateFieldNames(&bytes, "sourceMatcher", validSourceMatcherFields); err != nil {
 		return err
 	}
@@ -233,7 +233,7 @@ func (s sourceMatcher) MatchType(path, typeName string) bool {
 }
 
 func (s sourceMatcher) MatchField(path, typeName, fieldName string) bool {
-	return s.Package.MatchString(path) && s.Type.MatchString(typeName) && s.Field.MatchString(fieldName)
+	return s.MatchType(path, typeName) && s.Field.MatchString(fieldName)
 }
 
 type funcMatcher struct {
@@ -242,7 +242,7 @@ type funcMatcher struct {
 	Method   stringMatcher
 }
 
-// this type uses the default unmarshaler and mirrors configuration key-value pairs
+// this type uses the default unmarshaller and mirrors configuration key-value pairs
 type rawFuncMatcher struct {
 	Package    *literalMatcher
 	Receiver   *literalMatcher
@@ -253,6 +253,7 @@ type rawFuncMatcher struct {
 }
 
 func (fm *funcMatcher) UnmarshalJSON(bytes []byte) error {
+	validFuncMatcherFields := []string{"package", "packageRE", "receiver", "receiverRE", "method", "methodRE"}
 	if err := validateFieldNames(&bytes, "funcMatcher", validFuncMatcherFields); err != nil {
 		return err
 	}
@@ -285,27 +286,62 @@ func (fm funcMatcher) MatchFunction(path, receiver, name string) bool {
 	return fm.Package.MatchString(path) && fm.Receiver.MatchString(receiver) && fm.Method.MatchString(name)
 }
 
-var readFileOnce sync.Once
-var readConfigCached *Config
-var readConfigCachedErr error
-
-// ReadConfig reads, parses, and validates config file.
+// ReadConfig fetches configuration from the config cache.
+// The cache reads, parses, and validates config file if necessary.
 func ReadConfig() (*Config, error) {
-	readFileOnce.Do(func() {
+	return cache.read(configFile)
+}
+
+// configCacheElement reduces disk access across multiple ReadConfig calls.
+type configCacheElement struct {
+	once       sync.Once
+	conf       *Config
+	err        error
+	sourceFile string
+}
+
+func (r *configCacheElement) readOnce() (*Config, error) {
+	r.once.Do(func() {
 		c := new(Config)
-		bytes, err := ioutil.ReadFile(configFile)
+		bytes, err := ioutil.ReadFile(r.sourceFile)
 		if err != nil {
-			readConfigCachedErr = fmt.Errorf("error reading analysis config: %v", err)
+			r.err = fmt.Errorf("error reading analysis config: %v", err)
 			return
 		}
 
 		if err := yaml.UnmarshalStrict(bytes, c); err != nil {
-			readConfigCachedErr = err
+			r.err = err
 			return
 		}
-		readConfigCached = c
+		r.conf = c
 	})
-	return readConfigCached, readConfigCachedErr
+
+	return r.conf, r.err
+}
+
+// configCache safely stores a configCacheElement per source file for concurrent access.
+type configCache struct {
+	mu    sync.Mutex
+	cache map[string]*configCacheElement
+}
+
+// Instantiates configCacheElement if file has not yet been loaded
+func (w *configCache) read(file string) (*Config, error) {
+	return w.getCacheForFile(file).readOnce()
+}
+
+func (w *configCache) getCacheForFile(file string) *configCacheElement {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if _, ok := w.cache[file]; !ok {
+		w.cache[file] = &configCacheElement{sourceFile: file}
+	}
+	return w.cache[file]
+}
+
+var cache = configCache{
+	cache: make(map[string]*configCacheElement),
 }
 
 func validateFieldNames(bytes *[]byte, matcherType string, validFields []string) error {
