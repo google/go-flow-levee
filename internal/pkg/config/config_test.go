@@ -61,6 +61,31 @@ func runTest(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
+func TestConfigCache(t *testing.T) {
+	testdata := analysistest.TestData()
+	if err := FlagSet.Set("config", filepath.Join(testdata, "empty-config.yaml")); err != nil {
+		t.Fatal(err)
+	}
+
+	emptyConfig, err := ReadConfig()
+	if err != nil {
+		t.Errorf("failed to read config: %v", err)
+	}
+
+	if err := FlagSet.Set("config", filepath.Join(testdata, "test-config.yaml")); err != nil {
+		t.Fatal(err)
+	}
+
+	testConfig, err := ReadConfig()
+	if err != nil {
+		t.Errorf("failed to read config: %v", err)
+	}
+
+	if testConfig == emptyConfig {
+		t.Error("Returned the same config for separate config source files")
+	}
+}
+
 func TestConfig(t *testing.T) {
 	testdata := analysistest.TestData()
 	if err := FlagSet.Set("config", filepath.Join(testdata, "test-config.yaml")); err != nil {

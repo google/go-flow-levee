@@ -285,27 +285,62 @@ func (fm funcMatcher) MatchFunction(path, receiver, name string) bool {
 	return fm.Package.MatchString(path) && fm.Receiver.MatchString(receiver) && fm.Method.MatchString(name)
 }
 
-var readFileOnce sync.Once
-var readConfigCached *Config
-var readConfigCachedErr error
-
-// ReadConfig reads, parses, and validates config file.
+// ReadConfig fetches configuration from the config cache.
+// The cache reads, parses, and validates config file if necessary.
 func ReadConfig() (*Config, error) {
-	readFileOnce.Do(func() {
+	return cache.read(configFile)
+}
+
+// configCacheElement reduces disk access across multiple ReadConfig calls.
+type configCacheElement struct {
+	once       sync.Once
+	conf       *Config
+	err        error
+	sourceFile string
+}
+
+func (r *configCacheElement) readOnce() (*Config, error) {
+	r.once.Do(func() {
 		c := new(Config)
-		bytes, err := ioutil.ReadFile(configFile)
+		bytes, err := ioutil.ReadFile(r.sourceFile)
 		if err != nil {
-			readConfigCachedErr = fmt.Errorf("error reading analysis config: %v", err)
+			r.err = fmt.Errorf("error reading analysis config: %v", err)
 			return
 		}
 
 		if err := yaml.UnmarshalStrict(bytes, c); err != nil {
-			readConfigCachedErr = err
+			r.err = err
 			return
 		}
-		readConfigCached = c
+		r.conf = c
 	})
-	return readConfigCached, readConfigCachedErr
+
+	return r.conf, r.err
+}
+
+// configCache safely stores a configCacheElement per source file for concurrent access.
+type configCache struct {
+	mu    sync.Mutex
+	cache map[string]*configCacheElement
+}
+
+// Instantiates configCacheElement if file has not yet been loaded
+func (w *configCache) read(file string) (*Config, error) {
+	return w.getCacheForFile(file).readOnce()
+}
+
+func (w *configCache) getCacheForFile(file string) *configCacheElement {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if _, ok := w.cache[file]; !ok {
+		w.cache[file] = &configCacheElement{sourceFile: file}
+	}
+	return w.cache[file]
+}
+
+var cache = configCache{
+	cache: make(map[string]*configCacheElement),
 }
 
 func validateFieldNames(bytes *[]byte, matcherType string, validFields []string) error {
