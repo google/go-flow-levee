@@ -41,6 +41,7 @@ func init() {
 
 // Config contains matchers and analysis scope information.
 type Config struct {
+	ReportMessage             string
 	Sources                   []sourceMatcher
 	Sinks                     []funcMatcher
 	Sanitizers                []funcMatcher

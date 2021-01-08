@@ -21,11 +21,10 @@ import (
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"github.com/google/go-flow-levee/internal/pkg/propagation"
+	"github.com/google/go-flow-levee/internal/pkg/source"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ssa"
-
-	"github.com/google/go-flow-levee/internal/pkg/source"
 )
 
 var Analyzer = &analysis.Analyzer{
@@ -55,13 +54,13 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				switch v := instr.(type) {
 				case *ssa.Call:
 					if callee := v.Call.StaticCallee(); callee != nil && conf.IsSink(utils.DecomposeFunction(callee)) {
-						reportSourcesReachingSink(pass, propagations, instr)
+						reportSourcesReachingSink(conf, pass, propagations, instr)
 					}
 				case *ssa.Panic:
 					if conf.AllowPanicOnTaintedValues {
 						continue
 					}
-					reportSourcesReachingSink(pass, propagations, instr)
+					reportSourcesReachingSink(conf, pass, propagations, instr)
 				}
 			}
 		}
@@ -70,18 +69,21 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func reportSourcesReachingSink(pass *analysis.Pass, propagations map[*source.Source]propagation.Propagation, sink ssa.Instruction) {
-	for source, prop := range propagations {
+func reportSourcesReachingSink(conf *config.Config, pass *analysis.Pass, propagations map[*source.Source]propagation.Propagation, sink ssa.Instruction) {
+	for src, prop := range propagations {
 		if prop.IsTainted(sink) {
-			report(pass, source, sink.(ssa.Node))
+			report(conf, pass, src, sink.(ssa.Node))
 			break
 		}
 	}
 }
 
-func report(pass *analysis.Pass, source *source.Source, sink ssa.Node) {
+func report(conf *config.Config, pass *analysis.Pass, source *source.Source, sink ssa.Node) {
 	var b strings.Builder
 	b.WriteString("a source has reached a sink")
-	fmt.Fprintf(&b, ", source: %v", pass.Fset.Position(source.Pos()))
+	fmt.Fprintf(&b, "\n source: %v", pass.Fset.Position(source.Pos()))
+	if conf.ReportMessage != "" {
+		fmt.Fprintf(&b, "\n %v", conf.ReportMessage)
+	}
 	pass.Reportf(sink.Pos(), b.String())
 }
