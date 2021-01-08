@@ -32,7 +32,7 @@ func TestLevee(t *testing.T) {
 	if *debugging {
 		Analyzer.Requires = append(Analyzer.Requires, debug.Analyzer)
 	}
-	analysistest.Run(t, dataDir, Analyzer, "./...")
+	analysistest.Run(t, dataDir, Analyzer, "./src/example.com/...")
 }
 
 func TestLeveeDoesNotCreateReportsForPanicIfPanicingOnTaintedValuesIsAllowed(t *testing.T) {
@@ -44,4 +44,20 @@ func TestLeveeDoesNotCreateReportsForPanicIfPanicingOnTaintedValuesIsAllowed(t *
 		Analyzer.Requires = append(Analyzer.Requires, debug.Analyzer)
 	}
 	analysistest.Run(t, dataDir, Analyzer, "./src/nopanic.com/...")
+}
+
+func TestFormattingWithCustomReportMessage(t *testing.T) {
+	dataDir := analysistest.TestData()
+	if err := Analyzer.Flags.Set("config", dataDir+"/with-custom-message.yaml"); err != nil {
+		t.Error(err)
+	}
+	analysistest.Run(t, dataDir, Analyzer, "./src/custom.message.com/withcustom")
+}
+
+func TestFormattingWithoutCustomReportMessage(t *testing.T) {
+	dataDir := analysistest.TestData()
+	if err := Analyzer.Flags.Set("config", dataDir+"/no-custom-message.yaml"); err != nil {
+		t.Error(err)
+	}
+	analysistest.Run(t, dataDir, Analyzer, "./src/custom.message.com/nocustom")
 }

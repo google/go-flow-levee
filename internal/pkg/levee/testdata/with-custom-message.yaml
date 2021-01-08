@@ -1,4 +1,4 @@
-# Copyright 2019 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,20 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ---
+ReportMessage: This custom message is included with report.
+
 Sources:
-- PackageRE: "^example.com/core$"
-  TypeRE: "^Source$"
-  FieldRE: "^Data"
+- Type: Source
+
 Sinks:
-- PackageRE: "^example.com/core$"
-  MethodRE: Sinkf?$
-Sanitizers:
-- PackageRE: "^example.com/core$"
-  MethodRE: "^Sanitize"
-Exclude:
-- PackageRE: "^example.com/tests/excludedpackage$"
-- PackageRE: "^example.com/tests/includedpackage$"
-  MethodRE: "^Oops$"
-- PackageRE: "^example.com/tests/includedpackage$"
-  MethodRE: "^OopsWithReceiverExcluded$"
-  ReceiverRE: "^Receiver$"
+- Method: Sink
