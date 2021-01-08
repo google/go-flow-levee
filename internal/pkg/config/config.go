@@ -285,11 +285,37 @@ func (fm funcMatcher) MatchFunction(path, receiver, name string) bool {
 	return fm.Package.MatchString(path) && fm.Receiver.MatchString(receiver) && fm.Method.MatchString(name)
 }
 
+// ReadConfig fetches configuration from the config cache.
+// The cache reads, parses, and validates config file if necessary.
+func ReadConfig() (*Config, error) {
+	return cache.read(configFile)
+}
+
 // readConfigResults reduces disk access across multiple ReadConfig calls.
 type readConfigResults struct {
-	once sync.Once
-	conf *Config
-	err  error
+	once       sync.Once
+	conf       *Config
+	err        error
+	sourceFile string
+}
+
+func (r *readConfigResults) readOnce() (*Config, error) {
+	r.once.Do(func() {
+		c := new(Config)
+		bytes, err := ioutil.ReadFile(r.sourceFile)
+		if err != nil {
+			r.err = fmt.Errorf("error reading analysis config: %v", err)
+			return
+		}
+
+		if err := yaml.UnmarshalStrict(bytes, c); err != nil {
+			r.err = err
+			return
+		}
+		r.conf = c
+	})
+
+	return r.conf, r.err
 }
 
 // configCache safely stores readConfigResults for concurrent access.
@@ -300,44 +326,21 @@ type configCache struct {
 
 // Instantiates readConfigResults if file has not yet been loaded
 func (w *configCache) read(file string) (*Config, error) {
-	w.instantiateCacheForFile(file)
-
-	cc := w.cache[file]
-	cc.once.Do(func() {
-		c := new(Config)
-		bytes, err := ioutil.ReadFile(configFile)
-		if err != nil {
-			cc.err = fmt.Errorf("error reading analysis config: %v", err)
-			return
-		}
-
-		if err := yaml.UnmarshalStrict(bytes, c); err != nil {
-			cc.err = err
-			return
-		}
-		cc.conf = c
-	})
-
-	return cc.conf, cc.err
+	return w.getCacheForFile(file).readOnce()
 }
 
-func (w *configCache) instantiateCacheForFile(file string) {
+func (w *configCache) getCacheForFile(file string) *readConfigResults {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	if w.cache[file] == nil {
-		w.cache[file] = new(readConfigResults)
+	if _, ok := w.cache[file]; !ok {
+		w.cache[file] = &readConfigResults{sourceFile: file}
 	}
+	return w.cache[file]
 }
 
 var cache = configCache{
-	mu:    sync.Mutex{},
 	cache: make(map[string]*readConfigResults),
-}
-
-// ReadConfig reads, parses, and validates config file.
-func ReadConfig() (*Config, error) {
-	return cache.read(configFile)
 }
 
 func validateFieldNames(bytes *[]byte, matcherType string, validFields []string) error {
