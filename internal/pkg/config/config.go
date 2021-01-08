@@ -291,15 +291,15 @@ func ReadConfig() (*Config, error) {
 	return cache.read(configFile)
 }
 
-// readConfigResults reduces disk access across multiple ReadConfig calls.
-type readConfigResults struct {
+// configCacheElement reduces disk access across multiple ReadConfig calls.
+type configCacheElement struct {
 	once       sync.Once
 	conf       *Config
 	err        error
 	sourceFile string
 }
 
-func (r *readConfigResults) readOnce() (*Config, error) {
+func (r *configCacheElement) readOnce() (*Config, error) {
 	r.once.Do(func() {
 		c := new(Config)
 		bytes, err := ioutil.ReadFile(r.sourceFile)
@@ -318,29 +318,29 @@ func (r *readConfigResults) readOnce() (*Config, error) {
 	return r.conf, r.err
 }
 
-// configCache safely stores readConfigResults for concurrent access.
+// configCache safely stores a configCacheElement per source file for concurrent access.
 type configCache struct {
 	mu    sync.Mutex
-	cache map[string]*readConfigResults
+	cache map[string]*configCacheElement
 }
 
-// Instantiates readConfigResults if file has not yet been loaded
+// Instantiates configCacheElement if file has not yet been loaded
 func (w *configCache) read(file string) (*Config, error) {
 	return w.getCacheForFile(file).readOnce()
 }
 
-func (w *configCache) getCacheForFile(file string) *readConfigResults {
+func (w *configCache) getCacheForFile(file string) *configCacheElement {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
 	if _, ok := w.cache[file]; !ok {
-		w.cache[file] = &readConfigResults{sourceFile: file}
+		w.cache[file] = &configCacheElement{sourceFile: file}
 	}
 	return w.cache[file]
 }
 
 var cache = configCache{
-	cache: make(map[string]*readConfigResults),
+	cache: make(map[string]*configCacheElement),
 }
 
 func validateFieldNames(bytes *[]byte, matcherType string, validFields []string) error {
