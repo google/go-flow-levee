@@ -253,10 +253,21 @@ func (prop *Propagation) visitCall(call *ssa.Call, maxInstrReached map[*ssa.Basi
 		prop.sanitizers = append(prop.sanitizers, &sanitizer.Sanitizer{Call: call})
 	}
 
-	// This is to avoid attaching calls where the source is the receiver, ex:
-	// core.Sinkf("Source id: %v", wrapper.Source.GetID())
+	// Do not traverse through a method call if it is being reached via a Source receiver.
+	// Do traverse if the call is being reached through a tainted argument.
+	// Source methods that return tainted values regardless of their arguments should be identified by the fieldpropagator analyzer.
 	if recv := call.Call.Signature().Recv(); recv != nil && sourcetype.IsSourceType(prop.config, prop.taggedFields, recv.Type()) {
-		return
+		visitingFromArg := false
+		for _, a := range call.Call.Args[1:] {
+			if prop.tainted[a.(ssa.Node)] {
+				visitingFromArg = true
+			}
+		}
+		if !visitingFromArg {
+			// unmark the node so that it may be visited again when taint propagates to an argument
+			prop.tainted[call] = false
+			return
+		}
 	}
 
 	prop.taintReferrers(call, maxInstrReached, lastBlockVisited)

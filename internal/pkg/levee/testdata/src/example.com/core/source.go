@@ -40,6 +40,10 @@ func (s Source) CopyPointer() (*Source, error) {
 	return &s, nil
 }
 
+func (s Source) Propagate(str string) string {
+	return str
+}
+
 type TaggedSource struct {
 	Data string `levee:"source"`
 	ID   int

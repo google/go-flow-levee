@@ -38,3 +38,8 @@ func TestToStringPropagator(s core.Source) {
 	v := ToString(s)
 	core.Sink(v) // want "a source has reached a sink"
 }
+
+func TestPropagationViaSourceMethod(s core.Source) {
+	tainted := s.Propagate(s.Data)
+	core.Sink(tainted) // want "a source has reached a sink"
+}
