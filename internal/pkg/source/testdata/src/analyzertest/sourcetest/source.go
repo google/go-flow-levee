@@ -32,3 +32,5 @@ type TaggedSource struct {
 	Data string `levee:"source"`
 	ID   int
 }
+
+type SourceInterface interface{}

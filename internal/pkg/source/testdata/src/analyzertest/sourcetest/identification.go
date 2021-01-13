@@ -120,3 +120,7 @@ type DeeplyNested map[string][]map[string]map[string][][]map[string]Source
 func TestTaggedSourceIdentification() {
 	_ = TaggedSource{} // want "source identified"
 }
+
+// No source should be identified here, because SourceInterface is an interface type.
+func TestNamedInterfaceIsNotSource(x SourceInterface) {
+}

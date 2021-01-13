@@ -26,13 +26,14 @@ import (
 
 // IsSourceType determines whether a Type is a Source Type.
 // A Source Type is either:
-// - A Named Type that is classified as a Source
-// - A composite type that contains a Source Type
+// - A Named Struct Type that is configured as a Source
 // - A Struct Type that contains a tagged field
+// - A composite type that contains a Source Type
 func IsSourceType(c *config.Config, tf fieldtags.ResultType, t types.Type) bool {
 	deref := utils.Dereference(t)
 	switch tt := deref.(type) {
 	case *types.Named:
+		// only named structs can be *configured* sources
 		_, ok := tt.Underlying().(*types.Struct)
 		return (ok && c.IsSourceType(utils.DecomposeType(tt))) || IsSourceType(c, tf, tt.Underlying())
 	case *types.Array:

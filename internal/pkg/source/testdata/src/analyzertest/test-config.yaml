@@ -16,3 +16,6 @@ Sources:
 - PackageRE: ""
   TypeRE: "^Source$"
   FieldRE: "^Data"
+# The below cannot actually be a Source, because it is an interface type
+- PackageRE: ""
+  Type: "SourceInterface"
