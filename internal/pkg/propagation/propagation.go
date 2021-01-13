@@ -258,6 +258,9 @@ func (prop *Propagation) visitCall(call *ssa.Call, maxInstrReached map[*ssa.Basi
 	// Source methods that return tainted values regardless of their arguments should be identified by the fieldpropagator analyzer.
 	if recv := call.Call.Signature().Recv(); recv != nil && sourcetype.IsSourceType(prop.config, prop.taggedFields, recv.Type()) {
 		visitingFromArg := false
+		if len(call.Call.Args) == 0 {
+			return
+		}
 		for _, a := range call.Call.Args[1:] {
 			if prop.tainted[a.(ssa.Node)] {
 				visitingFromArg = true
