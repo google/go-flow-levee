@@ -56,25 +56,12 @@ func (r *renderer) writeSubgraphs() {
 }
 
 func (r *renderer) writeEdges() {
-	for _, p := range r.f.Params {
-		r.writeReferrers(p)
-	}
-
 	for _, b := range r.f.Blocks {
 		for _, i := range b.Instrs {
-			r.writeReferrers(i.(ssa.Node))
+			// we only need to write the operands, since as per the ssa package docs,
+			// the referrers relation is a subset of the operands relation
 			r.writeOperands(i.(ssa.Node))
 		}
-	}
-}
-
-func (r *renderer) writeReferrers(n ssa.Node) {
-	if n.Referrers() == nil {
-		return
-	}
-	for _, ref := range *n.Referrers() {
-		// Red as in R-eferrer
-		r.writeEdge(n, ref.(ssa.Node), "red")
 	}
 }
 
@@ -84,7 +71,7 @@ func (r *renderer) writeOperands(n ssa.Node) {
 			continue
 		}
 		// Orange as in O-perand
-		r.writeEdge(n, (*o).(ssa.Node), "orange")
+		r.writeEdge((*o).(ssa.Node), n, "orange")
 	}
 }
 
