@@ -29,12 +29,44 @@ type PointerHolder struct {
 	i *core.Innocuous
 }
 
+type InterfaceHolder struct {
+	i interface{}
+}
+
+type DoubleInterfaceHolder struct {
+	i interface{}
+	j interface{}
+}
+
+func TestStructLiteralContainingTaintedInterfaceIsTainted(s core.Source) {
+	ih := InterfaceHolder{
+		s,
+	}
+	core.Sink(ih) // TODO(#212) want "a source has reached a sink"
+}
+
+func TestStructLiteralContainingTaintedAndNonTaintedInterfaceValuesIsTainted(s core.Source, i core.Innocuous) {
+	dih := DoubleInterfaceHolder{
+		s,
+		i,
+	}
+	core.Sink(dih) // TODO(#212) want "a source has reached a sink"
+}
+
+func TestStructLiteralContainingTaintedAndNonTaintedInterfaceValuesIsTaintedFlipped(s core.Source, i core.Innocuous) {
+	dih := DoubleInterfaceHolder{
+		i,
+		s,
+	}
+	core.Sink(dih) // TODO(#212) want "a source has reached a sink"
+}
+
 func TestStructHoldingSourceAndInnocIsTainted(s core.Source, i core.Innocuous) {
 	h := Holder{
 		s,
 		i,
 	}
-	core.Sink(h) // TODO(#97) want "a source has reached a sink"
+	core.Sink(h) // TODO(#212) want "a source has reached a sink"
 }
 
 func TestStructHoldingSourceAndInnocIsTaintedReverseFieldOrder(s core.Source, i core.Innocuous) {
@@ -42,7 +74,7 @@ func TestStructHoldingSourceAndInnocIsTaintedReverseFieldOrder(s core.Source, i 
 		i: i,
 		s: s,
 	}
-	core.Sink(h) // TODO(#97) want "a source has reached a sink"
+	core.Sink(h) // TODO(#212) want "a source has reached a sink"
 }
 
 func TestStructHoldingSourceAndInnocPointersIsTainted(s *core.Source, i *core.Innocuous) {
@@ -50,7 +82,7 @@ func TestStructHoldingSourceAndInnocPointersIsTainted(s *core.Source, i *core.In
 		s,
 		i,
 	}
-	core.Sink(h) // TODO(#97) want "a source has reached a sink"
+	core.Sink(h) // TODO(#212) want "a source has reached a sink"
 }
 
 func TestStructHoldingSourceAndInnocPointersIsTaintedReverseFieldOrder(s *core.Source, i *core.Innocuous) {
@@ -58,7 +90,7 @@ func TestStructHoldingSourceAndInnocPointersIsTaintedReverseFieldOrder(s *core.S
 		i: i,
 		s: s,
 	}
-	core.Sink(h) // TODO(#97) want "a source has reached a sink"
+	core.Sink(h) // TODO(#212) want "a source has reached a sink"
 }
 
 func TestAnonymousStructHoldingSourceAndInnocIsTainted(s core.Source, i core.Innocuous) {
@@ -69,7 +101,7 @@ func TestAnonymousStructHoldingSourceAndInnocIsTainted(s core.Source, i core.Inn
 		i: i,
 		s: s,
 	}
-	core.Sink(h) // TODO(#97) want "a source has reached a sink"
+	core.Sink(h) // TODO(#212) want "a source has reached a sink"
 }
 
 func TestAnonymousStructHoldingSourceAndInnocPointersIsTainted(s *core.Source, i *core.Innocuous) {
@@ -80,5 +112,5 @@ func TestAnonymousStructHoldingSourceAndInnocPointersIsTainted(s *core.Source, i
 		i: i,
 		s: s,
 	}
-	core.Sink(h) // TODO(#97) want "a source has reached a sink"
+	core.Sink(h) // TODO(#212) want "a source has reached a sink"
 }
