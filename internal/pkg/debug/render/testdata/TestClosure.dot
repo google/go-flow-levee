@@ -5,6 +5,6 @@ digraph {
 		"t0 = TestClosure$1(0:int)\n(Call)" [shape=rectangle];
 		"return\n(Return)" [shape=diamond];
 	}
-	"t0 = TestClosure$1(0:int)\n(Call)" -> "TestClosure$1\n(Function)" [color=orange];
-	"t0 = TestClosure$1(0:int)\n(Call)" -> "0:int\n(Const)" [color=orange];
+	"TestClosure$1\n(Function)" -> "t0 = TestClosure$1(0:int)\n(Call)" [color=orange];
+	"0:int\n(Const)" -> "t0 = TestClosure$1(0:int)\n(Call)" [color=orange];
 }
