@@ -54,7 +54,7 @@ Given a function named `MyFunc` in a package named `mypack`, running `levee`'s t
 You can generate a PDF from the DOT source using `dot -Tpdf <file> -o "$(basename <file> .dot).pdf"`.
 
 In the graph:
-* An **orange** edge captures an **operand** relationship. The source node is an **operand** of the destination node.
+* An **orange** edge captures an **operand** relationship. The source node is an **operand** of the destination node. Therefore, you may read an edge from "A" to "B" as "A is an Operand of B".
 * Referrer relationships are not explicitly shown in the graph, since they are redundant. Indeed, as per the ssa package documentation for the `Operands` method, the referrers relation is a subset of the operands relation.
 * **Rectangle**-shaped nodes represent `ssa.Node`s that are both `ssa.Instruction`s and `ssa.Value`s
 * **Diamond**-shaped nodes represent `ssa.Node`s that are only `ssa.Instruction`s
