@@ -258,7 +258,6 @@ func (prop *Propagation) visitCall(call *ssa.Call, maxInstrReached map[*ssa.Basi
 	// Source methods that return tainted values regardless of their arguments should be identified by the fieldpropagator analyzer.
 	if recv := call.Call.Signature().Recv(); recv != nil && sourcetype.IsSourceType(prop.config, prop.taggedFields, recv.Type()) {
 		visitingFromArg := false
-		// This condition should never be true, because:
 		// Interface types cannot be sources. If the receiver is not a source, the
 		// above condition will be false, so this code won't be executed.
 		// When the receiver's type is statically known (it isn't an interface type),
