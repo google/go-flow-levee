@@ -33,10 +33,6 @@ func IsSourceType(c *config.Config, tf fieldtags.ResultType, t types.Type) bool 
 	deref := utils.Dereference(t)
 	switch tt := deref.(type) {
 	case *types.Named:
-		if _, ok := utils.Dereference(tt.Underlying()).(*types.Interface); ok {
-			// interfaces cannot be sources
-			return false
-		}
 		return c.IsSourceType(utils.DecomposeType(tt)) || IsSourceType(c, tf, tt.Underlying())
 	case *types.Array:
 		return IsSourceType(c, tf, tt.Elem())
