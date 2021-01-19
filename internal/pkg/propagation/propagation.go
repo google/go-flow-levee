@@ -261,7 +261,6 @@ func (prop *Propagation) visitCall(call *ssa.Call, maxInstrReached map[*ssa.Basi
 		// If the receiver is not statically known (it has interface type) and the
 		// method has no arguments, Args will be empty.
 		if len(call.Call.Args) == 0 {
-			fmt.Printf("call.Call.Args was empty; please report this issue")
 			return
 		}
 		// If the receiver's type is statically known,
