@@ -62,3 +62,7 @@ func (i Innocuous) GetID() int {
 func (i Innocuous) GetData() string {
 	return i.Data
 }
+
+type SourceManipulator interface {
+	Propagate(string) string
+}

@@ -16,6 +16,8 @@ Sources:
 - PackageRE: "^example.com/core$"
   TypeRE: "^Source$"
   FieldRE: "^Data"
+- PackageRE: "^example.com/core$"
+  TypeRE: "^SourceManipulator$"
 Sinks:
 - PackageRE: "^example.com/core$"
   MethodRE: Sinkf?$
