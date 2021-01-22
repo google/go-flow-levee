@@ -145,38 +145,33 @@ type fieldTagMatcher struct {
 	Val string
 }
 
-// this type uses the default unmarshaller and mirrors configuration key-value pairs
-type rawFieldTagMatcher struct {
-	Key string
-	Val string
-}
-
 func (ft *fieldTagMatcher) UnmarshalJSON(bytes []byte) error {
-	validFieldTagMatcherFields := []string{"key", "val", "value"}
-	if err := validateFieldNames(&bytes, "fieldTagMatcher", validFieldTagMatcherFields); err != nil {
-		return err
-	}
-
-	raw := rawFieldTagMatcher{}
+	raw := map[string]string{}
 	if err := json.Unmarshal(bytes, &raw); err != nil {
 		return err
 	}
-	ft.Key = raw.Key
-	ft.Val = raw.Val
-	return nil
-}
-
-// Returns the first non-nil matcher.
-// If all are nil, returns a vacuousMatcher.
-func matcherFrom(lm *literalMatcher, r *regexp.Regexp) stringMatcher {
-	switch {
-	case lm != nil:
-		return lm
-	case r != nil:
-		return r
-	default:
-		return vacuousMatcher{}
+	for key, val := range raw {
+		switch strings.ToLower(key) {
+		case "key":
+			if ft.Key != "" {
+				return fmt.Errorf("Multiple values given for 'key'.")
+			}
+			ft.Key = val
+		case "val", "value":
+			if ft.Key != "" {
+				return fmt.Errorf("Multiple values given for 'value'.")
+			}
+			ft.Val = val
+		default:
+			return fmt.Errorf("got unexpected key %q in field tag configuration", key)
+		}
 	}
+
+	if ft.Key == "" || ft.Val == "" {
+		// TODO test error case
+		return fmt.Errorf("expected nonempty key and value, got key %q and value %q", ft.Key, ft.Val)
+	}
+	return nil
 }
 
 // A sourceMatcher matches by package, type, and field.
@@ -188,44 +183,67 @@ type sourceMatcher struct {
 	Field   stringMatcher
 }
 
-// this type uses the default unmarshaller and mirrors configuration key-value pairs
-type rawSourceMatcher struct {
-	Package   *literalMatcher
-	Type      *literalMatcher
-	Field     *literalMatcher
-	PackageRE *regexp.Regexp
-	TypeRE    *regexp.Regexp
-	FieldRE   *regexp.Regexp
-}
-
 func (s *sourceMatcher) UnmarshalJSON(bytes []byte) error {
-	validSourceMatcherFields := []string{"package", "packageRE", "type", "typeRE", "field", "fieldRE"}
-	if err := validateFieldNames(&bytes, "sourceMatcher", validSourceMatcherFields); err != nil {
-		return err
-	}
+	// Unspecified matchers match vacuously
+	s.Package = vacuousMatcher{}
+	s.Type = vacuousMatcher{}
+	s.Field = vacuousMatcher{}
 
-	raw := rawSourceMatcher{}
+	raw := map[string]json.RawMessage{}
 	if err := json.Unmarshal(bytes, &raw); err != nil {
 		return err
 	}
 
-	// Only one of literal and regexp field can be specified.
-	if raw.Package != nil && raw.PackageRE != nil {
-		return fmt.Errorf("expected only one of Package, PackageRE in config definition for a source matcher")
-	}
-	if raw.Type != nil && raw.TypeRE != nil {
-		return fmt.Errorf("expected only one of Type, TypeRE in config definition for a source matcher")
-	}
-	if raw.Field != nil && raw.FieldRE != nil {
-		return fmt.Errorf("expected only one of Field, FieldRE in config definition for a source matcher")
+	for key, msg := range raw {
+		var matcher stringMatcher
+		matcher, err := s.makeMatcher(key, msg)
+		if err != nil {
+			return err
+		}
+
+		switch strings.ToLower(key) {
+		case "package", "packagere":
+			if _, isUnset := s.Package.(vacuousMatcher); !isUnset {
+				return fmt.Errorf("only one \"package\", \"packageRE\" of should be provided to configuration")
+			}
+			s.Package = matcher
+		case "type", "typere":
+			if _, isUnset := s.Type.(vacuousMatcher); !isUnset {
+				return fmt.Errorf("only one \"type\", \"typeRE\" of should be provided to configuration")
+			}
+			s.Type = matcher
+		case "field", "fieldre":
+			if _, isUnset := s.Field.(vacuousMatcher); !isUnset {
+				return fmt.Errorf("only one \"field\", \"fieldRE\" of should be provided to configuration")
+			}
+			s.Field = matcher
+		default:
+			return fmt.Errorf("got unexpected key %q in source matcher configuration", key)
+		}
 	}
 
-	*s = sourceMatcher{
-		Package: matcherFrom(raw.Package, raw.PackageRE),
-		Type:    matcherFrom(raw.Type, raw.TypeRE),
-		Field:   matcherFrom(raw.Field, raw.FieldRE),
-	}
+	// TODO any additional validation checks?  No full-vacuous matchers?
 	return nil
+}
+
+// makeMatcher instantiates a Regexp matcher for "*RE" keys and literalMatcher for other valid keys.  Keys are not case sensitive.
+func (s *sourceMatcher) makeMatcher(key string, msg json.RawMessage) (stringMatcher, error) {
+	switch strings.ToLower(key) {
+	case "package", "type", "field":
+		var l literalMatcher
+		if err := json.Unmarshal(msg, &l); err != nil {
+			return nil, err
+		}
+		return l, nil
+	case "packagere", "typere", "fieldre":
+		var r *regexp.Regexp
+		if err := json.Unmarshal(msg, &r); err != nil {
+			return nil, err
+		}
+		return r, nil
+	default:
+		return nil, fmt.Errorf("got unexpected key %q in source matcher configuration", key)
+	}
 }
 
 func (s sourceMatcher) MatchType(path, typeName string) bool {
@@ -242,44 +260,66 @@ type funcMatcher struct {
 	Method   stringMatcher
 }
 
-// this type uses the default unmarshaller and mirrors configuration key-value pairs
-type rawFuncMatcher struct {
-	Package    *literalMatcher
-	Receiver   *literalMatcher
-	Method     *literalMatcher
-	PackageRE  *regexp.Regexp
-	ReceiverRE *regexp.Regexp
-	MethodRE   *regexp.Regexp
-}
-
 func (fm *funcMatcher) UnmarshalJSON(bytes []byte) error {
-	validFuncMatcherFields := []string{"package", "packageRE", "receiver", "receiverRE", "method", "methodRE"}
-	if err := validateFieldNames(&bytes, "funcMatcher", validFuncMatcherFields); err != nil {
-		return err
-	}
+	// Initialize all fields to vacuous matchers
+	fm.Package = vacuousMatcher{}
+	fm.Receiver = vacuousMatcher{}
+	fm.Method = vacuousMatcher{}
 
-	raw := rawFuncMatcher{}
+	raw := map[string]json.RawMessage{}
 	if err := json.Unmarshal(bytes, &raw); err != nil {
 		return err
 	}
 
-	// Only one of literal and regexp field can be specified.
-	if raw.Package != nil && raw.PackageRE != nil {
-		return fmt.Errorf("expected only one of Package, PackageRE in config definition for a function matcher")
-	}
-	if raw.Receiver != nil && raw.ReceiverRE != nil {
-		return fmt.Errorf("expected only one of Receiver, ReceiverRE in config definition for a function matcher")
-	}
-	if raw.Method != nil && raw.MethodRE != nil {
-		return fmt.Errorf("expected only one of Method, MethodRE in config definition for a function matcher")
+	for key, msg := range raw {
+		matcher, err := fm.makeMatcher(key, msg)
+		if err != nil {
+			return err
+		}
+
+		switch strings.ToLower(key) {
+		case "package", "packagere":
+			if _, isUnset := fm.Package.(vacuousMatcher); !isUnset {
+				return fmt.Errorf("only one \"package\", \"packageRE\" of should be provided to configuration")
+			}
+			fm.Package = matcher
+		case "receiver", "receiverre":
+			if _, isUnset := fm.Receiver.(vacuousMatcher); !isUnset {
+				return fmt.Errorf("only one \"receiver\", \"receiverRE\" of should be provided to configuration")
+			}
+			fm.Receiver = matcher
+		case "method", "methodre":
+			if _, isUnset := fm.Method.(vacuousMatcher); !isUnset {
+				return fmt.Errorf("only one \"method\", \"methodRE\" of should be provided to configuration")
+			}
+			fm.Method = matcher
+		default:
+			return fmt.Errorf("got unexpected key %q in (funcMatcher).UnmarshalJSON", key)
+		}
 	}
 
-	*fm = funcMatcher{
-		Package:  matcherFrom(raw.Package, raw.PackageRE),
-		Receiver: matcherFrom(raw.Receiver, raw.ReceiverRE),
-		Method:   matcherFrom(raw.Method, raw.MethodRE),
-	}
+	// TODO any additional validation checks?  No full-vacuous matchers?
 	return nil
+}
+
+// makeMatcher instantiates a Regexp matcher for "*RE" keys and literalMatcher for other valid keys.  Keys are not case sensitive.
+func (fm *funcMatcher) makeMatcher(key string, msg json.RawMessage) (stringMatcher, error) {
+	switch strings.ToLower(key) {
+	case "package", "receiver", "method":
+		var l literalMatcher
+		if err := json.Unmarshal(msg, &l); err != nil {
+			return nil, err
+		}
+		return l, nil
+	case "packagere", "receiverre", "methodre":
+		var r *regexp.Regexp
+		if err := json.Unmarshal(msg, &r); err != nil {
+			return nil, err
+		}
+		return r, nil
+	default:
+		return nil, fmt.Errorf("got unexpected key %q in function matcher configuration", key)
+	}
 }
 
 func (fm funcMatcher) MatchFunction(path, receiver, name string) bool {
@@ -342,23 +382,4 @@ func (w *configCache) getCacheForFile(file string) *configCacheElement {
 
 var cache = configCache{
 	cache: make(map[string]*configCacheElement),
-}
-
-func validateFieldNames(bytes *[]byte, matcherType string, validFields []string) error {
-	rawMap := make(map[string]interface{})
-	if err := json.Unmarshal(*bytes, &rawMap); err != nil {
-		return err
-	}
-	for label := range rawMap {
-		matched := false
-		for _, valid := range validFields {
-			if strings.EqualFold(label, valid) {
-				matched = true
-			}
-		}
-		if !matched {
-			return fmt.Errorf("%v is not a valid config field for %s, expect one of: %v", label, matcherType, validFields)
-		}
-	}
-	return nil
 }
