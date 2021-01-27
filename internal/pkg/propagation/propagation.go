@@ -266,7 +266,7 @@ func (prop *Propagation) visitCall(call *ssa.Call, maxInstrReached map[*ssa.Basi
 		for i, a := range call.Call.Args {
 			// If the receiver's type is statically known,
 			// it will be the first element of the Args slice.
-			if call.Call.StaticCallee() != nil && i == 0 {
+			if !call.Call.IsInvoke() && i == 0 {
 				continue
 			}
 			if prop.tainted[a.(ssa.Node)] {
