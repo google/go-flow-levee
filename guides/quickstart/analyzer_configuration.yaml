@@ -1,0 +1,7 @@
+---
+FieldTags:
+  - Key: datapolicy
+    Val: password
+Sinks:
+  - Package: log
+    Method: Printf

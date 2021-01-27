@@ -12,6 +12,12 @@ Such tainted variables also must not reach any sink.
 Such analysis can be used to prevent the accidental logging of credentials or personally identifying information,
  defend against maliciously constructed user input, and enforce data communication restrictions between processes.
 
+## User Guide
+
+See `guides/` for guided introductions on:
+* [How to configure and run the analyzer](guides/quickstart.md)
+* More topics coming soon!
+
 ### Motivation
 
 Much data should not be freely shared.
