@@ -154,8 +154,8 @@ Let's fix the issue. Do we really need to be logging the `auth` struct? Maybe no
 
 After making this change, the analyzer no longer produces a report. There are many ways to
 address reports, the important thing is to modify the code so that the Source can no longer
-reach the Sink. For example, you may wish to define a "Sanitizer" function that removes the
-password, making the `auth` struct safe to log. See [the documentation](../configuration/README.md)
+reach the Sink. For example, you may wish to define a "Sanitizer" function that redacts the
+`Password` from `Authentication` values, making them safe to log. See [the documentation](../configuration/README.md)
 for more on how to configure sanitizers.
 
 ## Conclusion
