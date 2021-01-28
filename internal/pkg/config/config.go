@@ -147,8 +147,9 @@ type fieldTagMatcher struct {
 
 // this type uses the default unmarshaller and mirrors configuration key-value pairs
 type rawFieldTagMatcher struct {
-	Key string
-	Val string
+	Key   string
+	Val   string
+	Value string
 }
 
 func (ft *fieldTagMatcher) UnmarshalJSON(bytes []byte) error {
@@ -161,8 +162,20 @@ func (ft *fieldTagMatcher) UnmarshalJSON(bytes []byte) error {
 	if err := json.Unmarshal(bytes, &raw); err != nil {
 		return err
 	}
+
+	if raw.Key == "" {
+		return fmt.Errorf("invalid field tag matcher: please provide a non-empty Key")
+	}
+	if raw.Val == "" && raw.Value == "" {
+		return fmt.Errorf("invalid field tag matcher: please provide a non-empty Val or Value")
+	}
+
 	ft.Key = raw.Key
 	ft.Val = raw.Val
+	if raw.Val == "" {
+		ft.Val = raw.Value
+	}
+
 	return nil
 }
 

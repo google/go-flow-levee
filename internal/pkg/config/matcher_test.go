@@ -288,16 +288,35 @@ func TestFieldTagMatcherUnmarshalling(t *testing.T) {
 		wantErr    bool
 	}{
 		{
+			desc:    "missing val or value",
+			yaml:    "key: foo",
+			wantErr: true,
+		},
+		{
+			desc:    "missing key",
+			yaml:    "val: foo",
+			wantErr: true,
+		},
+		{
 			desc: "unknown field is not allowed",
 			yaml: `
 Key: good
+Val: good
 UnknownField: bad`,
 			wantErr: true,
-		}, {
-			desc: "valid field tag config",
+		},
+		{
+			desc: "valid field tag config using val",
 			yaml: `
 key: good
 val: AlsoGood`,
+			wantErr: false,
+		},
+		{
+			desc: "valid field tag config using value",
+			yaml: `
+key: foo
+value: bar`,
 			wantErr: false,
 		},
 	}
