@@ -28,17 +28,17 @@ func authenticate(auth Authentication) (*AuthenticationResponse, error) {
 ```
 
 This code is an instance of [CWE-522](https://cwe.mitre.org/data/definitions/522.html), "Insufficiently Protected Credentials".
-Indeed, the `Password` field on the `Authentication` struct contains credentials, which should not be allowed to reach logs.
+The `Password` field on the `Authentication` struct contains credentials, which should not be allowed to reach logs.
 
-This example may seem a bit silly, but the analyzer has actually caught many similar cases in the wild.
+This example may seem contrived, but the analyzer has actually caught many similar cases in the wild.
 
 ## Configuration
 
 Let's see how we can configure the analyzer to automatically detect this incorrect handling of credentials.
 
 In order to do its job, the analyzer needs 2 pieces of information:
-1. Which types hold sensitive data?
-2. Which functions should not be called with sensitive data?
+1. Which types hold sensitive data? (Sources)
+2. Which functions should not be called with sensitive data? (Sinks)
 
 Given this information, the analyzer will perform taint propagation to determine whether sensitive values can reach calls to functions that they shouldn't reach.
 
