@@ -24,9 +24,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v1
 
-      - name: Check goimports
+      - name: Add GOPATH/bin to PATH
         run: |
           export PATH=$PATH:$(go env GOPATH)/bin
+
+      - name: Check goimports
+        run: |
           go install golang.org/x/tools/cmd/goimports
           goimports -d cmd internal pkg
 
@@ -38,7 +41,7 @@ jobs:
       - name: Check for license headers
         run: |
           go get -u github.com/google/addlicense
-          addlicense -check
+          addlicense -check cmd internal pkg
 
       - name: Run staticcheck
         run: |
