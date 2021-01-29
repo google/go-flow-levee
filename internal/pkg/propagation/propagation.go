@@ -257,16 +257,18 @@ func (prop *Propagation) visitCall(call *ssa.Call, maxInstrReached map[*ssa.Basi
 	// Do traverse if the call is being reached through a tainted argument.
 	// Source methods that return tainted values regardless of their arguments should be identified by the fieldpropagator analyzer.
 	if recv := call.Call.Signature().Recv(); recv != nil && sourcetype.IsSourceType(prop.config, prop.taggedFields, recv.Type()) {
-		visitingFromArg := false
-		// Interface types cannot be sources. If the receiver is not a source, the
-		// above condition will be false, so this code won't be executed.
-		// When the receiver's type is statically known (it isn't an interface type),
-		// it will be the first element of the Args slice.
+		// If the receiver is not statically known (it has interface type) and the
+		// method has no arguments, Args will be empty.
 		if len(call.Call.Args) == 0 {
-			fmt.Printf("call.Call.Args was empty; please report this issue")
 			return
 		}
-		for _, a := range call.Call.Args[1:] {
+		visitingFromArg := false
+		for i, a := range call.Call.Args {
+			// If the receiver's type is statically known,
+			// it will be the first element of the Args slice.
+			if !call.Call.IsInvoke() && i == 0 {
+				continue
+			}
 			if prop.tainted[a.(ssa.Node)] {
 				visitingFromArg = true
 			}
