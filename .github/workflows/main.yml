@@ -37,7 +37,12 @@ jobs:
 
       - name: Check for license headers
         run: |
-          grep -rlL "https://www.apache.org/licenses/LICENSE-2.0" cmd internal pkg | grep -cvE ".(ssa|dot)"
+          FILES=$(grep -rlL "https://www.apache.org/licenses/LICENSE-2.0" cmd internal pkg | grep -cvE ".(ssa|dot)" || true)
+          if [[ -n ${FILES} ]]; then
+            echo "The following files are missing the Apache header:"
+            echo ${FILES}
+            false
+          fi
 
       - name: Run staticcheck
         run: |
