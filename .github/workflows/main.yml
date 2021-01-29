@@ -1,12 +1,14 @@
 # This workflow is triggered on push or pull request for the master branch.
 # It verifies that the code is safe to merge.
+---
 name: CI
 
+# yamllint disable-line rule:truthy
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 env:
   GO_VERSION: "1.14"
