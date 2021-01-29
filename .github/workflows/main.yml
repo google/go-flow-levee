@@ -35,10 +35,10 @@ jobs:
           go mod tidy
           git diff
 
-      - name: Check for license headers
-        run: |
-          FILES=$(grep -rL 'https://www.apache.org/licenses/LICENSE-2.0' cmd internal pkg | grep -vE ".(ssa|dot)")
-          [[ "$FILES" ]]
+      # - name: Check for license headers
+      #   run: |
+      #     FILES=$(grep -rL 'https://www.apache.org/licenses/LICENSE-2.0' cmd internal pkg | grep -vE ".(ssa|dot)")
+      #     [[ "$FILES" ]]
 
       - name: Run staticcheck
         run: |
