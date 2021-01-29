@@ -13,5 +13,5 @@
 # limitations under the License.
 ---
 FieldTags:
-- Key: example
-  Val: sensitive
+  - Key: example
+    Val: sensitive
