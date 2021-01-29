@@ -13,15 +13,15 @@
 # limitations under the License.
 ---
 sinks:
-  - packageRE: "^example.com/core"
-    methodRE: "^Sink$"
-  - packageRE: "^example.com/core"
-    methodRE: "^Do$"
-    receiverRE: "^Sinker$"
+  - package: "github.com/example/core"
+    method: "Sink"
+  - package: "github.com/example/core"
+    method: "Do"
+    receiver: "Sinker"
 fieldTags:
   - key: example
     val: sensitive
 exclude:
-  - packageRE: "^example.com/exclusion$"
-    methodRE: "^Foo$"
-  - packageRE: "^notexample.com/exclusion$"
+  - package: "github.com/example/exclusion"
+    method: "Foo"
+  - package: "github.com/notexample/exclusion"

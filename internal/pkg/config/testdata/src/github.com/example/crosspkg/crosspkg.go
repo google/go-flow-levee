@@ -15,9 +15,9 @@
 package crosspkg
 
 import (
-	"example.com/core"
-	"example.com/notcore"
-	necore "notexample.com/core"
+	"github.com/example/core"
+	"github.com/example/notcore"
+	necore "github.com/notexample/core"
 )
 
 func CoreCalls() {
