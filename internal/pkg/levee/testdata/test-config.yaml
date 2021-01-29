@@ -13,21 +13,22 @@
 # limitations under the License.
 ---
 Sources:
-  - PackageRE: "^example.com/core$"
-    TypeRE: "^Source$"
+  - Package: "levee_analysistest/example/core"
+    Type: "Source"
     FieldRE: "^Data"
-  - PackageRE: "^example.com/core$"
-    TypeRE: "^SourceManipulator$"
+# // TODO( <GitHub Issue to be opened> ): This configuration does not appear to be meaningful
+#  - Package: "levee_analysistest/example/core"
+#    Type: "SourceManipulator"
 Sinks:
-  - PackageRE: "^example.com/core$"
+  - Package: "levee_analysistest/example/core"
     MethodRE: Sinkf?$
 Sanitizers:
-  - PackageRE: "^example.com/core$"
+  - Package: "levee_analysistest/example/core"
     MethodRE: "^Sanitize"
 Exclude:
-  - PackageRE: "^example.com/tests/excludedpackage$"
-  - PackageRE: "^example.com/tests/includedpackage$"
-    MethodRE: "^Oops$"
-  - PackageRE: "^example.com/tests/includedpackage$"
-    MethodRE: "^OopsWithReceiverExcluded$"
-    ReceiverRE: "^Receiver$"
+  - Package: "levee_analysistest/example/tests/excludedpackage"
+  - Package: "levee_analysistest/example/tests/includedpackage"
+    Method: "Oops"
+  - Package: "levee_analysistest/example/tests/includedpackage"
+    Method: "OopsWithReceiverExcluded"
+    Receiver: "Receiver"

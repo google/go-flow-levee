@@ -26,3 +26,19 @@ information on using pull requests.
 
 This project follows [Google's Open Source Community
 Guidelines](https://opensource.google/conduct/).
+
+## Project Conventions
+
+### Use Go Modules in `testdata`
+
+The analyzer testing package `analysistest` executes a build of the Go code it tests.
+This treats the `testdata` folder as a synthetic GOPATH, and Go code tested within will look for imported packages in `testdata/src/...`.
+Unfortunately, this tends to break IDE linking, making test development difficult.
+
+To ameliorate this issue, we group a given test's `testdata` into a synthetic root package and use Go modules to identify it for the IDE.
+This allows your IDE to correctly link imports while adhering to the expectation of `analysistest`.
+
+Specifically, `testdata` should be grouped under `testdata/src/NAME_analysistest`, where `NAME` is the name of the analyzer being tested.
+Initialize a trivial Go module file with `go mod init NAME_analysistest`.
+Any imports used within this `testdata` will begin with `NAME_analysistest`.
+See [`levee_analysistest`](internal/pkg/levee/testdata/src/levee_analysistest) for an example. 
