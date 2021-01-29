@@ -13,20 +13,20 @@
 # limitations under the License.
 ---
 Sources:
-- TypeRE: "^Secret$|Token"
-- PackageRE: "k8s.io/client-go/tools/clientcmd/api(?:/v1)?"
-  TypeRE: "^(?:Named)?AuthInfo$"
-  FieldRE: ""
-- PackageRE: "^k8s.io/client-go/rest$"
-  TypeRE: "^TLSClientConfig$"
-  FieldRE: "Password|BearerToken$|"
-- PackageRE: "^k8s.io/client-go/rest$"
-  TypeRE: "^Config$"
-  FieldRE: "Password|BearerToken$|"
+  - TypeRE: "^Secret$|Token"
+  - PackageRE: "k8s.io/client-go/tools/clientcmd/api(?:/v1)?"
+    TypeRE: "^(?:Named)?AuthInfo$"
+    FieldRE: ""
+  - PackageRE: "^k8s.io/client-go/rest$"
+    TypeRE: "^TLSClientConfig$"
+    FieldRE: "Password|BearerToken$|"
+  - PackageRE: "^k8s.io/client-go/rest$"
+    TypeRE: "^Config$"
+    FieldRE: "Password|BearerToken$|"
 Sinks:
-- PackageRE: "log"
-  ReceiverRE: ""
-  MethodRE: "Info|Warning|Error|Fatal|Exit"
+  - PackageRE: "log"
+    ReceiverRE: ""
+    MethodRE: "Info|Warning|Error|Fatal|Exit"
 Sanitizers: []
 Exclude:
-- PackageRE: "^k8s.io/kubernetes/test"
+  - PackageRE: "^k8s.io/kubernetes/test"

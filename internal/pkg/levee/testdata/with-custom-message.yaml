@@ -15,7 +15,7 @@
 ReportMessage: This custom message is included with report.
 
 Sources:
-- Type: Source
+  - Type: Source
 
 Sinks:
-- Method: Sink
+  - Method: Sink

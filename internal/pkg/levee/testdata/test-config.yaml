@@ -13,19 +13,19 @@
 # limitations under the License.
 ---
 Sources:
-- PackageRE: "^example.com/core$"
-  TypeRE: "^Source$"
-  FieldRE: "^Data"
+  - PackageRE: "^example.com/core$"
+    TypeRE: "^Source$"
+    FieldRE: "^Data"
 Sinks:
-- PackageRE: "^example.com/core$"
-  MethodRE: Sinkf?$
+  - PackageRE: "^example.com/core$"
+    MethodRE: Sinkf?$
 Sanitizers:
-- PackageRE: "^example.com/core$"
-  MethodRE: "^Sanitize"
+  - PackageRE: "^example.com/core$"
+    MethodRE: "^Sanitize"
 Exclude:
-- PackageRE: "^example.com/tests/excludedpackage$"
-- PackageRE: "^example.com/tests/includedpackage$"
-  MethodRE: "^Oops$"
-- PackageRE: "^example.com/tests/includedpackage$"
-  MethodRE: "^OopsWithReceiverExcluded$"
-  ReceiverRE: "^Receiver$"
+  - PackageRE: "^example.com/tests/excludedpackage$"
+  - PackageRE: "^example.com/tests/includedpackage$"
+    MethodRE: "^Oops$"
+  - PackageRE: "^example.com/tests/includedpackage$"
+    MethodRE: "^OopsWithReceiverExcluded$"
+    ReceiverRE: "^Receiver$"
