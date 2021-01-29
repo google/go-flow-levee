@@ -14,9 +14,9 @@
 ---
 AllowPanicOnTaintedValues: true
 Sources:
-- Package: "nopanic.com/core"
-  Type: "Source"
-  Field: "Data"
+  - Package: "nopanic.com/core"
+    Type: "Source"
+    Field: "Data"
 Sinks:
-- Package: "nopanic.com/core"
-  Method: "Sink"
+  - Package: "nopanic.com/core"
+    Method: "Sink"

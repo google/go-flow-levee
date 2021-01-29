@@ -13,7 +13,7 @@
 # limitations under the License.
 ---
 Sources:
-- Type: Source
+  - Type: Source
 
 Sinks:
-- Method: Sink
+  - Method: Sink
