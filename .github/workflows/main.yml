@@ -37,7 +37,7 @@ jobs:
 
       - name: Check for license headers
         run: |
-          grep -rlL 'https://www.apache.org/licenses/LICENSE-2.0' cmd internal pkg
+          /bin/bash -c 'grep -rlL "https://www.apache.org/licenses/LICENSE-2.0" cmd internal pkg | grep -vE ".(ssa|dot)"'
 
       - name: Run staticcheck
         run: |
