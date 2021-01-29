@@ -1,0 +1,103 @@
+# This workflow is triggered on push or pull request for the master branch.
+# It verifies that the code is safe to merge.
+---
+name: Lint
+
+# yamllint disable-line rule:truthy
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+env:
+  GO_VERSION: "1.14"
+
+jobs:
+  check-goimports:
+    name: Check goimports
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Checkout code
+        uses: actions/checkout@v1
+
+      - name: Check goimports
+        run: |
+          go install golang.org/x/tools/cmd/goimports
+          goimports -d cmd internal pkg
+
+  check-go-mod:
+    name: Check go mod
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Checkout code
+        uses: actions/checkout@v1
+
+      - name: Check go mod
+        run: |
+          go mod tidy
+          git diff
+
+      - name: Check for license headers
+        run: |
+          go get -u github.com/google/addlicense
+          addlicense -check cmd internal pkg
+
+  check-license-headers:
+    name: Check license headers
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Checkout code
+        uses: actions/checkout@v1
+
+      - name: Check for license headers
+        run: |
+          go get -u github.com/google/addlicense
+          addlicense -check cmd internal pkg
+
+  run-staticcheck:
+    name: Run staticheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Checkout code
+        uses: actions/checkout@v1
+
+      - name: Run staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck
+          staticcheck ./...
+
+  check-yaml:
+    name: Check YAML
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Checkout code
+        uses: actions/checkout@v1
+
+      - name: Check YAML
+        uses: ibiqlik/action-yamllint@v3
