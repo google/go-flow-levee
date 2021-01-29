@@ -24,9 +24,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v1
 
-      - name: Add GOPATH/bin to PATH
-        run: |
-          export PATH=$PATH:$(go env GOPATH)/bin
+      # - name: Add GOPATH/bin to PATH
+      #   run: |
+      #     export PATH=$PATH:$(go env GOPATH)/bin
 
       - name: Check goimports
         run: |
