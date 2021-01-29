@@ -14,7 +14,7 @@ env:
   GO_VERSION: "1.14"
 
 jobs:
-  setup:
+  lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
