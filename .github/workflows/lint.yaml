@@ -54,11 +54,6 @@ jobs:
             false
           fi
 
-      - name: Check for license headers
-        run: |
-          go get -u github.com/google/addlicense
-          addlicense -check cmd internal pkg
-
   check-license-headers:
     name: Check license headers
     runs-on: ubuntu-latest
