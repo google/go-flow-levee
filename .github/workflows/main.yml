@@ -37,12 +37,8 @@ jobs:
 
       - name: Check for license headers
         run: |
-          FILES=$(grep -rlL "https://www.apache.org/licenses/LICENSE-2.0" cmd internal pkg | grep -cvE ".(ssa|dot)")
-          if [[ -n "$FILES" ]]; then
-            echo "The following files are missing the Apache header:"
-            echo "$FILES"
-            false
-          fi
+          go get -u github.com/google/addlicense
+          addlicense -check
 
       - name: Run staticcheck
         run: |
