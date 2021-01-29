@@ -37,7 +37,7 @@ jobs:
 
       - name: Check for license headers
         run: |
-          FILES=$(grep -rL 'https://www.apache.org/licenses/LICENSE-2.0' cmd internal pkg | grep -vE ".(ssa|dot)"
+          FILES=$(grep -rL 'https://www.apache.org/licenses/LICENSE-2.0' cmd internal pkg | grep -vE ".(ssa|dot)")
           [[ "$FILES" ]]
 
       - name: Run staticcheck
