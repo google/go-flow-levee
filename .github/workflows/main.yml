@@ -37,7 +37,7 @@ jobs:
 
       - name: Check for license headers
         run: |
-          grep -r levee
+          grep -rlL 'https://www.apache.org/licenses/LICENSE-2.0' cmd internal pkg
 
       - name: Run staticcheck
         run: |
