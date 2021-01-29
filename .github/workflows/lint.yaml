@@ -29,7 +29,10 @@ jobs:
       - name: Check goimports
         run: |
           go install golang.org/x/tools/cmd/goimports
-          goimports -d cmd internal pkg
+          if [[ $(goimports -l cmd internal pkg) ]]; then
+            echo 'Please run `goimports -w cmd internal pkg`.'
+            false
+          fi
 
   check-go-mod:
     name: Check go mod
@@ -46,7 +49,10 @@ jobs:
       - name: Check go mod
         run: |
           go mod tidy
-          git diff
+          if ! git diff --quiet; then
+            echo 'Please run `go mod tidy`.'
+            false
+          fi
 
       - name: Check for license headers
         run: |
