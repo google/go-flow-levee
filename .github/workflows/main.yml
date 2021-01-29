@@ -3,14 +3,10 @@
 name: Main
 
 on:
+  push:
+    branches: [ master ]
   pull_request:
-    branches:
-      - master
-    paths-ignore:
-      - '**/*.md'
-      - 'configuration/**'
-      - 'design/**'
-      - 'guides/**'
+    branches: [ master ]
 
 env:
   GO_VERSION: "1.14"
