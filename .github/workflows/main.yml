@@ -1,36 +1,58 @@
-# This is a basic workflow to help you get started with Actions
+# This workflow is triggered on push or pull request for the main branch.
+# It verifies that the code is safe to merge.
+name: Main
 
-name: CI
-
-# Controls when the action will run. 
 on:
-  # Triggers the workflow on push or pull request events but only for the master branch
-  push:
-    branches: [ master ]
   pull_request:
-    branches: [ master ]
+    branches:
+      - master
+    paths-ignore:
+      - '**/*.md'
+      - 'configuration/**'
+      - 'design/**'
+      - 'guides/**'
 
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
+env:
+  GO_VERSION: "1.14"
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
+  checks:
+    name: Validate code
     runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
+      - name: Setup Go
+        uses: actions/setup-go@v1
+        with:
+          go-version: ${{ env.GO_VERSION }}
 
-      # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Hello, world!
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-      # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
+      - name: Check goimports
         run: |
-          echo Add other actions to build,
-          echo test, and deploy your project.
+          go install golang.org/x/tools/cmd/goimports
+          goimports -d cmd internal pkg
+
+      - name: Check go mod
+        run: |
+          go mod tidy
+          git diff
+
+      - name: Check for license headers
+        run: |
+          FILES=$(grep -rL 'https://www.apache.org/licenses/LICENSE-2.0' cmd internal pkg | grep -vE ".(ssa|dot)"
+          [[ "$FILES" ]]
+
+      - name: Run staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck
+          staticcheck ./...
+
+      - name: Run tests
+        run: |
+          go test -v ./...
+
+      - name: Check YAML
+        run: |
+          sudo apt-get -y install yamllint
+          find . -name '*.yaml' -exec yamllint {} + &>/dev/null
