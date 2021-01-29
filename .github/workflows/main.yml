@@ -50,6 +50,4 @@ jobs:
           go test -v ./...
 
       - name: Check YAML
-        run: |
-          sudo apt-get -y install yamllint
-          find . -name '*.yaml' -exec yamllint {} + &>/dev/null
+        uses: ibiqlik/action-yamllint@v3
