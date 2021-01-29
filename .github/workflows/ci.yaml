@@ -1,7 +1,7 @@
 # This workflow is triggered on push or pull request for the master branch.
 # It verifies that the code is safe to merge.
 ---
-name: Lint
+name: CI
 
 # yamllint disable-line rule:truthy
 on:
@@ -54,3 +54,19 @@ jobs:
 
       - name: Check YAML
         uses: ibiqlik/action-yamllint@v3
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Checkout code
+        uses: actions/checkout@v1
+
+      - name: Run tests
+        run: |
+          go test -v ./...
