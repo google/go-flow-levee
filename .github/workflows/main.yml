@@ -48,5 +48,5 @@ jobs:
         run: |
           go test -v ./...
 
-      # - name: Check YAML
-      #   uses: ibiqlik/action-yamllint@v3
+      - name: Check YAML
+        uses: ibiqlik/action-yamllint@v3
