@@ -7,7 +7,7 @@ The code for this example is available in the `go-flow-levee/guides/quickstart` 
 Suppose you have the following piece of code:
 
 ```go
-// `quickstart.go`
+// quickstart.go
 package quickstart
 
 import "log"
@@ -56,7 +56,7 @@ There are 2 ways to define a Source type:
 In the analyzer's configuration, define the field tag:
 
 ```yaml
-// analyzer_configuration.yaml
+# analyzer_configuration.yaml
 FieldTags:
   - Key: datapolicy
     Value: secret
@@ -81,7 +81,7 @@ This method of configuration is recommended for its maintainability.
 In the analyzer's configuration, identify the sensitive data:
 
 ```yaml
-// analyzer_configuration.yaml
+# analyzer_configuration.yaml
 Sources:
   - Package: github.com/google/go-flow-levee/guides/quickstart
     Type: Authentication
@@ -103,7 +103,7 @@ Configuring a sink is similar to configuring a source using a type description.
 In the analyzer's configuration, identify the function:
 
 ```yaml
-// analyzer_configuration.yaml
+# analyzer_configuration.yaml
 Sinks:
   - Package: log
     Method: Printf
@@ -153,7 +153,7 @@ Let's fix the issue. Do we really need to be logging the `auth` struct? Maybe no
 
 ```go
 // quickstart.go
-		log.Printf("unable to make authenticated request: incorrect authentication?\n")
+log.Printf("unable to make authenticated request: incorrect authentication?\n")
 ```
 
 After making this change, the analyzer no longer produces a report. There are many ways to
