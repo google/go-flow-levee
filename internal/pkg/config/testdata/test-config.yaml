@@ -20,7 +20,7 @@ sinks:
     receiverRE: "^Sinker$"
 fieldTags:
   - key: example
-    val: sensitive
+    value: sensitive
 exclude:
   - packageRE: "^example.com/exclusion$"
     methodRE: "^Foo$"
