@@ -1,7 +1,7 @@
 ---
 FieldTags:
   - Key: datapolicy
-    Val: password
+    Value: password
 Sinks:
   - Package: log
     Method: Printf
