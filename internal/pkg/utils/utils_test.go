@@ -137,7 +137,6 @@ func TestDecomposeField(t *testing.T) {
 			res := r[0].Result.(testAnalyzerResult)
 
 			fa := res.fieldAddr[0]
-			fmt.Println(fa.Pos())
 
 			typePath, typeName, fieldName := DecomposeField(fa.X.Type(), fa.Field)
 			if typePath != tt.typePath {
