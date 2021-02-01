@@ -288,7 +288,7 @@ func TestFieldTagMatcherUnmarshalling(t *testing.T) {
 		wantErr    bool
 	}{
 		{
-			desc:    "missing val or value",
+			desc:    "missing value",
 			yaml:    "key: foo",
 			wantErr: true,
 		},
@@ -313,10 +313,17 @@ val: "two letters short"`,
 			wantErr: true,
 		},
 		{
-			desc: "valid field tag config",
+			desc: "valid field tag config, lowercase",
 			yaml: `
 key: foo
 value: bar`,
+			wantErr: false,
+		},
+		{
+			desc: "valid field tag config, titlecase",
+			yaml: `
+Key: foo
+Value: bar`,
 			wantErr: false,
 		},
 	}
