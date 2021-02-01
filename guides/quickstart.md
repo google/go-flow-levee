@@ -6,9 +6,9 @@ The code for this example is available in the `go-flow-levee/guides/quickstart` 
 
 Suppose you have the following piece of code:
 
-`auth.go`
 ```go
-package auth
+// `quickstart.go`
+package quickstart
 
 import "log"
 
@@ -30,7 +30,7 @@ func authenticate(auth Authentication) (*AuthenticationResponse, error) {
 This code is an instance of [CWE-522](https://cwe.mitre.org/data/definitions/522.html), "Insufficiently Protected Credentials".
 The `Password` field on the `Authentication` struct contains credentials, which should not be allowed to reach logs.
 
-This example may seem contrived, but the analyzer has actually caught many similar cases in the wild.
+This example may seem contrived, but the `go-flow-levee` analyzer has actually caught many similar cases in the wild.
 
 ## Configuration
 
@@ -49,23 +49,23 @@ In the current example, a Source is a value that contains sensitive data, e.g. a
 
 There are 2 ways to define a Source type:
 1. Define a field tag and apply it to sensitive fields
-2. Describe a type using its name, the name of its package, and the relevant field(s)
+1. Describe a type using its name, the name of its package, and the relevant field(s)
 
 #### Using field tags
 
 In the analyzer's configuration, define the field tag:
 
-`analyzer_configuration.yaml`
 ```yaml
+// analyzer_configuration.yaml
 FieldTags:
   - Key: datapolicy
-    Val: secret
+    Value: secret
 ```
 
 In the code you want to analyze, add the tag to the sensitive field:
 
-`auth.go`
 ```go
+// quickstart.go
 type Authentication struct {
   Username string 
   Password string `datapolicy:"secret"`
@@ -74,19 +74,21 @@ type Authentication struct {
 
 If you do not wish to define your own field tag, you may use the built-in `levee:"source"` tag.
 
+This method of configuration is recommended for its maintainability.
+
 #### Using type descriptions
 
 In the analyzer's configuration, identify the sensitive data:
 
-`analyzer_configuration.yaml`
 ```yaml
+// analyzer_configuration.yaml
 Sources:
-  - Package: auth
+  - Package: github.com/google/go-flow-levee/guides/quickstart
     Type: Authentication
     Field: Password
 ```
 
-This method does not require changes to the code.
+This method of configuration does not require changes to the code.
 
 See [the documentation](../configuration/README.md) for further instructions on how to describe sources.
 
@@ -99,6 +101,7 @@ Configuring a sink is similar to configuring a source using a type description.
 In the analyzer's configuration, identify the function:
 
 ```yaml
+// analyzer_configuration.yaml
 Sinks:
   - Package: log
     Method: Printf
@@ -124,11 +127,12 @@ The most convenient way to run the analyzer is to use the `go vet` command.
 
 You must provide `go vet` with three pieces of information:
 1. What tool to run (in this case, the levee analyzer)
-2. What configuration the analyzer should use
-3. The list of packages to analyze
+1. What configuration the analyzer should use
+1. The list of packages to analyze
 
 Use the following command to run the analyzer:
 ```shell
+// in the go-flow-levee/guides/quickstart directory
 go vet -vettool=$(which levee) -config=$(realpath analyzer_configuration.yaml) ./...
 ```
 
@@ -147,13 +151,13 @@ indicating the locations of the source and sink in the code.
 
 Let's fix the issue. Do we really need to be logging the `auth` struct? Maybe not:
 
-`auth.go`
 ```go
+// quickstart.go
 		log.Printf("unable to make authenticated request: incorrect authentication?\n")
 ```
 
 After making this change, the analyzer no longer produces a report. There are many ways to
-address reports, the important thing is to modify the code so that the Source can no longer
+address reports. The important thing is to modify the code so that the Source can no longer
 reach the Sink. For example, you may wish to define a "Sanitizer" function that redacts the
 `Password` from `Authentication` values, making them safe to log. See [the documentation](../configuration/README.md)
 for more on how to configure sanitizers.

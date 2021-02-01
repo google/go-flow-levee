@@ -1,4 +1,5 @@
-package auth
+// full path: github.com/google/go-flow-levee/guides/quickstart
+package quickstart
 
 import "log"
 
@@ -8,7 +9,7 @@ type Authentication struct {
 }
 
 func authenticate(auth Authentication) (*AuthenticationResponse, error) {
-	response, err := makeAuthenticatedRequest(auth)
+	response, err := makeAuthenticationRequest(auth)
 	if err != nil {
 		log.Printf("unable to make authenticated request: incorrect authentication? %v", auth)
 		return nil, err
@@ -20,4 +21,6 @@ func authenticate(auth Authentication) (*AuthenticationResponse, error) {
 type AuthenticationResponse struct{}
 
 // just a stub, to allow the code to compile
-func makeAuthenticatedRequest(Authentication) (*AuthenticationResponse, error) { return nil, nil }
+func makeAuthenticationRequest(Authentication) (*AuthenticationResponse, error) { return nil, nil }
+
+//lint:file-ignore U1000 unused functions are stubs

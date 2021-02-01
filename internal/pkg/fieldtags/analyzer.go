@@ -17,6 +17,7 @@
 package fieldtags
 
 import (
+	"fmt"
 	"go/ast"
 	"go/types"
 	"reflect"
@@ -54,6 +55,7 @@ func (i isTaggedField) String() string {
 func run(pass *analysis.Pass) (interface{}, error) {
 	conf, err := config.ReadConfig()
 	if err != nil {
+		fmt.Println(err)
 		return nil, err
 	}
 
