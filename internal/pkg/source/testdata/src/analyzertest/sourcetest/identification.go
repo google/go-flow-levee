@@ -121,6 +121,5 @@ func TestTaggedSourceIdentification() {
 	_ = TaggedSource{} // want "source identified"
 }
 
-// No source should be identified here, because SourceInterface is an interface type.
-func TestNamedInterfaceIsNotSource(x SourceInterface) {
+func TestNamedInterface(x SourceInterface) { // want "source identified"
 }

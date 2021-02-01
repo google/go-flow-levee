@@ -146,7 +146,7 @@ func (prop *Propagation) taintNeighbors(n ssa.Node, maxInstrReached map[*ssa.Bas
 		}
 
 	case *ssa.Call:
-		prop.visitCall(t, maxInstrReached, lastBlockVisited)
+		prop.taintCall(t, maxInstrReached, lastBlockVisited)
 
 	case *ssa.Field:
 		prop.taintField(n, maxInstrReached, lastBlockVisited, t.X.Type(), t.Field)
@@ -176,7 +176,7 @@ func (prop *Propagation) taintNeighbors(n ssa.Node, maxInstrReached map[*ssa.Bas
 		prop.taint(t.Map.(ssa.Node), maxInstrReached, lastBlockVisited, false)
 
 	case *ssa.Select:
-		prop.visitSelect(t, maxInstrReached, lastBlockVisited)
+		prop.taintSelect(t, maxInstrReached, lastBlockVisited)
 
 	// The only Operand that can be tainted by a Send is the Chan.
 	// The Value can propagate taint to the Chan, but not receive it.
@@ -242,10 +242,10 @@ func (prop *Propagation) taintOperands(n ssa.Node, maxInstrReached map[*ssa.Basi
 	}
 }
 
-func (prop *Propagation) visitCall(call *ssa.Call, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+func (prop *Propagation) taintCall(call *ssa.Call, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	// Some builtins require special handling
 	if builtin, ok := call.Call.Value.(*ssa.Builtin); ok {
-		prop.visitBuiltin(call, builtin.Name(), maxInstrReached, lastBlockVisited)
+		prop.taintBuiltin(call, builtin.Name(), maxInstrReached, lastBlockVisited)
 		return
 	}
 
@@ -257,16 +257,18 @@ func (prop *Propagation) visitCall(call *ssa.Call, maxInstrReached map[*ssa.Basi
 	// Do traverse if the call is being reached through a tainted argument.
 	// Source methods that return tainted values regardless of their arguments should be identified by the fieldpropagator analyzer.
 	if recv := call.Call.Signature().Recv(); recv != nil && sourcetype.IsSourceType(prop.config, prop.taggedFields, recv.Type()) {
-		visitingFromArg := false
-		// Interface types cannot be sources. If the receiver is not a source, the
-		// above condition will be false, so this code won't be executed.
-		// When the receiver's type is statically known (it isn't an interface type),
-		// it will be the first element of the Args slice.
+		// If the receiver is not statically known (it has interface type) and the
+		// method has no arguments, Args will be empty.
 		if len(call.Call.Args) == 0 {
-			fmt.Printf("call.Call.Args was empty; please report this issue")
 			return
 		}
-		for _, a := range call.Call.Args[1:] {
+		visitingFromArg := false
+		for i, a := range call.Call.Args {
+			// If the receiver's type is statically known,
+			// it will be the first element of the Args slice.
+			if !call.Call.IsInvoke() && i == 0 {
+				continue
+			}
 			if prop.tainted[a.(ssa.Node)] {
 				visitingFromArg = true
 			}
@@ -284,7 +286,7 @@ func (prop *Propagation) visitCall(call *ssa.Call, maxInstrReached map[*ssa.Basi
 	}
 }
 
-func (prop *Propagation) visitBuiltin(c *ssa.Call, builtinName string, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+func (prop *Propagation) taintBuiltin(c *ssa.Call, builtinName string, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	switch builtinName {
 	// The values being appended cannot be tainted.
 	case "append":
@@ -308,7 +310,7 @@ func (prop *Propagation) taintCallArg(arg ssa.Value, maxInstrReached map[*ssa.Ba
 	}
 }
 
-func (prop *Propagation) visitSelect(sel *ssa.Select, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+func (prop *Propagation) taintSelect(sel *ssa.Select, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	// Select returns a tuple whose first 2 elements are irrelevant for our
 	// analysis. Subsequent elements correspond to Recv states, which map
 	// 1:1 with Extracts.
