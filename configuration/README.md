@@ -38,7 +38,7 @@ The tag `levee:"source"` is built-in. Additional tags may be identified via expl
 ```yaml
 FieldTags:
 - Key: levee
-  Val: source
+  Value: source
 ```
 
 Sinks and sanitizers are identified by package, method, and (if applicable) receiver name.
