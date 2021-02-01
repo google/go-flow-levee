@@ -18,7 +18,7 @@ type Authentication struct {
 }
 
 func authenticate(auth Authentication) (*AuthenticationResponse, error) {
-	response, err := makeAuthenticatedRequest(auth)
+	response, err := makeAuthenticationRequest(auth)
 	if err != nil {
 		log.Printf("unable to make authenticated request: incorrect authentication? %v\n", auth)
 		return nil, err
@@ -48,8 +48,8 @@ In taint propagation lingo, a value that contains data of interest is called a S
 In the current example, a Source is a value that contains sensitive data, e.g. a password.  
 
 There are 2 ways to define a Source type:
-1. Define a field tag and apply it to sensitive fields
-1. Describe a type using its name, the name of its package, and the relevant field(s)
+1. Define a field tag and apply it to each sensitive field
+1. Describe a type using its name, the full path of its package, and the name of the sensitive field
 
 #### Using field tags
 
@@ -74,7 +74,7 @@ type Authentication struct {
 
 If you do not wish to define your own field tag, you may use the built-in `levee:"source"` tag.
 
-This method of configuration is recommended for its maintainability.
+This method of configuration is recommended for its maintainability. 
 
 #### Using type descriptions
 
@@ -88,7 +88,9 @@ Sources:
     Field: Password
 ```
 
-This method of configuration does not require changes to the code.
+This method of configuration does not require changes to the code, but you may need to change your
+configuration more often. For example, if the type's named were shortened to `Auth`, you would need
+to update the configuration to reflect that.
 
 See [the documentation](../configuration/README.md) for further instructions on how to describe sources.
 
@@ -126,27 +128,25 @@ go get github.com/google/go-flow-levee/cmd/levee
 The most convenient way to run the analyzer is to use the `go vet` command.
 
 You must provide `go vet` with three pieces of information:
-1. What tool to run (in this case, the levee analyzer)
+1. What tool to run (in this case, the `levee` binary you just installed)
 1. What configuration the analyzer should use
 1. The list of packages to analyze
 
 Use the following command to run the analyzer:
 ```shell
-// in the go-flow-levee/guides/quickstart directory
+# in the go-flow-levee/guides/quickstart directory
 go vet -vettool=$(which levee) -config=$(realpath analyzer_configuration.yaml) ./...
 ```
-
-(This command assumes that it is being run in the `go-flow-levee/guides/quickstart` directory.)
 
 Running on the example code, you should see output similar to the following:
 
 ```
 # github.com/google/go-flow-levee/guides/quickstart
-./auth.go:13:13: a source has reached a sink
- source: ./auth.go:10:19
+./quickstart.go:14:13: a source has reached a sink
+ source: ./quickstart.go:11:19
 ```
 
-The analyzer detected that a source could reach a sink, and it produced a helpful report
+The analyzer detected the issue, and it produced a helpful report
 indicating the locations of the source and sink in the code.
 
 Let's fix the issue. Do we really need to be logging the `auth` struct? Maybe not:

@@ -23,4 +23,4 @@ type AuthenticationResponse struct{}
 // just a stub, to allow the code to compile
 func makeAuthenticationRequest(Authentication) (*AuthenticationResponse, error) { return nil, nil }
 
-//lint:file-ignore U1000 unused functions are stubs
+//lint:file-ignore U1000 ignore unused functions
