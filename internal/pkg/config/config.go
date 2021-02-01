@@ -66,7 +66,7 @@ func (c Config) IsSourceFieldTag(tag string) bool {
 	for _, ft := range c.FieldTags {
 		val := st.Get(ft.Key)
 		for _, v := range strings.Split(val, ",") {
-			if v == ft.Val {
+			if v == ft.Value {
 				return true
 			}
 		}
@@ -141,18 +141,18 @@ func (vacuousMatcher) MatchString(string) bool {
 }
 
 type fieldTagMatcher struct {
-	Key string
-	Val string
+	Key   string
+	Value string
 }
 
 // this type uses the default unmarshaller and mirrors configuration key-value pairs
 type rawFieldTagMatcher struct {
-	Key string
-	Val string
+	Key   string
+	Value string
 }
 
 func (ft *fieldTagMatcher) UnmarshalJSON(bytes []byte) error {
-	validFieldTagMatcherFields := []string{"key", "val", "value"}
+	validFieldTagMatcherFields := []string{"key", "value"}
 	if err := validateFieldNames(&bytes, "fieldTagMatcher", validFieldTagMatcherFields); err != nil {
 		return err
 	}
@@ -161,8 +161,17 @@ func (ft *fieldTagMatcher) UnmarshalJSON(bytes []byte) error {
 	if err := json.Unmarshal(bytes, &raw); err != nil {
 		return err
 	}
+
+	if raw.Key == "" {
+		return fmt.Errorf("invalid field tag matcher: please provide a non-empty Key")
+	}
+	if raw.Value == "" {
+		return fmt.Errorf("invalid field tag matcher: please provide a non-empty Value")
+	}
+
 	ft.Key = raw.Key
-	ft.Val = raw.Val
+	ft.Value = raw.Value
+
 	return nil
 }
 
