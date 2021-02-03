@@ -16,9 +16,6 @@ Sources:
   - Package: "levee_analysistest/example/core"
     Type: "Source"
     FieldRE: "^Data"
-# // TODO( <GitHub Issue to be opened> ): This configuration does not appear to be meaningful
-#  - Package: "levee_analysistest/example/core"
-#    Type: "SourceManipulator"
 Sinks:
   - Package: "levee_analysistest/example/core"
     MethodRE: Sinkf?$
