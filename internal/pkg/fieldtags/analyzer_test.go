@@ -31,7 +31,7 @@ func TestFieldTagsAnalysis(t *testing.T) {
 		t.Error(err)
 	}
 
-	results := analysistest.Run(t, testdata, Analyzer, "example.com/core", "example.com/crosspkg")
+	results := analysistest.Run(t, testdata, Analyzer, "fieldtags_analysistest/core", "fieldtags_analysistest/crosspkg")
 
 	if len(results) != 2 {
 		t.Fatalf("expected 2 results, got %d", len(results))
