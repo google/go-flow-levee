@@ -91,7 +91,7 @@ func TestTaintPropagationOverMultipleIterations() {
 		}
 	}
 	core.Sink(e1) // want "a source has reached a sink"
-	core.Sink(e2) // want "a source has reached a sink"
+	core.Sink(e2) // This want removed to demonstrate output
 }
 
 func TestTaintPropagationOverMultipleIterationsWithNestedConditionals() {

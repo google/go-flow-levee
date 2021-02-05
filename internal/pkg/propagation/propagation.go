@@ -34,7 +34,7 @@ import (
 // during, a taint propagation analysis.
 type Propagation struct {
 	root         ssa.Node
-	tainted      map[ssa.Node]bool
+	taintedBy    map[ssa.Node]ssa.Node
 	preOrder     []ssa.Node
 	sanitizers   []*sanitizer.Sanitizer
 	config       *config.Config
@@ -46,13 +46,13 @@ type Propagation struct {
 func Taint(n ssa.Node, conf *config.Config, taggedFields fieldtags.ResultType) Propagation {
 	prop := Propagation{
 		root:         n,
-		tainted:      make(map[ssa.Node]bool),
+		taintedBy:    make(map[ssa.Node]ssa.Node),
 		config:       conf,
 		taggedFields: taggedFields,
 	}
 	maxInstrReached := map[*ssa.BasicBlock]int{}
 
-	prop.taint(n, maxInstrReached, nil, false)
+	prop.taint(n, nil, maxInstrReached, nil, false)
 	// ensure immediate referrers are visited
 	prop.taintReferrers(n, maxInstrReached, nil)
 
@@ -69,12 +69,12 @@ func Taint(n ssa.Node, conf *config.Config, taggedFields fieldtags.ResultType) P
 //   a call to a sink where the argument was tainted after the call happened.
 // - lastBlockVisited is used to determine whether the next instruction to visit
 //   can be reached from the current instruction.
-func (prop *Propagation) taint(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, isReferrer bool) {
+func (prop *Propagation) taint(n, taintedBy ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, isReferrer bool) {
 	if prop.shouldNotTaint(n, maxInstrReached, lastBlockVisited, isReferrer) {
 		return
 	}
 	prop.preOrder = append(prop.preOrder, n)
-	prop.tainted[n] = true
+	prop.taintedBy[n] = taintedBy
 
 	mirCopy := map[*ssa.BasicBlock]int{}
 	for m, i := range maxInstrReached {
@@ -94,11 +94,36 @@ func (prop *Propagation) taint(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]i
 		lastBlockVisited = instr.Block()
 	}
 
-	prop.taintNeighbors(n, mirCopy, lastBlockVisited)
+	prop.taintNeighbors(n, taintedBy, mirCopy, lastBlockVisited)
+}
+
+func (prop *Propagation) TaintPathTo(n ssa.Node) ([]ssa.Node, bool) {
+	var path []ssa.Node
+	var hadJump bool
+
+	for current := n; current != prop.root; current = prop.taintedBy[current] {
+		if current == nil {
+			hadJump = true
+			break
+		}
+
+		for _, prev := range path {
+			if prev == current {
+				hadJump = true
+				break
+			}
+		}
+
+		path = append(path, current)
+	}
+
+	path = append(path, prop.root)
+	return path, hadJump
+
 }
 
 func (prop *Propagation) shouldNotTaint(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock, isReferrer bool) bool {
-	if prop.tainted[n] {
+	if _, tainted := prop.taintedBy[n]; tainted {
 		return true
 	}
 
@@ -131,7 +156,7 @@ func (prop *Propagation) shouldNotTaint(n ssa.Node, maxInstrReached map[*ssa.Bas
 	return false
 }
 
-func (prop *Propagation) taintNeighbors(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+func (prop *Propagation) taintNeighbors(n, taintedBy ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	switch t := n.(type) {
 	case *ssa.Alloc:
 		// An Alloc represents the allocation of space for a variable. If a Node is an Alloc,
@@ -146,7 +171,7 @@ func (prop *Propagation) taintNeighbors(n ssa.Node, maxInstrReached map[*ssa.Bas
 		}
 
 	case *ssa.Call:
-		prop.taintCall(t, maxInstrReached, lastBlockVisited)
+		prop.taintCallAndArgs(t, taintedBy, maxInstrReached, lastBlockVisited)
 
 	case *ssa.Field:
 		prop.taintField(n, maxInstrReached, lastBlockVisited, t.X.Type(), t.Field)
@@ -157,23 +182,23 @@ func (prop *Propagation) taintNeighbors(n ssa.Node, maxInstrReached map[*ssa.Bas
 	// Everything but the actual integer Index should be visited.
 	case *ssa.Index:
 		prop.taintReferrers(n, maxInstrReached, lastBlockVisited)
-		prop.taint(t.X.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+		prop.taint(t.X.(ssa.Node), n, maxInstrReached, lastBlockVisited, false)
 
 	// Everything but the actual integer Index should be visited.
 	case *ssa.IndexAddr:
 		prop.taintReferrers(n, maxInstrReached, lastBlockVisited)
-		prop.taint(t.X.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+		prop.taint(t.X.(ssa.Node), n, maxInstrReached, lastBlockVisited, false)
 
 	// Only the Addr (the Value that is being written to) should be visited.
 	case *ssa.Store:
-		prop.taint(t.Addr.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+		prop.taint(t.Addr.(ssa.Node), n, maxInstrReached, lastBlockVisited, false)
 
 	// Only the Map itself can be tainted by an Update.
 	// The Key can't be tainted.
 	// The Value can propagate taint to the Map, but not receive it.
 	// MapUpdate has no referrers, it is only an Instruction, not a Value.
 	case *ssa.MapUpdate:
-		prop.taint(t.Map.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+		prop.taint(t.Map.(ssa.Node), n, maxInstrReached, lastBlockVisited, false)
 
 	case *ssa.Select:
 		prop.taintSelect(t, maxInstrReached, lastBlockVisited)
@@ -182,13 +207,13 @@ func (prop *Propagation) taintNeighbors(n ssa.Node, maxInstrReached map[*ssa.Bas
 	// The Value can propagate taint to the Chan, but not receive it.
 	// Send has no referrers, it is only an Instruction, not a Value.
 	case *ssa.Send:
-		prop.taint(t.Chan.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+		prop.taint(t.Chan.(ssa.Node), n, maxInstrReached, lastBlockVisited, false)
 
 	case *ssa.Slice:
 		prop.taintReferrers(n, maxInstrReached, lastBlockVisited)
 		// This allows taint to propagate backwards into the sliced value
 		// when the resulting value is tainted
-		prop.taint(t.X.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+		prop.taint(t.X.(ssa.Node), n, maxInstrReached, lastBlockVisited, false)
 
 	// These nodes' operands should not be visited, because they can only receive
 	// taint from their operands, not propagate taint to them.
@@ -229,7 +254,7 @@ func (prop *Propagation) taintReferrers(n ssa.Node, maxInstrReached map[*ssa.Bas
 		return
 	}
 	for _, r := range *n.Referrers() {
-		prop.taint(r.(ssa.Node), maxInstrReached, lastBlockVisited, true)
+		prop.taint(r.(ssa.Node), n, maxInstrReached, lastBlockVisited, true)
 	}
 }
 
@@ -238,75 +263,92 @@ func (prop *Propagation) taintOperands(n ssa.Node, maxInstrReached map[*ssa.Basi
 		if *o == nil {
 			continue
 		}
-		prop.taint((*o).(ssa.Node), maxInstrReached, lastBlockVisited, false)
+		prop.taint((*o).(ssa.Node), n, maxInstrReached, lastBlockVisited, false)
 	}
 }
 
-func (prop *Propagation) taintCall(call *ssa.Call, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+// taintCallAndArgs directly propagates taint to both the call and to the call's arguments.
+// This allows arguments to directly taint each other without having to revisit the call.
+func (prop *Propagation) taintCallAndArgs(call *ssa.Call, taintedBy ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	// Some builtins require special handling
 	if builtin, ok := call.Call.Value.(*ssa.Builtin); ok {
-		prop.taintBuiltin(call, builtin.Name(), maxInstrReached, lastBlockVisited)
+		prop.taintBuiltin(call, taintedBy, builtin.Name(), maxInstrReached, lastBlockVisited)
 		return
 	}
 
+	// Sanitizers should be noted.  They do not propagate taint.
 	if callee := call.Call.StaticCallee(); callee != nil && prop.config.IsSanitizer(utils.DecomposeFunction(callee)) {
 		prop.sanitizers = append(prop.sanitizers, &sanitizer.Sanitizer{Call: call})
+		return
 	}
 
-	// Do not traverse through a method call if it is being reached via a Source receiver.
-	// Do traverse if the call is being reached through a tainted argument.
-	// Source methods that return tainted values regardless of their arguments should be identified by the fieldpropagator analyzer.
-	if recv := call.Call.Signature().Recv(); recv != nil && sourcetype.IsSourceType(prop.config, prop.taggedFields, recv.Type()) {
-		// If the receiver is not statically known (it has interface type) and the
-		// method has no arguments, Args will be empty.
-		if len(call.Call.Args) == 0 {
-			return
-		}
-		visitingFromArg := false
-		for i, a := range call.Call.Args {
-			// If the receiver's type is statically known,
-			// it will be the first element of the Args slice.
-			if !call.Call.IsInvoke() && i == 0 {
-				continue
-			}
-			if prop.tainted[a.(ssa.Node)] {
-				visitingFromArg = true
-			}
-		}
-		if !visitingFromArg {
-			// unmark the node so that it may be visited again when taint propagates to an argument
-			prop.tainted[call] = false
-			return
-		}
+	recv, _ := getCallComponents(call)
+
+	if taintedByRecv(recv, taintedBy) && sourcetype.IsSourceType(prop.config, prop.taggedFields, recv.Type()) {
+		delete(prop.taintedBy, call)
+		return
 	}
 
 	prop.taintReferrers(call, maxInstrReached, lastBlockVisited)
 	for _, a := range call.Call.Args {
-		prop.taintCallArg(a, maxInstrReached, lastBlockVisited)
+		prop.taintCallArg(a, taintedBy, maxInstrReached, lastBlockVisited)
 	}
 }
 
-func (prop *Propagation) taintBuiltin(c *ssa.Call, builtinName string, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+func taintedByRecv(recv ssa.Value, taintedBy ssa.Node) bool {
+	recvVal, recvOk := recv.(ssa.Value)
+	tbVal, tbOk := taintedBy.(ssa.Value)
+	return recvOk && tbOk && recvVal == tbVal
+}
+
+// getCallComponents returns the ssa.Value(s) for the call's receiver and arguments.
+// Receiver will be nil where none is present.
+func getCallComponents(call *ssa.Call) (recv ssa.Value, args []ssa.Value) {
+	if call.Call.IsInvoke() {
+		// In invoke mode, CommonCall.Value holds the receiver
+		return call.Call.Value, call.Call.Args
+	}
+
+	// In call mode, if the call is a method, Arg[0] is the receiver
+	if isMethod := call.Call.Signature().Recv() != nil; isMethod {
+		return call.Call.Args[0], call.Call.Args[1:]
+	}
+
+	return nil, call.Call.Args
+}
+
+func taintedByInArgs(taintedBy ssa.Node, args []ssa.Value) bool {
+	if tbValue, ok := taintedBy.(ssa.Value); ok {
+		for _, arg := range args {
+			if tbValue == arg {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (prop *Propagation) taintBuiltin(c *ssa.Call, taintedBy ssa.Node, builtinName string, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	switch builtinName {
 	// The values being appended cannot be tainted.
 	case "append":
 		// The slice argument needs to be tainted because if its underlying array has
 		// enough remaining capacity, the appended values will be written to it.
-		prop.taintCallArg(c.Call.Args[0], maxInstrReached, lastBlockVisited)
-		// The returned slice is tainted if either the slice argument or the values
-		// are tainted, so we need to visit the referrers.
+		prop.taintCallArg(c.Call.Args[0], taintedBy, maxInstrReached, lastBlockVisited)
+		// The returned slice is taintedBy if either the slice argument or the values
+		// are taintedBy, so we need to visit the referrers.
 		prop.taintReferrers(c, maxInstrReached, lastBlockVisited)
 	// Only the first argument (dst) can be tainted. (The src cannot be tainted.)
 	case "copy":
-		prop.taintCallArg(c.Call.Args[0], maxInstrReached, lastBlockVisited)
+		prop.taintCallArg(c.Call.Args[0], taintedBy, maxInstrReached, lastBlockVisited)
 	// The builtin delete(m map[Type]Type1, key Type) func does not propagate taint.
 	case "delete":
 	}
 }
 
-func (prop *Propagation) taintCallArg(arg ssa.Value, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+func (prop *Propagation) taintCallArg(arg ssa.Value, taintedBy ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	if canBeTaintedByCall(arg.Type()) {
-		prop.taint(arg.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+		prop.taint(arg.(ssa.Node), taintedBy, maxInstrReached, lastBlockVisited, false)
 	}
 }
 
@@ -325,13 +367,22 @@ func (prop *Propagation) taintSelect(sel *ssa.Select, maxInstrReached map[*ssa.B
 	}
 
 	for _, s := range sel.States {
-		switch {
-		// If the sent value (Send) is tainted, propagate taint to the channel
-		case s.Dir == types.SendOnly && prop.tainted[s.Send.(ssa.Node)]:
-			prop.taint(s.Chan.(ssa.Node), maxInstrReached, lastBlockVisited, false)
+		var taintedSend, taintedChan bool
+		if s.Send != nil {
+			_, taintedSend = prop.taintedBy[s.Send.(ssa.Node)]
 
-		// If the channel is tainted, propagate taint to the appropriate Extract
-		case s.Dir == types.RecvOnly && prop.tainted[s.Chan.(ssa.Node)]:
+		}
+		if s.Chan != nil {
+			_, taintedChan = prop.taintedBy[s.Chan.(ssa.Node)]
+		}
+		switch {
+		// If the sent value (Send) is taintedBy, propagate taint to the channel
+		case s.Dir == types.SendOnly && taintedSend:
+			// TODO Does the channel get tainted by the select?  Does that make sense?
+			prop.taint(s.Chan.(ssa.Node), sel, maxInstrReached, lastBlockVisited, false)
+
+		// If the channel is taintedBy, propagate taint to the appropriate Extract
+		case s.Dir == types.RecvOnly && taintedChan:
 			if sel.Referrers() == nil {
 				continue
 			}
@@ -340,7 +391,8 @@ func (prop *Propagation) taintSelect(sel *ssa.Select, maxInstrReached map[*ssa.B
 				if !ok || e.Index != extractIndex[s] {
 					continue
 				}
-				prop.taint(e, maxInstrReached, lastBlockVisited, false)
+				// TODO Does the extract get tainted by the select?  Does that make sense?
+				prop.taint(e, sel, maxInstrReached, lastBlockVisited, false)
 			}
 		}
 	}
@@ -371,7 +423,8 @@ func (prop *Propagation) canReach(start *ssa.BasicBlock, dest *ssa.BasicBlock) b
 
 // IsTainted determines whether an instruction is tainted by the Propagation.
 func (prop Propagation) IsTainted(instr ssa.Instruction) bool {
-	return prop.tainted[instr.(ssa.Node)] && !prop.isSanitizedAt(instr)
+	_, tainted := prop.taintedBy[instr.(ssa.Node)]
+	return tainted && !prop.isSanitizedAt(instr)
 }
 
 // isSanitizedAt determines whether the taint propagated from the Propagation's root

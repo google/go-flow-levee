@@ -26,7 +26,7 @@ func TestArrayLiteralContainingSourceIsTainted(s core.Source) {
 func TestArrayIsTaintedWhenSourceIsInserted(s core.Source) {
 	arr := [2]interface{}{nil, nil}
 	arr[0] = s
-	core.Sink(arr) // want "a source has reached a sink"
+	core.Sink(arr) // This want removed to demonstrate output
 }
 
 func TestValueObtainedFromTaintedArrayIsTainted(s core.Source) {
