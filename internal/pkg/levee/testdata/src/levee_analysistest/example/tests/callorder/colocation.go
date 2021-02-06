@@ -32,7 +32,7 @@ func TestTaintedColocatedArgumentReachesSinkThatFollowsColocation() {
 	i := newInnocuous()
 	taintColocated(s, i)
 	if err := fail(i); err != nil {
-		core.Sink(err) // want "a source has reached a sink"
+		core.Sink(err) // This want removed to demonstrate output
 	}
 }
 

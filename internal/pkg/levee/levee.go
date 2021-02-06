@@ -72,18 +72,45 @@ func run(pass *analysis.Pass) (interface{}, error) {
 func reportSourcesReachingSink(conf *config.Config, pass *analysis.Pass, propagations map[*source.Source]propagation.Propagation, sink ssa.Instruction) {
 	for src, prop := range propagations {
 		if prop.IsTainted(sink) {
-			report(conf, pass, src, sink.(ssa.Node))
+			report(conf, pass, src, sink.(ssa.Node), prop)
 			break
 		}
 	}
 }
 
-func report(conf *config.Config, pass *analysis.Pass, source *source.Source, sink ssa.Node) {
+func report(conf *config.Config, pass *analysis.Pass, source *source.Source, sink ssa.Node, prop propagation.Propagation) {
 	var b strings.Builder
 	b.WriteString("a source has reached a sink")
-	fmt.Fprintf(&b, "\n source: %v", pass.Fset.Position(source.Pos()))
+	fmt.Fprintf(&b, "\n source: %v", pass.Fset.Position(source.Node.Pos()))
+
+	// TODO make toggle in config
+	if printTrace := true; printTrace {
+		// TODO validation
+		path, _ := prop.TaintPathTo(sink)
+
+		// TODO discuss what a good first iteration of tracing is
+		// Here, we only display the position of nodes with a Pos().
+		// Additionally, we filter out positions that have the same file and linenumber as the previous.
+		prevPos := pass.Fset.Position(source.Node.Pos())
+		for i := len(path) - 2; i > 0; i-- {
+			if path[i].Pos() == 0 {
+				continue
+			}
+			position := pass.Fset.Position(path[i].Pos())
+			if prevPos.Filename == position.Filename &&
+				prevPos.Line == position.Line {
+				continue
+			}
+
+			fmt.Fprintf(&b, "\n taints: %v", position)
+			prevPos = position
+		}
+	}
+
+	fmt.Fprintf(&b, "\n sinks at: %v", pass.Fset.Position(sink.Pos()))
 	if conf.ReportMessage != "" {
 		fmt.Fprintf(&b, "\n %v", conf.ReportMessage)
 	}
-	pass.Reportf(sink.Pos(), b.String())
+	s := b.String()
+	pass.Reportf(sink.Pos(), s)
 }
