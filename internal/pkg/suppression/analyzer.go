@@ -27,6 +27,7 @@ import (
 // ResultType is a set of nodes that are suppressed by a comment.
 type ResultType map[ast.Node]bool
 
+// IsSuppressed determines whether the given node is suppressed.
 func (rt ResultType) IsSuppressed(n ast.Node) bool {
 	_, ok := rt[n]
 	return ok
@@ -47,7 +48,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			for _, cg := range commentGroups {
 				if isSuppressingCommentGroup(cg) {
 					result[node] = true
-					// for testing
 					pass.Reportf(node.Pos(), "suppressed")
 				}
 			}
@@ -57,14 +57,16 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return ResultType(result), nil
 }
 
+// isSuppressingCommentGroup determines whether a comment group contains
+// the suppression string at the beginning of a line in the comment text.
 func isSuppressingCommentGroup(commentGroup *ast.CommentGroup) bool {
 	for _, line := range strings.Split(commentGroup.Text(), "\n") {
 		trimmed := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(line, "//"), "/*"))
-		if strings.HasPrefix(trimmed, doNotReport) {
+		if strings.HasPrefix(trimmed, suppressionString) {
 			return true
 		}
 	}
 	return false
 }
 
-const doNotReport = "levee.DoNotReport"
+const suppressionString = "levee.DoNotReport"

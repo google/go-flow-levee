@@ -95,7 +95,7 @@ func isSuppressed(pos token.Pos, suppressedNodes suppression.ResultType, pass *a
 		if len(path) < 2 {
 			return false
 		}
-		// Given a call to a sink, path[0] holds the ast.CallExpr and
+		// Given the position of a call, path[0] holds the ast.CallExpr and
 		// path[1] holds the ast.ExprStmt. If there is a suppressing comment, it
 		// will be associated with the ExprStmt.
 		return suppressedNodes.IsSuppressed(path[1])

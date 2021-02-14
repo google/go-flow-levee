@@ -13,15 +13,15 @@
 # limitations under the License.
 ---
 sinks:
-  - packageRE: "^example.com/core"
-    methodRE: "^Sink$"
-  - packageRE: "^example.com/core"
-    methodRE: "^Do$"
-    receiverRE: "^Sinker$"
+  - package: "config_analysistest/example/core"
+    method: "Sink"
+  - package: "config_analysistest/example/core"
+    method: "Do"
+    receiver: "Sinker"
 fieldTags:
   - key: example
     value: sensitive
 exclude:
-  - packageRE: "^example.com/exclusion$"
-    methodRE: "^Foo$"
-  - packageRE: "^notexample.com/exclusion$"
+  - package: "config_analysistest/example/exclusion"
+    method: "Foo"
+  - package: "config_analysistest/notexample/exclusion"
