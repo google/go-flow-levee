@@ -16,6 +16,7 @@ package internal
 
 import (
 	"fmt"
+	"go/ast"
 	"go/token"
 	"strings"
 
@@ -91,13 +92,36 @@ func isSuppressed(pos token.Pos, suppressedNodes suppression.ResultType, pass *a
 		if pos < f.Pos() || f.End() < pos {
 			continue
 		}
+		// astutil.PathEnclosingInterval produces the list of nodes that enclose the provided
+		// position, from the leaf node that directly contains it up to the ast.File node
 		path, _ := astutil.PathEnclosingInterval(f, pos, pos)
 		if len(path) < 2 {
 			return false
 		}
 		// Given the position of a call, path[0] holds the ast.CallExpr and
-		// path[1] holds the ast.ExprStmt. If there is a suppressing comment, it
-		// will be associated with the ExprStmt.
+		// path[1] holds the ast.ExprStmt. A suppressing comment may be associated
+		// with the name of the function being called (Ident, SelectorExpr),
+		// with one of the arguments, or with the entire expression (ExprStmt).
+		// We do not support suppression by argument.
+		if ce, ok := path[0].(*ast.CallExpr); ok {
+			switch t := ce.Fun.(type) {
+			case *ast.Ident:
+				/*
+					Sink( // levee.DoNotReport
+				*/
+				if suppressedNodes.IsSuppressed(t) {
+					return true
+				}
+			case *ast.SelectorExpr:
+				/*
+					core.Sink( // levee.DoNotReport
+				*/
+				if suppressedNodes.IsSuppressed(t.Sel) {
+					return true
+				}
+			}
+		}
+		// common case
 		return suppressedNodes.IsSuppressed(path[1])
 	}
 	return false

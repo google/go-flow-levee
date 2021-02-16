@@ -83,3 +83,46 @@ func TestLineCommentBeforeGeneralComment(s core.Source) {
 	*/
 	core.Sink(s)
 }
+
+func TestSuppressPanic(s core.Source) {
+	// levee.DoNotReport
+	panic(s)
+	panic( // levee.DoNotReport
+		s,
+	)
+}
+
+// Suppression has to be done on the call to the sink, not
+// the arguments.
+func TestSuppressInMultilineCall(s core.Source) {
+	// levee.DoNotReport
+	core.Sink(
+		"arg 1",
+		s,
+		"arg 3",
+	)
+
+	core.Sink( // levee.DoNotReport
+		"arg 1",
+		s,
+		"arg 3")
+
+	core.Sink("arg 1",
+		s,
+	) // levee.DoNotReport
+
+	core.Sink(
+		"arg 1",
+		s) // levee.DoNotReport
+}
+
+func TestIncorrectSuppressionViaArgument(s core.Source) {
+	core.Sink( // want "a source has reached a sink"
+		"arg 1",
+		s, // levee.DoNotReport
+	)
+
+	core.Sink("arg1", // levee.DoNotReport // want "a source has reached a sink"
+		s,
+	)
+}
