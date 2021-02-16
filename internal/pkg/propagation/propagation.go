@@ -251,6 +251,7 @@ func (prop *Propagation) taintCall(call *ssa.Call, maxInstrReached map[*ssa.Basi
 
 	if callee := call.Call.StaticCallee(); callee != nil && prop.config.IsSanitizer(utils.DecomposeFunction(callee)) {
 		prop.sanitizers = append(prop.sanitizers, &sanitizer.Sanitizer{Call: call})
+		return
 	}
 
 	// Do not traverse through a method call if it is being reached via a Source receiver.

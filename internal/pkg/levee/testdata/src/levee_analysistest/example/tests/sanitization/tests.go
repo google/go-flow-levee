@@ -83,8 +83,7 @@ func TestMaybeTaintedInLoopButSanitizedBeforeLoopExit() {
 		}
 		e = core.Sanitize(e)[0]
 	}
-	// TODO(#155) want no report here
-	core.Sink(e) // want "a source has reached a sink"
+	core.Sink(e)
 }
 
 func TestTaintedInIfButSanitizedBeforeIfExit() {
@@ -93,8 +92,7 @@ func TestTaintedInIfButSanitizedBeforeIfExit() {
 		e = core.Source{}
 		e = core.Sanitize(e)[0]
 	}
-	// TODO(#155) want no report here
-	core.Sink(e) // want "a source has reached a sink"
+	core.Sink(e)
 }
 
 func TestPointerTaintedInIfButSanitizedBeforeIfExit() {
