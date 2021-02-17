@@ -133,7 +133,7 @@ func TestSuppressNestedCall(s core.Source) {
 	)
 
 	// TODO: we don't actually want a report here
-	fmt.Println( // want "a source has reached a sink"
-		core.SinkAndReturn(s), // levee.DoNotReport
+	fmt.Println(
+		core.SinkAndReturn(s), // levee.DoNotReport // want "a source has reached a sink"
 	)
 }
