@@ -12,22 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package core
+package suppression
 
-import "io"
+import (
+	"testing"
 
-type Sinker struct{}
+	"golang.org/x/tools/go/analysis/analysistest"
+)
 
-func (s Sinker) Sink(args ...interface{}) {}
-
-func Sink(args ...interface{}) {}
-
-func SinkAndReturn(args ...interface{}) []interface{} {
-	return args
+func TestAnalyzer(t *testing.T) {
+	analysistest.Run(t, analysistest.TestData(), Analyzer, "./...")
 }
-
-func Sinkf(format string, args ...interface{}) {}
-
-func FSinkf(writer io.Writer, args ...interface{}) {}
-
-func OneArgSink(interface{}) {}
