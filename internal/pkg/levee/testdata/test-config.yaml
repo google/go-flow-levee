@@ -21,6 +21,8 @@ Sources:
 Sinks:
   - Package: "levee_analysistest/example/core"
     MethodRE: Sinkf?$
+  - Package: "levee_analysistest/example/core"
+    Method: SinkAndReturn
 Sanitizers:
   - Package: "levee_analysistest/example/core"
     MethodRE: "^Sanitize"

@@ -24,6 +24,8 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
+const suppressionString = "levee.DoNotReport"
+
 // ResultType is a set of nodes that are suppressed by a comment.
 type ResultType map[ast.Node]bool
 
@@ -68,5 +70,3 @@ func isSuppressingCommentGroup(commentGroup *ast.CommentGroup) bool {
 	}
 	return false
 }
-
-const suppressionString = "levee.DoNotReport"

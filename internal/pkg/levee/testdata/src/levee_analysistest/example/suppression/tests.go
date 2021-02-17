@@ -16,6 +16,7 @@
 package suppression
 
 import (
+	"fmt"
 	"levee_analysistest/example/core"
 )
 
@@ -92,9 +93,7 @@ func TestSuppressPanic(s core.Source) {
 	)
 }
 
-// Suppression has to be done on the call to the sink, not
-// the arguments.
-func TestSuppressInMultilineCall(s core.Source) {
+func TestSuppressMultilineCall(s core.Source) {
 	// levee.DoNotReport
 	core.Sink(
 		"arg 1",
@@ -124,5 +123,17 @@ func TestIncorrectSuppressionViaArgument(s core.Source) {
 
 	core.Sink("arg1", // levee.DoNotReport // want "a source has reached a sink"
 		s,
+	)
+}
+
+func TestSuppressNestedCall(s core.Source) {
+	fmt.Println(
+		// levee.DoNotReport
+		core.SinkAndReturn(s),
+	)
+
+	// TODO: we don't actually want a report here
+	fmt.Println( // want "a source has reached a sink"
+		core.SinkAndReturn(s), // levee.DoNotReport
 	)
 }

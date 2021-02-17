@@ -22,6 +22,10 @@ func (s Sinker) Sink(args ...interface{}) {}
 
 func Sink(args ...interface{}) {}
 
+func SinkAndReturn(args ...interface{}) []interface{} {
+	return args
+}
+
 func Sinkf(format string, args ...interface{}) {}
 
 func FSinkf(writer io.Writer, args ...interface{}) {}

@@ -100,9 +100,8 @@ func isSuppressed(pos token.Pos, suppressedNodes suppression.ResultType, pass *a
 		}
 		// Given the position of a call, path[0] holds the ast.CallExpr and
 		// path[1] holds the ast.ExprStmt. A suppressing comment may be associated
-		// with the name of the function being called (Ident, SelectorExpr),
-		// with one of the arguments, or with the entire expression (ExprStmt).
-		// We do not support suppression by argument.
+		// with the name of the function being called (Ident, SelectorExpr), with the
+		// call itself (CallExpr), or with the entire expression (ExprStmt).
 		if ce, ok := path[0].(*ast.CallExpr); ok {
 			switch t := ce.Fun.(type) {
 			case *ast.Ident:
@@ -121,8 +120,7 @@ func isSuppressed(pos token.Pos, suppressedNodes suppression.ResultType, pass *a
 				}
 			}
 		}
-		// common case
-		return suppressedNodes.IsSuppressed(path[1])
+		return suppressedNodes.IsSuppressed(path[0]) || suppressedNodes.IsSuppressed(path[1])
 	}
 	return false
 }
