@@ -119,6 +119,8 @@ func isSuppressed(pos token.Pos, suppressedNodes suppression.ResultType, pass *a
 					return true
 				}
 			}
+		} else {
+			fmt.Printf("unexpected node received: %v (type %T); please report this issue\n", n, n)
 		}
 		return suppressedNodes.IsSuppressed(path[0]) || suppressedNodes.IsSuppressed(path[1])
 	}
