@@ -102,10 +102,6 @@ func (prop *Propagation) shouldNotTaint(n ssa.Node, maxInstrReached map[*ssa.Bas
 		return true
 	}
 
-	if !hasTaintableType(n) {
-		return true
-	}
-
 	if instr, ok := n.(ssa.Instruction); ok {
 		instrIndex, ok := indexInBlock(instr)
 		if !ok {
@@ -225,6 +221,10 @@ func (prop *Propagation) taintField(n ssa.Node, maxInstrReached map[*ssa.BasicBl
 }
 
 func (prop *Propagation) taintReferrers(n ssa.Node, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+	if !hasTaintableType(n) {
+		return
+	}
+
 	if n.Referrers() == nil {
 		return
 	}
@@ -417,7 +417,7 @@ func hasTaintableType(n ssa.Node) bool {
 	if v, ok := n.(ssa.Value); ok {
 		switch t := v.Type().(type) {
 		case *types.Basic:
-			return t.Info() != types.IsBoolean
+			return (t.Info() & types.IsString) != 0
 		case *types.Signature:
 			return false
 		}

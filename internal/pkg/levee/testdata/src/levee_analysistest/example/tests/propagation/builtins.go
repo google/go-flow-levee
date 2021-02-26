@@ -20,7 +20,8 @@ import (
 
 func TestCopyPropagatesTaintFromSrcToDst(s core.Source) {
 	b := make([]byte, len(s.Data))
-	copy(b, s.Data)
+	bytesCopied := copy(b, s.Data)
+	core.Sink(bytesCopied)
 	core.Sink(b) // want "a source has reached a sink"
 }
 
