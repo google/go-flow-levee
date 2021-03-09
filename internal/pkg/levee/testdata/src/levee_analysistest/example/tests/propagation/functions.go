@@ -43,3 +43,13 @@ func TestPropagationViaSourceMethod(s core.Source) {
 	tainted := s.Propagate(s.Data)
 	core.Sink(tainted) // want "a source has reached a sink"
 }
+
+func TestPropagationViaFunctionReturningBool(s *core.Source, i *core.Innocuous) {
+	if ok := TryCopy(i, s); !ok {
+		core.Sinkf("couldn't copy to: %v", i) // want "a source has reached a sink"
+	}
+}
+
+func TryCopy(dst interface{}, src interface{}) bool {
+	return true
+}
