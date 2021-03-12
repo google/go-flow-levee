@@ -60,8 +60,8 @@ func DecomposeField(t types.Type, field int) (typePath, typeName, fieldName stri
 	return
 }
 
-func unqualifiedName(v *types.Var) string {
-	packageQualifiedName := v.Type().String()
+func UnqualifiedName(t types.Type) string {
+	packageQualifiedName := t.String()
 	dotPos := strings.LastIndexByte(packageQualifiedName, '.')
 	if dotPos == -1 {
 		return packageQualifiedName
@@ -79,7 +79,7 @@ func DecomposeFunction(f *ssa.Function) (path, recv, name string) {
 	}
 	name = f.Name()
 	if recvVar := f.Signature.Recv(); recvVar != nil {
-		recv = unqualifiedName(recvVar)
+		recv = UnqualifiedName(recvVar.Type())
 	}
 	return
 }
