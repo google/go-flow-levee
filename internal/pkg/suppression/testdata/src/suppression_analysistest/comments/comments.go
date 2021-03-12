@@ -12,22 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package core
+package comments
 
-import "io"
+func TestSuppressionComments() {
+	// levee.DoNotReport
+	println() // want "suppressed"
 
-type Sinker struct{}
+	println()
 
-func (s Sinker) Sink(args ...interface{}) {}
+	// This call has a non-suppressing comment
+	// associated with it
+	println()
 
-func Sink(args ...interface{}) {}
+	/*
+		This comment is suppressing too.
+		levee.DoNotReport
+	*/
+	println() // want "suppressed"
 
-func SinkAndReturn(args ...interface{}) []interface{} {
-	return args
+	println() // levee.DoNotReport // want "suppressed"
 }
-
-func Sinkf(format string, args ...interface{}) {}
-
-func FSinkf(writer io.Writer, args ...interface{}) {}
-
-func OneArgSink(interface{}) {}

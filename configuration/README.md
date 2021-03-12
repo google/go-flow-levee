@@ -92,6 +92,38 @@ Since no receiver matcher was provided, it will match any method beginning with 
 
 As just two examples, this may be used to avoid analyzing test code, or to suppress "false positive" reports.
 
+### Suppressing false positives
+
+The analyzer may produce reports on pieces of code that are actually safe. If you run across such a "false positive" report, you may suppress it by adding a comment above the line where the taint reached the `sink`:
+
+```go
+// levee.DoNotReport
+mysinks.SinkF("here's a value: %v", safeValue)
+```
+
+You may include a justification in the suppression comment, e.g.:
+
+```go
+// levee.DoNotReport: I have verified that "safeValue" cannot actually contain sensitive data (mlevesquedion, Feb 05 2021).
+```
+
+In fact, as long as the exact string `levee.DoNotReport` appears at the beginning of a line in a comment above the line where a report would be produced, the report will be suppressed. In most cases, you may also be able to suppress a report by placing the comment on the line itself, e.g.:
+
+```go
+mysinks.SinkF("here's a value: %v", safeValue) // levee.DoNotReport
+```
+
+Finally, note that you can't suppress a report for a specific argument, so the following will not work:
+
+```go
+mysinks.Sinkln(safeValue, // levee.DoNotReport
+  otherValue)
+```
+
+A few things to keep in mind when using suppression:
+* Before suppressing, you should validate that a tainted value really can't reach a sink (i.e., you are really suppressing a _false_ positive).
+* You should periodically reexamine your suppressions to make sure that they are still accurate. If you suppress a report, but later on the code changes such that the report on a given line would actually be a _true_ positive, the analyzer won't tell you about it.
+
 ### Example configuration
 
 The following configuration could be used to identify possible instances of credential logging in Kubernetes.
