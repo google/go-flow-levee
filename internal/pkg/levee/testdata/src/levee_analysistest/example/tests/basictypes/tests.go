@@ -29,10 +29,5 @@ func isSourcey(x interface{}) bool {
 }
 
 func IntegersDontPropagateTaint(sources []core.Source) {
-	sourceCount := countSources(sources)
-	core.Sink(sourceCount)
-}
-
-func countSources(sources []core.Source) int {
-	return len(sources)
+	core.Sink(len(sources))
 }
