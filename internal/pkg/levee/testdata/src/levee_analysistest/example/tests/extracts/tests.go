@@ -80,8 +80,8 @@ func TestOnlySourceExtractIsTaintedInstructionOrderFlipped() {
 func TestExtractsFromCallWithSourceArgAreTainted(s core.Source) {
 	str, i, e := TakeSource(s)
 	core.Sink(str) // want "a source has reached a sink"
-	core.Sink(i)   // want "a source has reached a sink"
-	core.Sink(e)   // want "a source has reached a sink"
+	core.Sink(i)
+	core.Sink(e) // want "a source has reached a sink"
 }
 
 func NewSource() (*core.Source, error) {
