@@ -18,10 +18,23 @@ package propagation
 // propagation. Specifically, given that at least one of the necessary
 // arguments is tainted, which arguments/return values become tainted?
 // Note that when it's present, the receiver counts as an argument.
+//
+// As an example, consider fmt.Fprintf:
+//   func Fprintf(w io.Writer, format string, a ...interface{}) (n int, err error) {
+// Its summary is:
+//   "fmt.Fprintf": {
+//   	ifTainted:   0b110,
+//   	taintedArgs: []int{0},
+//   },
+// In English, this says that if the format string or the varargs slice are
+// tainted, then the Writer is tainted.
 type summary struct {
 	// ifTainted is a bitset which contains positions for parameters
 	// such that if one of these parameters is tainted, taint should
 	// be propagated to the arguments and return values.
+	// There is a 1-to-1 mapping between the bits and the function's
+	// parameters, with the least significant bit corresponding to the
+	// first (0th) argument.
 	ifTainted int64
 	// the positions of the arguments that taint propagates to if one of the
 	// positions in ifTainted is tainted
