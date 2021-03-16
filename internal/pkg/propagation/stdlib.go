@@ -1,3 +1,17 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package propagation
 
 import (
@@ -20,9 +34,10 @@ func (prop *Propagation) taintStdlibCall(call *ssa.Call, maxInstrReached map[*ss
 	prop.taintFromSummary(summ, call, call.Call.Args, maxInstrReached, lastBlockVisited)
 }
 
-// taintStdlibInterfaceCall propagates taint through a static call to a standard
-// library function, provided that the function's taint propagation behavior
-// is known (i.e. the function has a summary).
+// taintStdlibInterfaceCall propagates taint through a call to a function that
+// implements an interface function from the standard library, provided that the
+// function's taint propagation behavior is known (i.e. the function has a summary).
+// This can be a static call or a dynamic call.
 func (prop *Propagation) taintStdlibInterfaceCall(call *ssa.Call, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	summ, ok := interfaceFuncSummaries[funcKey{funcNameWithoutReceiver(call), sigTypeString(call.Call.Signature())}]
 	if !ok {
@@ -30,6 +45,7 @@ func (prop *Propagation) taintStdlibInterfaceCall(call *ssa.Call, maxInstrReache
 	}
 
 	var args []ssa.Value
+	// For "invoke" calls, Value is the receiver
 	if call.Call.IsInvoke() {
 		args = append(args, call.Call.Value)
 	}
@@ -74,10 +90,18 @@ func (prop *Propagation) taintFromSummary(summ summary, call *ssa.Call, args []s
 	}
 }
 
+// sigTypeString produces a stripped version of a function's signature, containing
+// just the types of the arguments and return values.
+// The receiver's type is not included.
+// For a function such as:
+//   WriteTo(w Writer) (n int64, err error)
+// The result is:
+//   (Writer)(int64,error)
 func sigTypeString(sig *types.Signature) string {
 	var b strings.Builder
-	paramsPtr := sig.Params()
+
 	b.WriteByte('(')
+	paramsPtr := sig.Params()
 	if paramsPtr != nil {
 		params := *paramsPtr
 		for i := 0; i < params.Len(); i++ {
@@ -89,8 +113,9 @@ func sigTypeString(sig *types.Signature) string {
 		}
 	}
 	b.WriteByte(')')
-	resultsPtr := sig.Results()
+
 	b.WriteByte('(')
+	resultsPtr := sig.Results()
 	if resultsPtr != nil {
 		results := *resultsPtr
 		for i := 0; i < results.Len(); i++ {
@@ -102,6 +127,7 @@ func sigTypeString(sig *types.Signature) string {
 		}
 	}
 	b.WriteByte(')')
+
 	return b.String()
 }
 

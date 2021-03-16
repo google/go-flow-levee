@@ -389,7 +389,7 @@ func hasTaintableType(n ssa.Node) bool {
 	if v, ok := n.(ssa.Value); ok {
 		switch t := v.Type().(type) {
 		case *types.Basic:
-			return t.Info() != types.IsBoolean
+			return (t.Info() & types.IsString) != 0
 		case *types.Signature:
 			return false
 		}

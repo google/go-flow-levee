@@ -314,11 +314,13 @@ func (r *configCacheElement) readOnce() (*Config, error) {
 		c := new(Config)
 		bytes, err := ioutil.ReadFile(r.sourceFile)
 		if err != nil {
+			fmt.Println(err)
 			r.err = fmt.Errorf("error reading analysis config: %v", err)
 			return
 		}
 
 		if err := yaml.UnmarshalStrict(bytes, c); err != nil {
+			fmt.Println(err)
 			r.err = err
 			return
 		}
