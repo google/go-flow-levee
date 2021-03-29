@@ -55,6 +55,8 @@ func (prop *Propagation) taintStdlibInterfaceCall(call *ssa.Call, maxInstrReache
 }
 
 func (prop *Propagation) taintFromSummary(summ summary, call *ssa.Call, args []ssa.Value, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+	// Determine whether we need to propagate taint.
+	// Specifically: is at least one argument tainted?
 	tainted := int64(0)
 	for i, a := range args {
 		if prop.tainted[a.(ssa.Node)] {
@@ -65,14 +67,18 @@ func (prop *Propagation) taintFromSummary(summ summary, call *ssa.Call, args []s
 		return
 	}
 
+	// Taint call arguments.
 	for _, i := range summ.taintedArgs {
 		prop.taint(args[i].(ssa.Node), maxInstrReached, lastBlockVisited, false)
 	}
 
+	// Taint call referrers, if there are any.
 	if call.Referrers() == nil {
 		return
 	}
 
+	// If the call has a single return value, the return value is the call
+	// instruction itself.
 	if call.Call.Signature().Results().Len() == 1 {
 		if len(summ.taintedRets) > 0 {
 			prop.taintReferrers(call, maxInstrReached, lastBlockVisited)
@@ -80,6 +86,10 @@ func (prop *Propagation) taintFromSummary(summ summary, call *ssa.Call, args []s
 		return
 	}
 
+	// If the call has more than one return value, the call's Referrers will
+	// contain one Extract for each returned value. There is no guarantee that
+	// these will appear in order, so we create a map from the index of
+	// each returned value to the corresponding Extract (the extracted value).
 	indexToExtract := map[int]*ssa.Extract{}
 	for _, r := range *call.Referrers() {
 		e := r.(*ssa.Extract)
@@ -106,7 +116,7 @@ func sigTypeString(sig *types.Signature) string {
 		params := *paramsPtr
 		for i := 0; i < params.Len(); i++ {
 			p := params.At(i)
-			b.WriteString(utils.UnqualifiedName(p.Type()))
+			b.WriteString(utils.UnqualifiedName(p))
 			if i+1 != params.Len() {
 				b.WriteByte(',')
 			}
@@ -120,7 +130,7 @@ func sigTypeString(sig *types.Signature) string {
 		results := *resultsPtr
 		for i := 0; i < results.Len(); i++ {
 			p := results.At(i)
-			b.WriteString(utils.UnqualifiedName(p.Type()))
+			b.WriteString(utils.UnqualifiedName(p))
 			if i+1 != results.Len() {
 				b.WriteByte(',')
 			}

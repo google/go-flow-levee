@@ -60,8 +60,12 @@ func DecomposeField(t types.Type, field int) (typePath, typeName, fieldName stri
 	return
 }
 
-func UnqualifiedName(t types.Type) string {
-	packageQualifiedName := t.String()
+// UnqualifiedName returns the name of the given type, without the qualifying
+// prefix containing the package in which it was declared.
+// Example: for a type named T declared in package p, the returned string will
+// be just `T` instead of `p.T`.
+func UnqualifiedName(t *types.Var) string {
+	packageQualifiedName := t.Type().String()
 	dotPos := strings.LastIndexByte(packageQualifiedName, '.')
 	if dotPos == -1 {
 		return packageQualifiedName
@@ -79,7 +83,7 @@ func DecomposeFunction(f *ssa.Function) (path, recv, name string) {
 	}
 	name = f.Name()
 	if recvVar := f.Signature.Recv(); recvVar != nil {
-		recv = UnqualifiedName(recvVar.Type())
+		recv = UnqualifiedName(recvVar)
 	}
 	return
 }
