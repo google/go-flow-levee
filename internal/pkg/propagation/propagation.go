@@ -253,7 +253,9 @@ func (prop *Propagation) taintCall(call *ssa.Call, maxInstrReached map[*ssa.Basi
 	}
 
 	if callee := call.Call.StaticCallee(); callee != nil {
-		prop.taintStdlibCall(call, maxInstrReached, lastBlockVisited)
+		if prop.taintStdlibCall(call, maxInstrReached, lastBlockVisited) {
+			return
+		}
 	}
 	prop.taintStdlibInterfaceCall(call, maxInstrReached, lastBlockVisited)
 }

@@ -25,13 +25,12 @@ import (
 // taintStdlibCall propagates taint through a static call to a standard
 // library function, provided that the function's taint propagation behavior
 // is known (i.e. the function has a summary).
-func (prop *Propagation) taintStdlibCall(call *ssa.Call, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
-	summ, ok := funcSummaries[funcName(call)]
-	if !ok {
-		return
+func (prop *Propagation) taintStdlibCall(call *ssa.Call, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) bool {
+	if summ, ok := funcSummaries[funcName(call)]; ok {
+		prop.taintFromSummary(summ, call, call.Call.Args, maxInstrReached, lastBlockVisited)
+		return true
 	}
-
-	prop.taintFromSummary(summ, call, call.Call.Args, maxInstrReached, lastBlockVisited)
+	return false
 }
 
 // taintStdlibInterfaceCall propagates taint through a call to a function that
