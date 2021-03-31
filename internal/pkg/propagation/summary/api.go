@@ -40,7 +40,7 @@ func For(call *ssa.Call) *Summary {
 }
 
 // A Summary captures the behavior of a function with respect to taint
-// propagation. Specifically, given that at least one of the necessary
+// propagation. Specifically: given that at least one of the necessary
 // arguments is tainted, which arguments/return values become tainted?
 // Note that when it's present, the receiver counts as an argument.
 //
