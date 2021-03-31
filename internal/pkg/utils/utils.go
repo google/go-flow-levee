@@ -17,7 +17,6 @@ package utils
 
 import (
 	"go/types"
-	"strings"
 
 	"golang.org/x/tools/go/ssa"
 )
@@ -65,12 +64,7 @@ func DecomposeField(t types.Type, field int) (typePath, typeName, fieldName stri
 // Example: for a type named T declared in package p, the returned string will
 // be just `T` instead of `p.T`.
 func UnqualifiedName(t *types.Var) string {
-	packageQualifiedName := t.Type().String()
-	dotPos := strings.LastIndexByte(packageQualifiedName, '.')
-	if dotPos == -1 {
-		return packageQualifiedName
-	}
-	return packageQualifiedName[dotPos+1:]
+	return types.TypeString(t.Type(), func(*types.Package) string { return "" })
 }
 
 // DecomposeFunction returns the path, receiver, and name strings of a ssa.Function.

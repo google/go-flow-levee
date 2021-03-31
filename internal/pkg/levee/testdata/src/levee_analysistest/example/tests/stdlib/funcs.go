@@ -32,6 +32,9 @@ func TestTaintFromArgumentToReturnValue(s core.Source) {
 }
 
 func TestTaintFromArgumentToArgument(w io.Writer, s core.Source) {
+	// w hasn't been tainted yet
+	core.Sink(w)
+
 	fmt.Fprintf(w, s.Data)
 	core.Sink(w) // want "a source has reached a sink"
 }

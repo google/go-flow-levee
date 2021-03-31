@@ -1,48 +1,4 @@
-// Copyright 2020 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// https://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-package propagation
-
-// A summary captures the behavior of a function with respect to taint
-// propagation. Specifically, given that at least one of the necessary
-// arguments is tainted, which arguments/return values become tainted?
-// Note that when it's present, the receiver counts as an argument.
-//
-// As an example, consider fmt.Fprintf:
-//   func Fprintf(w io.Writer, format string, a ...interface{}) (n int, err error) {
-// Its summary is:
-//   "fmt.Fprintf": {
-//   	ifTainted:   0b110,
-//   	taintedArgs: []int{0},
-//   },
-// In English, this says that if the format string or the varargs slice are
-// tainted, then the Writer is tainted.
-type summary struct {
-	// ifTainted is a bitset which contains positions for parameters
-	// such that if one of these parameters is tainted, taint should
-	// be propagated to the arguments and return values.
-	// There is a 1-to-1 mapping between the bits and the function's
-	// parameters, with the least significant bit corresponding to the
-	// first (0th) argument.
-	ifTainted int64
-	// the positions of the arguments that taint propagates to if one of the
-	// positions in ifTainted is tainted
-	taintedArgs []int
-	// the positions of the return values that taint propagates to if one of the
-	// positions in ifTainted is tainted
-	taintedRets []int
-}
+package summary
 
 const (
 	first = 1 << iota
@@ -51,72 +7,72 @@ const (
 	fourth
 )
 
-var fromFirstArgToFirstRet = summary{
-	ifTainted:   first,
-	taintedRets: []int{0},
+var fromFirstArgToFirstRet = Summary{
+	IfTainted:   first,
+	TaintedRets: []int{0},
 }
 
 // funcSummaries contains summaries for regular functions
 // that could be called statically.
-var funcSummaries = map[string]summary{
+var funcSummaries = map[string]Summary{
 	// func Errorf(format string, a ...interface{}) error
 	"fmt.Errorf": {
-		ifTainted:   first | second,
-		taintedRets: []int{0},
+		IfTainted:   first | second,
+		TaintedRets: []int{0},
 	},
 	// func Sprint(a ...interface{}) string
 	"fmt.Sprint": fromFirstArgToFirstRet,
 	// func Sprintf(format string, a ...interface{}) string
 	"fmt.Sprintf": {
-		ifTainted:   first | second,
-		taintedRets: []int{0},
+		IfTainted:   first | second,
+		TaintedRets: []int{0},
 	},
 	// func Sprintln(a ...interface{}) string
 	"fmt.Sprintln": fromFirstArgToFirstRet,
 	// func Fprint(w io.Writer, a ...interface{}) (n int, err error)
 	"fmt.Fprint": {
-		ifTainted:   second,
-		taintedArgs: []int{0},
+		IfTainted:   second,
+		TaintedArgs: []int{0},
 	},
 	// func Fprintf(w io.Writer, format string, a ...interface{}) (n int, err error)
 	"fmt.Fprintf": {
-		ifTainted:   second | third,
-		taintedArgs: []int{0},
+		IfTainted:   second | third,
+		TaintedArgs: []int{0},
 	},
 	// func Fprintln(w io.Writer, a ...interface{}) (n int, err error)
 	"fmt.Fprintln": {
-		ifTainted:   second,
-		taintedArgs: []int{0},
+		IfTainted:   second,
+		TaintedArgs: []int{0},
 	},
 	// func Sscan(str string, a ...interface{}) (n int, err error)
 	"fmt.Sscan": {
-		ifTainted:   first,
-		taintedArgs: []int{1},
+		IfTainted:   first,
+		TaintedArgs: []int{1},
 	},
 	// func Sscanln(str string, a ...interface{}) (n int, err error)
 	"fmt.Sscanln": {
-		ifTainted:   first,
-		taintedArgs: []int{1},
+		IfTainted:   first,
+		TaintedArgs: []int{1},
 	},
 	// func Sscanf(str string, format string, a ...interface{}) (n int, err error)
 	"fmt.Sscanf": {
-		ifTainted:   first,
-		taintedArgs: []int{2},
+		IfTainted:   first,
+		TaintedArgs: []int{2},
 	},
 	// func Fscan(r io.Reader, a ...interface{}) (n int, err error)
 	"fmt.Fscan": {
-		ifTainted:   first,
-		taintedArgs: []int{1},
+		IfTainted:   first,
+		TaintedArgs: []int{1},
 	},
 	// func Fscanln(r io.Reader, a ...interface{}) (n int, err error)
 	"fmt.Fscanln": {
-		ifTainted:   first,
-		taintedArgs: []int{1},
+		IfTainted:   first,
+		TaintedArgs: []int{1},
 	},
 	// func Fscanf(r io.Reader, format string, a ...interface{}) (n int, err error)
 	"fmt.Fscanf": {
-		ifTainted:   first,
-		taintedArgs: []int{2},
+		IfTainted:   first,
+		TaintedArgs: []int{2},
 	},
 	// func New(text string) error
 	"errors.New": fromFirstArgToFirstRet,
@@ -124,8 +80,8 @@ var funcSummaries = map[string]summary{
 	"errors.Unwrap": fromFirstArgToFirstRet,
 	// func As(err error, target interface{}) bool
 	"errors.As": {
-		ifTainted:   first,
-		taintedArgs: []int{1},
+		IfTainted:   first,
+		TaintedArgs: []int{1},
 	},
 	// func SplitN(s, sep string, n int) []string
 	"strings.SplitN": fromFirstArgToFirstRet,
@@ -141,13 +97,13 @@ var funcSummaries = map[string]summary{
 	"strings.FieldsFunc": fromFirstArgToFirstRet,
 	// func Join(elems []string, sep string) string
 	"strings.Join": {
-		ifTainted:   first | second,
-		taintedRets: []int{0},
+		IfTainted:   first | second,
+		TaintedRets: []int{0},
 	},
 	// func Map(mapping func(rune) rune, s string) string
 	"strings.Map": {
-		ifTainted:   second,
-		taintedRets: []int{0},
+		IfTainted:   second,
+		TaintedRets: []int{0},
 	},
 	// func Repeat(s string, count int) string
 	"strings.Repeat": fromFirstArgToFirstRet,
@@ -159,23 +115,23 @@ var funcSummaries = map[string]summary{
 	"strings.ToTitle": fromFirstArgToFirstRet,
 	// func ToUpperSpecial(c unicode.SpecialCase, s string) string
 	"strings.ToUpperSpecial": {
-		ifTainted:   second,
-		taintedRets: []int{0},
+		IfTainted:   second,
+		TaintedRets: []int{0},
 	},
 	// func ToLowerSpecial(c unicode.SpecialCase, s string) string
 	"strings.ToLowerSpecial": {
-		ifTainted:   second,
-		taintedRets: []int{0},
+		IfTainted:   second,
+		TaintedRets: []int{0},
 	},
 	// func ToTitleSpecial(c unicode.SpecialCase, s string) string
 	"strings.ToTitleSpecial": {
-		ifTainted:   second,
-		taintedRets: []int{0},
+		IfTainted:   second,
+		TaintedRets: []int{0},
 	},
 	// func ToValidUTF8(s, replacement string) string
 	"strings.ToValidUTF8": {
-		ifTainted:   first | second,
-		taintedRets: []int{0},
+		IfTainted:   first | second,
+		TaintedRets: []int{0},
 	},
 	// func Title(s string) string
 	"strings.Title": fromFirstArgToFirstRet,
@@ -199,25 +155,25 @@ var funcSummaries = map[string]summary{
 	"strings.TrimSuffix": fromFirstArgToFirstRet,
 	// func Replace(s, old, new string, n int) string
 	"strings.Replace": {
-		ifTainted:   first | third,
-		taintedRets: []int{0},
+		IfTainted:   first | third,
+		TaintedRets: []int{0},
 	},
 	// func ReplaceAll(s, old, new string) string
 	"strings.ReplaceAll": {
-		ifTainted:   first | third,
-		taintedRets: []int{0},
+		IfTainted:   first | third,
+		TaintedRets: []int{0},
 	},
 	// func NewReader(s string) *Reader
 	"strings.NewReader": fromFirstArgToFirstRet,
 	// func (r *Replacer) Replace(s string) string
 	"(*strings.Replacer).Replace": {
-		ifTainted:   first | second,
-		taintedRets: []int{0},
+		IfTainted:   first | second,
+		TaintedRets: []int{0},
 	},
 	// func (r *Replacer) WriteString(w io.Writer, s string) (n int, err error)
 	"(*strings.Replacer).WriteString": {
-		ifTainted:   first | third,
-		taintedArgs: []int{1},
+		IfTainted:   first | third,
+		TaintedArgs: []int{1},
 	},
 	// func NewReplacer(oldnew ...string) *Replacer
 	"strings.NewReplacer": fromFirstArgToFirstRet,
@@ -245,13 +201,13 @@ var funcSummaries = map[string]summary{
 	"bytes.FieldsFunc": fromFirstArgToFirstRet,
 	// func Join(s [][]byte, sep []byte) []byte
 	"bytes.Join": {
-		ifTainted:   first | second,
-		taintedRets: []int{0},
+		IfTainted:   first | second,
+		TaintedRets: []int{0},
 	},
 	// func Map(mapping func(r rune) rune, s []byte) []byte
 	"bytes.Map": {
-		ifTainted:   second,
-		taintedRets: []int{0},
+		IfTainted:   second,
+		TaintedRets: []int{0},
 	},
 	// func Repeat(b []byte, count int) []byte
 	"bytes.Repeat": fromFirstArgToFirstRet,
@@ -263,23 +219,23 @@ var funcSummaries = map[string]summary{
 	"bytes.ToTitle": fromFirstArgToFirstRet,
 	// func ToUpperSpecial(c unicode.SpecialCase, s []byte) []byte
 	"bytes.ToUpperSpecial": {
-		ifTainted:   second,
-		taintedRets: []int{0},
+		IfTainted:   second,
+		TaintedRets: []int{0},
 	},
 	// func ToLowerSpecial(c unicode.SpecialCase, s []byte) []byte
 	"bytes.ToLowerSpecial": {
-		ifTainted:   second,
-		taintedRets: []int{0},
+		IfTainted:   second,
+		TaintedRets: []int{0},
 	},
 	// func ToTitleSpecial(c unicode.SpecialCase, s []byte) []byte
 	"bytes.ToTitleSpecial": {
-		ifTainted:   second,
-		taintedRets: []int{0},
+		IfTainted:   second,
+		TaintedRets: []int{0},
 	},
 	// func ToValidUTF8(s, replacement []byte) []byte
 	"bytes.ToValidUTF8": {
-		ifTainted:   first | second,
-		taintedRets: []int{0},
+		IfTainted:   first | second,
+		TaintedRets: []int{0},
 	},
 	// func Title(s []byte) []byte
 	"bytes.Title": fromFirstArgToFirstRet,
@@ -305,52 +261,52 @@ var funcSummaries = map[string]summary{
 	"bytes.Runes": fromFirstArgToFirstRet,
 	// func Replace(s, old, new []byte, n int) []byte
 	"bytes.Replace": {
-		ifTainted:   first | third,
-		taintedRets: []int{0},
+		IfTainted:   first | third,
+		TaintedRets: []int{0},
 	},
 	// func ReplaceAll(s, old, new []byte) []byte
 	"bytes.ReplaceAll": {
-		ifTainted:   first | third,
-		taintedRets: []int{0},
+		IfTainted:   first | third,
+		TaintedRets: []int{0},
 	},
 	// func NewReader(b []byte) *Reader
 	"bytes.NewReader": fromFirstArgToFirstRet,
 	// func WriteString(w Writer, s string) (n int, err error)
 	"io.WriteString": {
-		ifTainted:   second,
-		taintedArgs: []int{0},
+		IfTainted:   second,
+		TaintedArgs: []int{0},
 	},
 	// func ReadAtLeast(r Reader, buf []byte, min int) (n int, err error)
 	"io.ReadAtLeast": {
-		ifTainted:   first,
-		taintedArgs: []int{1},
+		IfTainted:   first,
+		TaintedArgs: []int{1},
 	},
 	// func ReadFull(r Reader, buf []byte) (n int, err error)
 	"io.ReadFull": {
-		ifTainted:   first,
-		taintedArgs: []int{1},
+		IfTainted:   first,
+		TaintedArgs: []int{1},
 	},
 	// func CopyN(dst Writer, src Reader, n int64) (written int64, err error)
 	"io.CopyN": {
-		ifTainted:   second,
-		taintedArgs: []int{0},
+		IfTainted:   second,
+		TaintedArgs: []int{0},
 	},
 	// func Copy(dst Writer, src Reader) (written int64, err error)
 	"io.Copy": {
-		ifTainted:   second,
-		taintedArgs: []int{0},
+		IfTainted:   second,
+		TaintedArgs: []int{0},
 	},
 	// func CopyBuffer(dst Writer, src Reader, buf []byte) (written int64, err error)
 	"io.CopyBuffer": {
-		ifTainted:   second,
-		taintedArgs: []int{0, 2},
+		IfTainted:   second,
+		TaintedArgs: []int{0, 2},
 	},
 	// func LimitReader(r Reader, n int64) Reader
 	"io.LimitReader": fromFirstArgToFirstRet,
 	// func TeeReader(r Reader, w Writer) Reader
 	"io.TeeReader": {
-		ifTainted:   first | second,
-		taintedRets: []int{0},
+		IfTainted:   first | second,
+		TaintedRets: []int{0},
 	},
 	// func MultiReader(readers ...Reader) Reader
 	"io.MultiReader": fromFirstArgToFirstRet,
@@ -384,8 +340,8 @@ var funcSummaries = map[string]summary{
 	"bufio.NewWriter": fromFirstArgToFirstRet,
 	// func NewReadWriter(r *Reader, w *Writer) *ReadWriter
 	"bufio.NewReadWriter": {
-		ifTainted:   first | second,
-		taintedRets: []int{0},
+		IfTainted:   first | second,
+		TaintedRets: []int{0},
 	},
 	// func NewScanner(r io.Reader) *Scanner
 	"bufio.NewScanner": fromFirstArgToFirstRet,
@@ -395,23 +351,23 @@ var funcSummaries = map[string]summary{
 	"(*bufio.Scanner).Text": fromFirstArgToFirstRet,
 	// func (s *Scanner) Buffer(buf []byte, max int)
 	"(*bufio.Scanner).Buffer": {
-		ifTainted:   second,
-		taintedArgs: []int{0},
+		IfTainted:   second,
+		TaintedArgs: []int{0},
 	},
 	// func ScanLines(data []byte, atEOF bool) (advance int, token []byte, err error)
 	"bufio.ScanLines": {
-		ifTainted:   first,
-		taintedRets: []int{1},
+		IfTainted:   first,
+		TaintedRets: []int{1},
 	},
 	// func ScanWords(data []byte, atEOF bool) (advance int, token []byte, err error)
 	"bufio.ScanWords": {
-		ifTainted:   first,
-		taintedRets: []int{1},
+		IfTainted:   first,
+		TaintedRets: []int{1},
 	},
 	// func WithValue(parent Context, key, val interface{}) Context
 	"context.WithValue": {
-		ifTainted:   first | second | third,
-		taintedRets: []int{0},
+		IfTainted:   first | second | third,
+		TaintedRets: []int{0},
 	},
 	// func AppendBool(dst []byte, b bool) []byte
 	"strconv.AppendBool": fromFirstArgToFirstRet,
@@ -425,22 +381,22 @@ var funcSummaries = map[string]summary{
 	"strconv.Quote": fromFirstArgToFirstRet,
 	// func AppendQuote(dst []byte, s string) []byte
 	"strconv.AppendQuote": {
-		ifTainted:   first | second,
-		taintedRets: []int{0},
+		IfTainted:   first | second,
+		TaintedRets: []int{0},
 	},
 	// func QuoteToASCII(s string) string
 	"strconv.QuoteToASCII": fromFirstArgToFirstRet,
 	// func AppendQuoteToASCII(dst []byte, s string) []byte
 	"strconv.AppendQuoteToASCII": {
-		ifTainted:   first | second,
-		taintedRets: []int{0},
+		IfTainted:   first | second,
+		TaintedRets: []int{0},
 	},
 	// func QuoteToGraphic(s string) string
 	"strconv.QuoteToGraphic": fromFirstArgToFirstRet,
 	// func AppendQuoteToGraphic(dst []byte, s string) []byte
 	"strconv.AppendQuoteToGraphic": {
-		ifTainted:   first | second,
-		taintedRets: []int{0},
+		IfTainted:   first | second,
+		TaintedRets: []int{0},
 	},
 	// func AppendQuoteRune(dst []byte, r rune) []byte
 	"strconv.AppendQuoteRune": fromFirstArgToFirstRet,
@@ -450,15 +406,15 @@ var funcSummaries = map[string]summary{
 	"strconv.AppendQuoteRuneToGraphic": fromFirstArgToFirstRet,
 	// func UnquoteChar(s string, quote byte) (value rune, multibyte bool, tail string, err error)
 	"strconv.UnquoteChar": {
-		ifTainted:   first,
-		taintedRets: []int{2},
+		IfTainted:   first,
+		TaintedRets: []int{2},
 	},
 	// func Unquote(s string) (string, error)
 	"strconv.Unquote": fromFirstArgToFirstRet,
 	// func Unmarshal(data []byte, v interface{}) error
 	"encoding/json.Unmarshal": {
-		ifTainted:   first | second,
-		taintedArgs: []int{0, 1},
+		IfTainted:   first | second,
+		TaintedArgs: []int{0, 1},
 	},
 	// func Marshal(v interface{}) ([]byte, error)
 	"encoding/json.Marshal": fromFirstArgToFirstRet,
@@ -466,25 +422,25 @@ var funcSummaries = map[string]summary{
 	"encoding/json.MarshalIndent": fromFirstArgToFirstRet,
 	// func HTMLEscape(dst *bytes.Buffer, src []byte)
 	"encoding/json.HTMLEscape": {
-		ifTainted:   second,
-		taintedArgs: []int{0},
+		IfTainted:   second,
+		TaintedArgs: []int{0},
 	},
 	// func Compact(dst *bytes.Buffer, src []byte) error
 	"encoding/json.Compact": {
-		ifTainted:   second,
-		taintedArgs: []int{0},
+		IfTainted:   second,
+		TaintedArgs: []int{0},
 	},
 	// func Indent(dst *bytes.Buffer, src []byte, prefix, indent string) error
 	"encoding/json.Indent": {
-		ifTainted:   second,
-		taintedArgs: []int{0},
+		IfTainted:   second,
+		TaintedArgs: []int{0},
 	},
 	// func NewDecoder(r io.Reader) *Decoder
 	"encoding/json.NewDecoder": fromFirstArgToFirstRet,
 	// func (dec *Decoder) Decode(v interface{}) error
 	"(*encoding/json.Decoder).Decode": {
-		ifTainted:   first,
-		taintedArgs: []int{1},
+		IfTainted:   first,
+		TaintedArgs: []int{1},
 	},
 	// func (dec *Decoder) Buffered() io.Reader
 	"(*encoding/json.Decoder).Buffered": fromFirstArgToFirstRet,
@@ -494,20 +450,20 @@ var funcSummaries = map[string]summary{
 	"encoding/json.NewEncoder": fromFirstArgToFirstRet,
 	// func (enc *Encoder) Encode(v interface{}) error
 	"(*encoding/json.Encoder).Encode": {
-		ifTainted:   second,
-		taintedArgs: []int{0},
+		IfTainted:   second,
+		TaintedArgs: []int{0},
 	},
 	// func (m RawMessage) MarshalJSON() ([]byte, error)
 	"(encoding/json.RawMessage).MarshalJSON": fromFirstArgToFirstRet,
 	// func (m *RawMessage) UnmarshalJSON(data []byte) error
 	"(*encoding/json.RawMessage).UnmarshalJSON": {
-		ifTainted:   second,
-		taintedArgs: []int{0},
+		IfTainted:   second,
+		TaintedArgs: []int{0},
 	},
 	// func (enc *Encoding) Encode(dst, src []byte)
 	"(*encoding/base64.Encoding).Encode": {
-		ifTainted:   second,
-		taintedArgs: []int{0},
+		IfTainted:   second,
+		TaintedArgs: []int{0},
 	},
 	// func (enc *Encoding) EncodeToString(src []byte) string
 	"(*encoding/base64.Encoding).EncodeToString": fromFirstArgToFirstRet,
@@ -515,8 +471,8 @@ var funcSummaries = map[string]summary{
 	"(*encoding/base64.Encoding).DecodeString": fromFirstArgToFirstRet,
 	// func (enc *Encoding) Decode(dst, src []byte) (n int, err error)
 	"(*encoding/base64.Encoding).Decode": {
-		ifTainted:   second,
-		taintedArgs: []int{0},
+		IfTainted:   second,
+		TaintedArgs: []int{0},
 	},
 	// func NewDecoder(enc *Encoding, r io.Reader) io.Reader
 	"encoding/base64.NewDecoder": fromFirstArgToFirstRet,
@@ -524,53 +480,53 @@ var funcSummaries = map[string]summary{
 	"(*sync.Map).Load": fromFirstArgToFirstRet,
 	// func (m *Map) Store(key, value interface{})
 	"(*sync.Map).Store": {
-		ifTainted:   second | third,
-		taintedArgs: []int{0},
+		IfTainted:   second | third,
+		TaintedArgs: []int{0},
 	},
 	// func (m *Map) LoadOrStore(key, value interface{}) (actual interface{}, loaded bool)
 	"(*sync.Map).LoadOrStore": {
-		ifTainted:   first | second | third,
-		taintedArgs: []int{0},
-		taintedRets: []int{0},
+		IfTainted:   first | second | third,
+		TaintedArgs: []int{0},
+		TaintedRets: []int{0},
 	},
 	// func (m *Map) LoadAndDelete(key interface{}) (value interface{}, loaded bool)
 	"(*sync.Map).LoadAndDelete": fromFirstArgToFirstRet,
 	// func (p *Pool) Put(x interface{})
 	"(*sync.Pool).Put": {
-		ifTainted:   second,
-		taintedArgs: []int{0},
+		IfTainted:   second,
+		TaintedArgs: []int{0},
 	},
 	// func (p *Pool) Get() interface{}
 	"(*sync.Pool).Get": fromFirstArgToFirstRet,
 	// func (s *Scanner) Init(src io.Reader) *Scanner
 	"(*text/scanner.Scanner).Init": {
-		ifTainted:   second,
-		taintedArgs: []int{0},
-		taintedRets: []int{0},
+		IfTainted:   second,
+		TaintedArgs: []int{0},
+		TaintedRets: []int{0},
 	},
 	// func (s *Scanner) TokenText() string
 	"(*text/scanner.Scanner).TokenText": fromFirstArgToFirstRet,
 	// func (b *Writer) Write(buf []byte) (n int, err error)
 	"(*text/tabwriter.Writer).Write": {
-		ifTainted:   second,
-		taintedArgs: []int{0},
+		IfTainted:   second,
+		TaintedArgs: []int{0},
 	},
 	// func NewWriter(output io.Writer, minwidth, tabwidth, padding int, padchar byte, flags uint) *Writer
 	"text/tabwriter.NewWriter": fromFirstArgToFirstRet,
 	// func (t *Template) ExecuteTemplate(wr io.Writer, name string, data interface{}) error
 	"(*text/template.Template).ExecuteTemplate": {
-		ifTainted:   fourth,
-		taintedArgs: []int{1},
+		IfTainted:   fourth,
+		TaintedArgs: []int{1},
 	},
 	// func (t *Template) Execute(wr io.Writer, data interface{}) error
 	"(*text/template.Template).Execute": {
-		ifTainted:   third,
-		taintedArgs: []int{1},
+		IfTainted:   third,
+		TaintedArgs: []int{1},
 	},
 	// func HTMLEscape(w io.Writer, b []byte)
 	"text/template.HTMLEscape": {
-		ifTainted:   second,
-		taintedArgs: []int{0},
+		IfTainted:   second,
+		TaintedArgs: []int{0},
 	},
 	// func HTMLEscapeString(s string) string
 	"text/template.HTMLEscapeString": fromFirstArgToFirstRet,
@@ -578,8 +534,8 @@ var funcSummaries = map[string]summary{
 	"text/template.HTMLEscaper": fromFirstArgToFirstRet,
 	// func JSEscape(w io.Writer, b []byte)
 	"text/template.JSEscape": {
-		ifTainted:   010,
-		taintedArgs: []int{0},
+		IfTainted:   010,
+		TaintedArgs: []int{0},
 	},
 	// func JSEscapeString(s string) string
 	"text/template.JSEscapeString": fromFirstArgToFirstRet,
@@ -589,18 +545,18 @@ var funcSummaries = map[string]summary{
 	"text/template.URLQueryEscaper": fromFirstArgToFirstRet,
 	// func (t *Template) ExecuteTemplate(wr io.Writer, name string, data interface{}) error
 	"(*html/template.Template).ExecuteTemplate": {
-		ifTainted:   fourth,
-		taintedArgs: []int{1},
+		IfTainted:   fourth,
+		TaintedArgs: []int{1},
 	},
 	// func (t *Template) Execute(wr io.Writer, data interface{}) error
 	"(*html/template.Template).Execute": {
-		ifTainted:   third,
-		taintedArgs: []int{1},
+		IfTainted:   third,
+		TaintedArgs: []int{1},
 	},
 	// func HTMLEscape(w io.Writer, b []byte)
 	"html/template.HTMLEscape": {
-		ifTainted:   second,
-		taintedArgs: []int{0},
+		IfTainted:   second,
+		TaintedArgs: []int{0},
 	},
 	// func HTMLEscapeString(s string) string
 	"html/template.HTMLEscapeString": fromFirstArgToFirstRet,
@@ -608,8 +564,8 @@ var funcSummaries = map[string]summary{
 	"html/template.HTMLEscaper": fromFirstArgToFirstRet,
 	// func JSEscape(w io.Writer, b []byte)
 	"html/template.JSEscape": {
-		ifTainted:   010,
-		taintedArgs: []int{0},
+		IfTainted:   010,
+		TaintedArgs: []int{0},
 	},
 	// func JSEscapeString(s string) string
 	"html/template.JSEscapeString": fromFirstArgToFirstRet,
@@ -621,8 +577,8 @@ var funcSummaries = map[string]summary{
 	"path.Clean": fromFirstArgToFirstRet,
 	// func Split(path string) (dir, file string)
 	"path.Split": {
-		ifTainted:   first,
-		taintedRets: []int{0, 1},
+		IfTainted:   first,
+		TaintedRets: []int{0, 1},
 	},
 	// func Join(elem ...string) string
 	"path.Join": fromFirstArgToFirstRet,
@@ -638,8 +594,8 @@ var funcSummaries = map[string]summary{
 	"path/filepath.SplitList": fromFirstArgToFirstRet,
 	// func Split(path string) (dir, file string)
 	"path/filepath.Split": {
-		ifTainted:   first,
-		taintedRets: []int{0, 1},
+		IfTainted:   first,
+		TaintedRets: []int{0, 1},
 	},
 	// func Join(elem ...string) string
 	"path/filepath.Join": fromFirstArgToFirstRet,
@@ -653,8 +609,8 @@ var funcSummaries = map[string]summary{
 	"log.New": fromFirstArgToFirstRet,
 	// func (l *Logger) SetOutput(w io.Writer)
 	"(*log.Logger).SetOutput": {
-		ifTainted:   second,
-		taintedArgs: []int{0},
+		IfTainted:   second,
+		TaintedArgs: []int{0},
 	},
 	// func (l *Logger) Writer() io.Writer
 	"(*log.Logger).Writer": fromFirstArgToFirstRet,
@@ -673,97 +629,97 @@ type funcKey struct {
 // (i.e. a call to an interface method on an interface value).
 // Since all of these functions have receivers, the "first" argument in `ifTainted`
 // always corresponds to the receiver.
-var interfaceFuncSummaries = map[funcKey]summary{
+var interfaceFuncSummaries = map[funcKey]Summary{
 	// type io.Reader interface {
 	//  Read(p []byte) (n int, err error)
 	// }
 	{"Read", "([]byte)(int,error)"}: {
-		ifTainted:   first,
-		taintedArgs: []int{1},
+		IfTainted:   first,
+		TaintedArgs: []int{1},
 	},
 	// type io.Writer interface {
 	//  Write(p []byte) (n int, err error)
 	// }
 	{"Write", "([]byte)(int,error)"}: {
-		ifTainted:   second,
-		taintedArgs: []int{0},
+		IfTainted:   second,
+		TaintedArgs: []int{0},
 	},
 	// type io.ReaderFrom interface {
 	//  ReadFrom(r Reader) (n int64, err error)
 	// }
 	{"ReadFrom", "(Reader)(int64,error)"}: {
-		ifTainted:   second,
-		taintedArgs: []int{0},
+		IfTainted:   second,
+		TaintedArgs: []int{0},
 	},
 	// type io.WriterTo interface {
 	//  WriteTo(w Writer) (n int64, err error)
 	// }
 	{"WriteTo", "(Writer)(int64,error)"}: {
-		ifTainted:   first,
-		taintedArgs: []int{1},
+		IfTainted:   first,
+		TaintedArgs: []int{1},
 	},
 	// type io.ReaderAt interface {
 	//  ReadAt(p []byte, off int64) (n int, err error)
 	// }
 	{"ReadAt", "([]byte,int64)(int,error)"}: {
-		ifTainted:   first,
-		taintedArgs: []int{1},
+		IfTainted:   first,
+		TaintedArgs: []int{1},
 	},
 	// type io.WriterAt interface {
 	//  WriteAt(p []byte, off int64) (n int, err error)
 	// }
 	{"WriteAt", "([]byte,int64)(int,error)"}: {
-		ifTainted:   second,
-		taintedArgs: []int{0},
+		IfTainted:   second,
+		TaintedArgs: []int{0},
 	},
 	// type io.StringWriter interface {
 	//  WriteString(s string) (n int, err error)
 	// }
 	{"WriteString", "(string)(int,error)"}: {
-		ifTainted:   second,
-		taintedArgs: []int{0},
+		IfTainted:   second,
+		TaintedArgs: []int{0},
 	},
 	// type fmt.Stringer interface {
 	//  String() string
 	// }
 	{"String", "()(string)"}: {
-		ifTainted:   first,
-		taintedRets: []int{0},
+		IfTainted:   first,
+		TaintedRets: []int{0},
 	},
 	// type fmt.GoStringer interface {
 	//  GoString() string
 	// }
 	{"GoString", "()(string)"}: {
-		ifTainted:   first,
-		taintedRets: []int{0},
+		IfTainted:   first,
+		TaintedRets: []int{0},
 	},
 	// type error interface {
 	//  Error() string
 	// }
 	{"Error", "()(string)"}: {
-		ifTainted:   first,
-		taintedRets: []int{0},
+		IfTainted:   first,
+		TaintedRets: []int{0},
 	},
 	// Unwrap() error
 	{"Unwrap", "()(error)"}: {
-		ifTainted:   first,
-		taintedRets: []int{0},
+		IfTainted:   first,
+		TaintedRets: []int{0},
 	},
 	// Bytes() []byte
 	{"Bytes", "()([]byte)"}: {
-		ifTainted:   first,
-		taintedRets: []int{0},
+		IfTainted:   first,
+		TaintedRets: []int{0},
 	},
 	// type context.Context interface {
 	//  Err() error
 	//  Value(key interface{}) interface{}
 	// }
 	{"Err", "()(error)"}: {
-		ifTainted:   first,
-		taintedRets: []int{0},
+		IfTainted:   first,
+		TaintedRets: []int{0},
 	},
 	{"Value", "(interface{})(interface{})"}: {
-		ifTainted:   first,
-		taintedRets: []int{0},
+		IfTainted:   first,
+		TaintedRets: []int{0},
 	},
 }
