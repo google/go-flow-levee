@@ -1,6 +1,22 @@
-package EAR
+// Copyright 2021 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package earpointer_test
 
 import (
+	"fmt"
+	"github.com/google/go-flow-levee/internal/pkg/earpointer"
 	"go/ast"
 	"go/importer"
 	"go/parser"
@@ -12,9 +28,9 @@ import (
 	"testing"
 )
 
-// ParseSourceCode parses the source code, convert it to SSA form, and return the SSA package.
+// parseSourceCode parses the source code, convert it to SSA form, and return the SSA package.
 // The filename for source is always "test.go", and the package is "t" at an empty path.
-func ParseSourceCode(src string) (*ssa.Package, error) {
+func parseSourceCode(src string) (*ssa.Package, error) {
 	// Parse the source files.
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "test.go", src, parser.ParseComments)
@@ -35,6 +51,8 @@ func ParseSourceCode(src string) (*ssa.Package, error) {
 	return ssaPkg, nil
 }
 
+// Test basic state operations using single global variables.
+// No fields are involved.
 func TestBasic(t *testing.T) {
 	code := `package p;
 	type T struct {}
@@ -42,36 +60,35 @@ func TestBasic(t *testing.T) {
 	var g2 *int
 	var g3 T
 	`
-	pkg, err := ParseSourceCode(code)
+	pkg, err := parseSourceCode(code)
 	if err != nil {
 		t.Fatalf("compilation failed: %s", code)
 	}
-	state := NewAbsState()
+	state := earpointer.NewState()
 	g1 := pkg.Members["g1"].(*ssa.Global)
-	ref1 := getAbsReferenceForGlobal(g1)
+	ref1 := earpointer.GetReferenceForGlobal(g1)
 	g2 := pkg.Members["g2"].(*ssa.Global)
-	ref2 := getAbsReferenceForGlobal(g2)
+	ref2 := earpointer.GetReferenceForGlobal(g2)
 	g3 := pkg.Members["g3"].(*ssa.Global)
-	ref3 := getAbsReferenceForGlobal(g3)
+	ref3 := earpointer.GetReferenceForGlobal(g3)
 	state.Insert(ref1)
 	state.Insert(ref2)
 	state.Insert(ref3)
 
-	got := state.String()
+	got := fmt.Sprintf("%s", state)
 	want := "{t.g1}: [], {t.g2}: [], {t.g3}: []"
 	if got != want {
 		t.Errorf("initial state:\n got: %s\n want: %s", got, want)
 	}
 
 	state.Unify(ref1, ref2)
-	got = state.String()
+	got = fmt.Sprintf("%s", state)
 	want = "{t.g1,t.g2}: [], {t.g3}: []"
 	if got != want {
 		t.Errorf("after unifying %s and %s:\n got: %s\n want: %s", ref1, ref2, got, want)
 	}
 
-	reps := make(AbsReferenceSet)
-	state.GetAllPartitionReps(reps)
+	reps := state.AllPartitionReps()
 	if len(reps) != 2 {
 		t.Errorf("after unification, the number of representatives should be 2")
 	}
@@ -92,6 +109,7 @@ func TestBasic(t *testing.T) {
 	}
 }
 
+// Test field unification on global variables.
 func TestGlobalField(t *testing.T) {
 	code := `package p;
 	type T struct { x *int; y *int }
@@ -100,27 +118,27 @@ func TestGlobalField(t *testing.T) {
 	var g3 *T
 	var g4 *T
 	`
-	pkg, err := ParseSourceCode(code)
+	pkg, err := parseSourceCode(code)
 	if err != nil {
 		t.Fatalf("compilation failed: %s", code)
 	}
-	state := NewAbsState()
+	state := earpointer.NewState()
 	g1 := pkg.Members["g1"].(*ssa.Global)
-	ref1 := getAbsReferenceForGlobal(g1)
+	ref1 := earpointer.GetReferenceForGlobal(g1)
 	g2 := pkg.Members["g2"].(*ssa.Global)
-	ref2 := getAbsReferenceForGlobal(g2)
+	ref2 := earpointer.GetReferenceForGlobal(g2)
 	g3 := pkg.Members["g3"].(*ssa.Global)
-	ref3 := getAbsReferenceForGlobal(g3)
+	ref3 := earpointer.GetReferenceForGlobal(g3)
 	g4 := pkg.Members["g4"].(*ssa.Global)
-	ref4 := getAbsReferenceForGlobal(g4)
+	ref4 := earpointer.GetReferenceForGlobal(g4)
 	state.Insert(ref1)
 	state.Insert(ref2)
 	state.Insert(ref3)
 	state.Insert(ref4)
 
 	fm1 := state.GetPartitionFieldMap(ref1)
-	fm1[Field{name: "x"}] = ref3
-	got := state.String()
+	fm1[earpointer.Field{Name: "x"}] = ref3
+	got := fmt.Sprintf("%s", state)
 	want := "{t.g1}: [x->t.g3], {t.g2}: [], {t.g3}: [], {t.g4}: []"
 	if got != want {
 		t.Errorf("initial state:\n got: %s\n want: %s", got, want)
@@ -128,7 +146,7 @@ func TestGlobalField(t *testing.T) {
 
 	// Unify "g1" and "g2"
 	state.Unify(ref1, ref2)
-	got = state.String()
+	got = fmt.Sprintf("%s", state)
 	want = "{t.g1,t.g2}: [x->t.g3], {t.g3}: [], {t.g4}: []"
 	if got != want {
 		t.Errorf("after unifying %s and %s:\n got: %s\n want: %s", ref1, ref2, got, want)
@@ -136,17 +154,18 @@ func TestGlobalField(t *testing.T) {
 
 	// Further unify "g3" and "g4"
 	fm3 := state.GetPartitionFieldMap(ref3)
-	fm3[Field{name: "y"}] = ref1
+	fm3[earpointer.Field{Name: "y"}] = ref1
 	fm4 := state.GetPartitionFieldMap(ref4)
-	fm4[Field{name: "y"}] = ref2
+	fm4[earpointer.Field{Name: "y"}] = ref2
 	state.Unify(ref3, ref4)
-	got = state.String()
+	got = fmt.Sprintf("%s", state)
 	want = "{t.g1,t.g2}: [x->t.g3], {t.g3,t.g4}: [y->t.g2]"
 	if got != want {
 		t.Errorf("after unifying %s and %s:\n got: %s\n want: %s", ref3, ref4, got, want)
 	}
 }
 
+// Test field unification on local variables including parameters and registers.
 func TestLocalField(t *testing.T) {
 	code := `package p;
 	type T struct { x *int; y *int }
@@ -155,41 +174,73 @@ func TestLocalField(t *testing.T) {
 		_ = c
 	}
 	`
-	pkg, err := ParseSourceCode(code)
+	pkg, err := parseSourceCode(code)
 	if err != nil {
 		t.Fatalf("compilation failed: %s", code)
 	}
-	state := NewAbsState()
+	state := earpointer.NewState()
 	f := pkg.Members["f"].(*ssa.Function)
-	refa := getAbsReferenceForLocal(&emptyContext, f.Params[0])
+	var emptyContext earpointer.ReferenceContext
+	refa := earpointer.GetReferenceForLocal(&emptyContext, f.Params[0])
 	state.Insert(refa)
-	refb := getAbsReferenceForLocal(&emptyContext, f.Params[1])
+	refb := earpointer.GetReferenceForLocal(&emptyContext, f.Params[1])
 	state.Insert(refb)
-	refc := getAbsReferenceForLocal(&emptyContext, f.Locals[0])
+	refc := earpointer.GetReferenceForLocal(&emptyContext, f.Locals[0])
 	state.Insert(refc)
 
-	got := state.String()
-	want := "{a}: [], {b}: [], {t0}: []"
+	got := fmt.Sprintf("%s", state)
+	want := "{f.a}: [], {f.b}: [], {f.t0}: []"
 	if got != want {
 		t.Errorf("initial state:\n got: %s\n want: %s", got, want)
 	}
 
 	fma := state.GetPartitionFieldMap(refa)
-	fma[Field{name: "x"}] = refc
-	fma[Field{name: "y"}] = refb
+	fma[earpointer.Field{Name: "x"}] = refc
+	fma[earpointer.Field{Name: "y"}] = refb
 	fmc := state.GetPartitionFieldMap(refc)
-	fmc[Field{name: "y"}] = refa
-	got = state.String()
-	want = "{a}: [x->t0, y->b], {b}: [], {t0}: [y->a]"
+	fmc[earpointer.Field{Name: "y"}] = refa
+	got = fmt.Sprintf("%s", state)
+	want = "{f.a}: [x->f.t0, y->f.b], {f.b}: [], {f.t0}: [y->f.a]"
 	if got != want {
 		t.Errorf("after setting fields:\n got: %s\n want: %s", got, want)
 	}
 
 	// Unify parameter "a" and local "c".
 	state.Unify(refa, refc)
-	got = state.String()
-	want = "{a,b,t0}: [x->t0, y->a]"
+	got = fmt.Sprintf("%s", state)
+	want = "{f.a,f.b,f.t0}: [x->f.t0, y->f.a]"
 	if got != want {
 		t.Errorf("after unifying %s and %s:\n got: %s\n want: %s", refa, refc, got, want)
+	}
+}
+
+func TestInternalReference(t *testing.T) {
+	code := `package p;
+	var g1 *int
+	`
+	pkg, err := parseSourceCode(code)
+	if err != nil {
+		t.Fatalf("compilation failed: %s", code)
+	}
+	g1 := pkg.Members["g1"].(*ssa.Global)
+	ref1 := earpointer.GetReferenceForGlobal(g1)
+
+	i1 := earpointer.GetReferenceForInternal(earpointer.VALUEOF, ref1)
+	i2 := earpointer.GetReferenceForInternal(earpointer.VALUEOF, ref1)
+	if i1 != i2 {
+		t.Errorf("internal reference [%s] should be equal to [%s]", i1, i2)
+	}
+	got := fmt.Sprintf("%s", i1)
+	if want := "*t.g1"; got != want {
+		t.Errorf("internal reference:\n got: %s\n want: %s", got, want)
+	}
+
+	i3 := earpointer.GetReferenceForInternal(earpointer.FIELD, ref1)
+	if i1 == i3 {
+		t.Errorf("internal reference [%s] should not be equal to [%s]", i1, i2)
+	}
+	got = fmt.Sprintf("%s", i3)
+	if want := "t.g1[.]"; got != want {
+		t.Errorf("internal reference:\n got: %s\n want: %s", got, want)
 	}
 }
