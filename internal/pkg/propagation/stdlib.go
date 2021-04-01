@@ -37,7 +37,6 @@ func (prop *Propagation) taintStdlibCall(call *ssa.Call, maxInstrReached map[*ss
 	args = append(args, call.Call.Args...)
 
 	// Determine whether we need to propagate taint.
-	// Specifically: is at least one argument tainted?
 	tainted := int64(0)
 	for i, a := range args {
 		if prop.tainted[a.(ssa.Node)] {
@@ -53,13 +52,14 @@ func (prop *Propagation) taintStdlibCall(call *ssa.Call, maxInstrReached map[*ss
 		prop.taint(args[i].(ssa.Node), maxInstrReached, lastBlockVisited, false)
 	}
 
-	// Taint call referrers, if there are any.
+	// If there are no referrers, exit early.
 	if call.Referrers() == nil {
 		return
 	}
 
 	// If the call has a single return value, the return value is the call
-	// instruction itself.
+	// instruction itself, so if the call's return value is tainted, taint
+	// the Referrers.
 	if call.Call.Signature().Results().Len() == 1 {
 		if len(summ.TaintedRets) > 0 {
 			prop.taintReferrers(call, maxInstrReached, lastBlockVisited)
@@ -70,7 +70,8 @@ func (prop *Propagation) taintStdlibCall(call *ssa.Call, maxInstrReached map[*ss
 	// If the call has more than one return value, the call's Referrers will
 	// contain one Extract for each returned value. There is no guarantee that
 	// these will appear in order, so we create a map from the index of
-	// each returned value to the corresponding Extract (the extracted value).
+	// each returned value to the corresponding Extract (the extracted value),
+	// then we taint the Extracts.
 	indexToExtract := map[int]*ssa.Extract{}
 	for _, r := range *call.Referrers() {
 		e := r.(*ssa.Extract)

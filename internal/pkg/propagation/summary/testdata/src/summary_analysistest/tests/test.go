@@ -24,31 +24,31 @@ import (
 func testStaticFuncName(w io.Writer) {
 	// positive cases
 	var b bytes.Buffer
-	b.Write(nil)            // want `\Q(*bytes.Buffer).Write`
-	fmt.Println()           // want "fmt.Println"
-	json.Unmarshal(nil, &b) // want "encoding/json.Unmarshal"
+	b.Write(nil)            // want `^\Q(*bytes.Buffer).Write\E$`
+	fmt.Println()           // want "^fmt.Println$"
+	json.Unmarshal(nil, &b) // want "^encoding/json.Unmarshal$"
 
 	// negative cases
-	w.Write(nil) // want ""
-	println()    // want ""
+	w.Write(nil) // want "^$"
+	println()    // want "^$"
 }
 
 func testFuncNameWithoutReceiver(w io.Writer) {
 	// positive cases
 	var b bytes.Buffer
-	b.Write(nil) // want "Write"
-	w.Write(nil) // want "Write"
+	b.Write(nil) // want "^Write$"
+	w.Write(nil) // want "^Write$"
 
 	// negative cases
-	fmt.Println() // want ""
-	println()     // want ""
+	fmt.Println() // want "^$"
+	println()     // want "^$"
 }
 
-func testFuncSignature(slice *[]*interface{}, m map[foo]string, r io.Reader) (err error, oops bool) { // want `\Q(*[]*interface{},map[foo]string,Reader)(error,bool)`
+func testFuncSignature(slice *[]*interface{}, m map[foo]string, r io.Reader) (err error, oops bool) { // want `^\Q(*[]*interface{},map[foo]string,Reader)(error,bool)\E$`
 	return nil, false
 }
 
-func (f *foo) testMethodSignature(i int, d float64) *foo { // want `\Q(int,float64)(*foo)`
+func (f *foo) testMethodSignature(i int, d float64) *foo { // want `^\Q(int,float64)(*foo)\E$`
 	return f
 }
 
