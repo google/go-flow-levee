@@ -24,7 +24,6 @@ import (
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"github.com/google/go-flow-levee/internal/pkg/sanitizer"
-	"github.com/google/go-flow-levee/internal/pkg/sourcetype"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/pointer"
 	"golang.org/x/tools/go/ssa"
@@ -224,7 +223,6 @@ func (prop *Propagation) taintReferrers(n ssa.Node, maxInstrReached map[*ssa.Bas
 	if !hasTaintableType(n) {
 		return
 	}
-
 	if n.Referrers() == nil {
 		return
 	}
@@ -254,37 +252,7 @@ func (prop *Propagation) taintCall(call *ssa.Call, maxInstrReached map[*ssa.Basi
 		return
 	}
 
-	// Do not traverse through a method call if it is being reached via a Source receiver.
-	// Do traverse if the call is being reached through a tainted argument.
-	// Source methods that return tainted values regardless of their arguments should be identified by the fieldpropagator analyzer.
-	if recv := call.Call.Signature().Recv(); recv != nil && sourcetype.IsSourceType(prop.config, prop.taggedFields, recv.Type()) {
-		// If the receiver is not statically known (it has interface type) and the
-		// method has no arguments, Args will be empty.
-		if len(call.Call.Args) == 0 {
-			return
-		}
-		visitingFromArg := false
-		for i, a := range call.Call.Args {
-			// If the receiver's type is statically known,
-			// it will be the first element of the Args slice.
-			if !call.Call.IsInvoke() && i == 0 {
-				continue
-			}
-			if prop.tainted[a.(ssa.Node)] {
-				visitingFromArg = true
-			}
-		}
-		if !visitingFromArg {
-			// unmark the node so that it may be visited again when taint propagates to an argument
-			prop.tainted[call] = false
-			return
-		}
-	}
-
-	prop.taintReferrers(call, maxInstrReached, lastBlockVisited)
-	for _, a := range call.Call.Args {
-		prop.taintCallArg(a, maxInstrReached, lastBlockVisited)
-	}
+	prop.taintStdlibCall(call, maxInstrReached, lastBlockVisited)
 }
 
 func (prop *Propagation) taintBuiltin(c *ssa.Call, builtinName string, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {

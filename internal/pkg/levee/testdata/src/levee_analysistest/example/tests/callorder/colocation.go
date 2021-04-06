@@ -15,56 +15,31 @@
 package callorder
 
 import (
+	"fmt"
+	"io"
 	"levee_analysistest/example/core"
 )
 
-func TestTaintedColocatedArgumentDoesNotReachSinkThatPrecedesColocation() {
-	s := core.Source{}
-	i := newInnocuous()
-	if err := fail(i); err != nil {
-		core.Sink(err)
+func TestTaintedColocatedArgumentDoesNotReachSinkThatPrecedesColocation(w io.Writer, src core.Source) {
+	if true {
+		core.Sink(w)
 	}
-	taintColocated(s, i)
+	fmt.Fprint(w, src)
 }
 
-func TestTaintedColocatedArgumentReachesSinkThatFollowsColocation() {
-	s := core.Source{}
-	i := newInnocuous()
-	taintColocated(s, i)
-	if err := fail(i); err != nil {
-		core.Sink(err) // want "a source has reached a sink"
+func TestTaintedColocatedArgumentReachesSinkThatFollowsColocation(w io.Writer, src core.Source) {
+	if _, err := fmt.Fprint(w, src); err != nil {
+		core.Sink(w) // want "a source has reached a sink"
 	}
 }
 
-func TestAvoidingIncorrectPropagationFromColocationDoesNotPreventCorrectReport() {
-	source := newSource()
-
-	cp, err := copy(source)
+func TestAvoidingIncorrectPropagationFromColocationDoesNotPreventCorrectReport(w io.Writer, src core.Source) {
+	_, err := fmt.Fprint(w, src)
 	if err != nil {
-		core.Sink(err) // want "a source has reached a sink"
+		core.Sink(w) // want "a source has reached a sink"
 	}
 
 	if true {
-		innoc := newInnocuous()
-		taintColocated(cp, innoc)
+		fmt.Fprint(w, src)
 	}
-}
-
-func fail(x interface{}) error {
-	return nil
-}
-
-func taintColocated(a, b interface{}) {
-}
-
-func newInnocuous() *core.Innocuous {
-	return &core.Innocuous{}
-}
-
-func newSource() *core.Source {
-	return &core.Source{}
-}
-
-func copy(a interface{}) (interface{}, error) {
-	return nil, nil
 }
