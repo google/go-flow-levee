@@ -15,7 +15,18 @@
 // Package levee exports the levee Analyzer.
 package levee
 
-import "github.com/google/go-flow-levee/internal/pkg/levee"
+import (
+	"github.com/google/go-flow-levee/internal/pkg/levee"
+	"github.com/google/go-flow-levee/internal/pkg/propagation/summary"
+)
 
 // Analyzer reports instances of source data reaching a sink.
 var Analyzer = levee.Analyzer
+
+// FuncSummaries is a wrapper around the propagation/summary
+// package's map of regular function summaries.
+var FuncSummaries = summary.FuncSummaries
+
+// InterfaceFuncSummaries is a wrapper around the propagation/summary
+// package's map of interface function summaries.
+var InterfaceFuncSummaries = summary.InterfaceFuncSummaries
