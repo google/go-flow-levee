@@ -32,29 +32,32 @@ import (
 var (
 	// FlagSet should be used by analyzers to reuse -config flag.
 	FlagSet    flag.FlagSet
-	conf       *Config
 	configFile string
+
+	configBytes        []byte
+	configFromBytes    *Config
+	configFromBytesErr error
 )
 
 func init() {
 	FlagSet.StringVar(&configFile, "config", "config.yaml", "path to analysis configuration file")
 }
 
-// SetConf allows a Config object to be provided directly, without
-// requiring a config file. This is useful when running the tool
+// SetConfigBytes allows the contents of a configuration file
+// to be provided directly. This is useful when running the tool
 // in an environment where file access is inconvenient.
-func SetConfig(c *Config) {
-	conf = c
+func SetConfigBytes(b []byte) {
+	configBytes = b
 }
 
 // Config contains matchers and analysis scope information.
 type Config struct {
 	ReportMessage             string
-	Sources                   []SourceMatcher
-	Sinks                     []FuncMatcher
-	Sanitizers                []FuncMatcher
-	FieldTags                 []FieldTagMatcher
-	Exclude                   []FuncMatcher
+	Sources                   []sourceMatcher
+	Sinks                     []funcMatcher
+	Sanitizers                []funcMatcher
+	FieldTags                 []fieldTagMatcher
+	Exclude                   []funcMatcher
 	AllowPanicOnTaintedValues bool
 }
 
@@ -148,7 +151,7 @@ func (vacuousMatcher) MatchString(string) bool {
 	return true
 }
 
-type FieldTagMatcher struct {
+type fieldTagMatcher struct {
 	Key   string
 	Value string
 }
@@ -159,7 +162,7 @@ type rawFieldTagMatcher struct {
 	Value string
 }
 
-func (ft *FieldTagMatcher) UnmarshalJSON(bytes []byte) error {
+func (ft *fieldTagMatcher) UnmarshalJSON(bytes []byte) error {
 	validFieldTagMatcherFields := []string{"key", "value"}
 	if err := validateFieldNames(&bytes, "fieldTagMatcher", validFieldTagMatcherFields); err != nil {
 		return err
@@ -199,7 +202,7 @@ func matcherFrom(lm *literalMatcher, r *regexp.Regexp) stringMatcher {
 // A sourceMatcher matches by package, type, and field.
 // Matching may be done against string literals Package, Type, Field,
 // or against regexp PackageRE, TypeRE, FieldRE.
-type SourceMatcher struct {
+type sourceMatcher struct {
 	Package stringMatcher
 	Type    stringMatcher
 	Field   stringMatcher
@@ -215,7 +218,7 @@ type rawSourceMatcher struct {
 	FieldRE   *regexp.Regexp
 }
 
-func (s *SourceMatcher) UnmarshalJSON(bytes []byte) error {
+func (s *sourceMatcher) UnmarshalJSON(bytes []byte) error {
 	validSourceMatcherFields := []string{"package", "packageRE", "type", "typeRE", "field", "fieldRE"}
 	if err := validateFieldNames(&bytes, "sourceMatcher", validSourceMatcherFields); err != nil {
 		return err
@@ -237,7 +240,7 @@ func (s *SourceMatcher) UnmarshalJSON(bytes []byte) error {
 		return fmt.Errorf("expected only one of Field, FieldRE in config definition for a source matcher")
 	}
 
-	*s = SourceMatcher{
+	*s = sourceMatcher{
 		Package: matcherFrom(raw.Package, raw.PackageRE),
 		Type:    matcherFrom(raw.Type, raw.TypeRE),
 		Field:   matcherFrom(raw.Field, raw.FieldRE),
@@ -245,15 +248,15 @@ func (s *SourceMatcher) UnmarshalJSON(bytes []byte) error {
 	return nil
 }
 
-func (s SourceMatcher) MatchType(path, typeName string) bool {
+func (s sourceMatcher) MatchType(path, typeName string) bool {
 	return s.Package.MatchString(path) && s.Type.MatchString(typeName)
 }
 
-func (s SourceMatcher) MatchField(path, typeName, fieldName string) bool {
+func (s sourceMatcher) MatchField(path, typeName, fieldName string) bool {
 	return s.MatchType(path, typeName) && s.Field.MatchString(fieldName)
 }
 
-type FuncMatcher struct {
+type funcMatcher struct {
 	Package  stringMatcher
 	Receiver stringMatcher
 	Method   stringMatcher
@@ -269,7 +272,7 @@ type rawFuncMatcher struct {
 	MethodRE   *regexp.Regexp
 }
 
-func (fm *FuncMatcher) UnmarshalJSON(bytes []byte) error {
+func (fm *funcMatcher) UnmarshalJSON(bytes []byte) error {
 	validFuncMatcherFields := []string{"package", "packageRE", "receiver", "receiverRE", "method", "methodRE"}
 	if err := validateFieldNames(&bytes, "funcMatcher", validFuncMatcherFields); err != nil {
 		return err
@@ -291,7 +294,7 @@ func (fm *FuncMatcher) UnmarshalJSON(bytes []byte) error {
 		return fmt.Errorf("expected only one of Method, MethodRE in config definition for a function matcher")
 	}
 
-	*fm = FuncMatcher{
+	*fm = funcMatcher{
 		Package:  matcherFrom(raw.Package, raw.PackageRE),
 		Receiver: matcherFrom(raw.Receiver, raw.ReceiverRE),
 		Method:   matcherFrom(raw.Method, raw.MethodRE),
@@ -299,19 +302,31 @@ func (fm *FuncMatcher) UnmarshalJSON(bytes []byte) error {
 	return nil
 }
 
-func (fm FuncMatcher) MatchFunction(path, receiver, name string) bool {
+func (fm funcMatcher) MatchFunction(path, receiver, name string) bool {
 	return fm.Package.MatchString(path) && fm.Receiver.MatchString(receiver) && fm.Method.MatchString(name)
 }
 
-// ReadConfig reads configuration from the config cache,
-// unless the config was set explicitly using SetConfig.
-// The cache reads, parses, and validates config file if necessary.
+// ReadConfig reads configuration from the config cache.
+// The cache reads, parses, and validates the config file if necessary.
+// If the config bytes were set using SetConfigBytes, they are used instead.
 func ReadConfig() (*Config, error) {
-	// Prefer global conf if it was explicitly set
-	if conf != nil {
-		return conf, nil
+	if configBytes != nil {
+		return readConfigBytes()
 	}
+
 	return cache.read(configFile)
+}
+
+func readConfigBytes() (*Config, error) {
+	if configFromBytes == nil {
+		configFromBytes = new(Config)
+		configFromBytesErr = yaml.UnmarshalStrict(configBytes, configFromBytes)
+		if configFromBytesErr != nil {
+			fmt.Println(configFromBytesErr)
+		}
+	}
+
+	return configFromBytes, configFromBytesErr
 }
 
 // configCacheElement reduces disk access across multiple ReadConfig calls.

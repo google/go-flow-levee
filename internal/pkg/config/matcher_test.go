@@ -63,7 +63,7 @@ MethodRE: bar`,
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			fm := FuncMatcher{}
+			fm := funcMatcher{}
 			err := yaml.UnmarshalStrict([]byte(tc.yaml), &fm)
 
 			if err == nil {
@@ -135,7 +135,7 @@ Method: bar`,
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			fm := FuncMatcher{}
+			fm := funcMatcher{}
 			if err := yaml.UnmarshalStrict([]byte(tc.yaml), &fm); err != nil {
 				t.Errorf("unexpected error unmarshalling funcMatcher: %v", err)
 			}
@@ -189,7 +189,7 @@ FieldRE: bar`,
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			sm := SourceMatcher{}
+			sm := sourceMatcher{}
 			err := yaml.UnmarshalStrict([]byte(tc.yaml), &sm)
 
 			if err == nil {
@@ -267,7 +267,7 @@ Field: qux`,
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			sm := SourceMatcher{}
+			sm := sourceMatcher{}
 			if err := yaml.UnmarshalStrict([]byte(tc.yaml), &sm); err != nil {
 				t.Errorf("Unexpected error unmarshalling sourceMatcher: %v", err)
 			}
@@ -330,7 +330,7 @@ Value: bar`,
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			ftm := FieldTagMatcher{}
+			ftm := fieldTagMatcher{}
 			err := yaml.UnmarshalStrict([]byte(tc.yaml), &ftm)
 
 			if (err != nil) != tc.wantErr {
