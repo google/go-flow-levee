@@ -65,47 +65,48 @@ func TestBasic(t *testing.T) {
 		t.Fatalf("compilation failed: %s", code)
 	}
 	state := earpointer.NewState()
-	g1 := pkg.Members["g1"].(*ssa.Global)
-	ref1 := earpointer.GetReferenceForGlobal(g1)
-	g2 := pkg.Members["g2"].(*ssa.Global)
-	ref2 := earpointer.GetReferenceForGlobal(g2)
-	g3 := pkg.Members["g3"].(*ssa.Global)
-	ref3 := earpointer.GetReferenceForGlobal(g3)
-	state.Insert(ref1)
-	state.Insert(ref2)
-	state.Insert(ref3)
+	getGlobal := func(name string) earpointer.Reference {
+		return earpointer.GetGlobal(pkg.Members[name].(*ssa.Global))
+	}
+	refs := map[string]earpointer.Reference{
+		"g1": getGlobal("g1"),
+		"g2": getGlobal("g2"),
+		"g3": getGlobal("g3"),
+	}
+	for _, r := range refs {
+		state.Insert(r)
+	}
 
-	got := state.String()
 	want := "{t.g1}: [], {t.g2}: [], {t.g3}: []"
-	if got != want {
-		t.Errorf("initial state:\n got: %s\n want: %s", got, want)
+	if got := state.String(); got != want {
+		t.Errorf("initial:\n got: %s\n want: %s", got, want)
 	}
 
-	state.Unify(ref1, ref2)
-	got = state.String()
+	state.Unify(refs["g1"], refs["g2"])
 	want = "{t.g1,t.g2}: [], {t.g3}: []"
-	if got != want {
-		t.Errorf("after unifying %s and %s:\n got: %s\n want: %s", ref1, ref2, got, want)
+	if got := state.String(); got != want {
+		t.Errorf("after unifying g1 and g2:\n got: %s\n want: %s", got, want)
 	}
 
-	reps := state.AllPartitionReps()
+	reps := state.Representatives()
 	if len(reps) != 2 {
-		t.Errorf("after unification, the number of representatives should be 2")
+		t.Errorf("should have 2 representatives")
 	}
 
+	// Test the PartitionState.
 	// The members information is built after the state is finalized.
-	state.Finalize()
-	if state.GetPartitionRep(ref1) != state.GetPartitionRep(ref2) {
-		t.Errorf("after unification, g1 and g2 should have the same representative")
+	pstate := state.GetPartitionState()
+	if state.Representative(refs["g1"]) != state.Representative(refs["g2"]) {
+		t.Errorf("g1 and g2 should have the same representative")
 	}
-	members := state.GetPartitionMembers(ref1)
+	members := pstate.PartitionMembers(refs["g1"])
 	if len(members) != 2 {
-		t.Errorf("the number of members in g1's partition should be 2")
+		t.Errorf("g1's partition should have 2 members")
 	}
 	mstrs := []string{members[0].String(), members[1].String()}
 	sort.Strings(mstrs)
 	if mstrs[0] != "t.g1" || mstrs[1] != "t.g2" {
-		t.Errorf("the member set of g1's partition should be [t.g1, t.g2]")
+		t.Errorf("g1's partition should contain [t.g1, t.g2]")
 	}
 }
 
@@ -123,45 +124,42 @@ func TestGlobalField(t *testing.T) {
 		t.Fatalf("compilation failed: %s", code)
 	}
 	state := earpointer.NewState()
-	g1 := pkg.Members["g1"].(*ssa.Global)
-	ref1 := earpointer.GetReferenceForGlobal(g1)
-	g2 := pkg.Members["g2"].(*ssa.Global)
-	ref2 := earpointer.GetReferenceForGlobal(g2)
-	g3 := pkg.Members["g3"].(*ssa.Global)
-	ref3 := earpointer.GetReferenceForGlobal(g3)
-	g4 := pkg.Members["g4"].(*ssa.Global)
-	ref4 := earpointer.GetReferenceForGlobal(g4)
-	state.Insert(ref1)
-	state.Insert(ref2)
-	state.Insert(ref3)
-	state.Insert(ref4)
+	getGlobal := func(name string) earpointer.Reference {
+		return earpointer.GetGlobal(pkg.Members[name].(*ssa.Global))
+	}
+	refs := map[string]earpointer.Reference{
+		"g1": getGlobal("g1"),
+		"g2": getGlobal("g2"),
+		"g3": getGlobal("g3"),
+		"g4": getGlobal("g4"),
+	}
+	for _, r := range refs {
+		state.Insert(r)
+	}
 
-	fm1 := state.GetPartitionFieldMap(ref1)
-	fm1[earpointer.Field{Name: "x"}] = ref3
-	got := state.String()
+	fm1 := state.PartitionFieldMap(refs["g1"])
+	fm1[earpointer.Field{Name: "x"}] = refs["g3"]
 	want := "{t.g1}: [x->t.g3], {t.g2}: [], {t.g3}: [], {t.g4}: []"
-	if got != want {
-		t.Errorf("initial state:\n got: %s\n want: %s", got, want)
+	if got := state.String(); got != want {
+		t.Errorf("initial:\n got: %s\n want: %s", got, want)
 	}
 
 	// Unify "g1" and "g2"
-	state.Unify(ref1, ref2)
-	got = state.String()
+	state.Unify(refs["g1"], refs["g2"])
 	want = "{t.g1,t.g2}: [x->t.g3], {t.g3}: [], {t.g4}: []"
-	if got != want {
-		t.Errorf("after unifying %s and %s:\n got: %s\n want: %s", ref1, ref2, got, want)
+	if got := state.String(); got != want {
+		t.Errorf("after unifying g1 and g2:\n got: %s\n want: %s", got, want)
 	}
 
-	// Further unify "g3" and "g4"
-	fm3 := state.GetPartitionFieldMap(ref3)
-	fm3[earpointer.Field{Name: "y"}] = ref1
-	fm4 := state.GetPartitionFieldMap(ref4)
-	fm4[earpointer.Field{Name: "y"}] = ref2
-	state.Unify(ref3, ref4)
-	got = state.String()
+	// Further Unify "g3" and "g4"
+	fm3 := state.PartitionFieldMap(refs["g3"])
+	fm3[earpointer.Field{Name: "y"}] = refs["g1"]
+	fm4 := state.PartitionFieldMap(refs["g4"])
+	fm4[earpointer.Field{Name: "y"}] = refs["g2"]
+	state.Unify(refs["g3"], refs["g4"])
 	want = "{t.g1,t.g2}: [x->t.g3], {t.g3,t.g4}: [y->t.g2]"
-	if got != want {
-		t.Errorf("after unifying %s and %s:\n got: %s\n want: %s", ref3, ref4, got, want)
+	if got := state.String(); got != want {
+		t.Errorf("after unifying g3 and g4:\n got: %s\n want: %s", got, want)
 	}
 }
 
@@ -180,41 +178,40 @@ func TestLocalField(t *testing.T) {
 	}
 	state := earpointer.NewState()
 	f := pkg.Members["f"].(*ssa.Function)
-	var emptyContext earpointer.ReferenceContext
-	refa := earpointer.GetReferenceForLocal(&emptyContext, f.Params[0])
-	state.Insert(refa)
-	refb := earpointer.GetReferenceForLocal(&emptyContext, f.Params[1])
-	state.Insert(refb)
-	refc := earpointer.GetReferenceForLocal(&emptyContext, f.Locals[0])
-	state.Insert(refc)
+	var emptyContext earpointer.Context
+	getLocal := func(param ssa.Value) earpointer.Reference {
+		r := earpointer.GetLocal(&emptyContext, param)
+		state.Insert(r)
+		return r
+	}
+	refa := getLocal(f.Params[0])
+	refb := getLocal(f.Params[1])
+	refc := getLocal(f.Locals[0])
 
-	got := state.String()
 	want := "{f.a}: [], {f.b}: [], {f.t0}: []"
-	if got != want {
-		t.Errorf("initial state:\n got: %s\n want: %s", got, want)
+	if got := state.String(); got != want {
+		t.Errorf("initial:\n got: %s\n want: %s", got, want)
 	}
 
-	fma := state.GetPartitionFieldMap(refa)
+	fma := state.PartitionFieldMap(refa)
 	fma[earpointer.Field{Name: "x"}] = refc
 	fma[earpointer.Field{Name: "y"}] = refb
-	fmc := state.GetPartitionFieldMap(refc)
+	fmc := state.PartitionFieldMap(refc)
 	fmc[earpointer.Field{Name: "y"}] = refa
-	got = state.String()
 	want = "{f.a}: [x->f.t0, y->f.b], {f.b}: [], {f.t0}: [y->f.a]"
-	if got != want {
+	if got := state.String(); got != want {
 		t.Errorf("after setting fields:\n got: %s\n want: %s", got, want)
 	}
 
 	// Unify parameter "a" and local "c".
 	state.Unify(refa, refc)
-	got = state.String()
 	want = "{f.a,f.b,f.t0}: [x->f.t0, y->f.a]"
-	if got != want {
-		t.Errorf("after unifying %s and %s:\n got: %s\n want: %s", refa, refc, got, want)
+	if got := state.String(); got != want {
+		t.Errorf("after unifying 'a' and 'b':\n got: %s\n want: %s", got, want)
 	}
 }
 
-func TestInternalReference(t *testing.T) {
+func TestSyntheticReference(t *testing.T) {
 	code := `package p;
 	var g1 *int
 	`
@@ -223,24 +220,24 @@ func TestInternalReference(t *testing.T) {
 		t.Fatalf("compilation failed: %s", code)
 	}
 	g1 := pkg.Members["g1"].(*ssa.Global)
-	ref1 := earpointer.GetReferenceForGlobal(g1)
+	ref1 := earpointer.GetGlobal(g1)
 
-	i1 := earpointer.GetReferenceForInternal(earpointer.VALUEOF, ref1)
-	i2 := earpointer.GetReferenceForInternal(earpointer.VALUEOF, ref1)
+	i1 := earpointer.GetSynthetic(earpointer.SyntheticValueOf, ref1)
+	i2 := earpointer.GetSynthetic(earpointer.SyntheticValueOf, ref1)
 	if i1 != i2 {
-		t.Errorf("internal reference [%s] should be equal to [%s]", i1, i2)
+		t.Errorf("[%s] != [%s]", i1, i2)
 	}
-	got := i1.String()
-	if want := "*t.g1"; got != want {
-		t.Errorf("internal reference:\n got: %s\n want: %s", got, want)
+	want := "*t.g1"
+	if got := i1.String(); got != want {
+		t.Errorf("String():\n got: %s\n want: %s", got, want)
 	}
 
-	i3 := earpointer.GetReferenceForInternal(earpointer.FIELD, ref1)
+	i3 := earpointer.GetSynthetic(earpointer.SyntheticField, ref1)
 	if i1 == i3 {
-		t.Errorf("internal reference [%s] should not be equal to [%s]", i1, i2)
+		t.Errorf("[%s] == [%s]", i1, i3)
 	}
-	got = i3.String()
-	if want := "t.g1[.]"; got != want {
-		t.Errorf("internal reference:\n got: %s\n want: %s", got, want)
+	want = "t.g1[.]"
+	if got := i3.String(); got != want {
+		t.Errorf("String():\n got: %s\n want: %s", got, want)
 	}
 }

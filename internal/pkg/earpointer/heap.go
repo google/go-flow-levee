@@ -24,89 +24,89 @@ import (
 // An abstract reference is a local (register) or global variable, possibly
 // annotated with some kind of context (call stack, allocation site etc).
 
-// Reference is the base class for local and global references.
+// Reference is the base interface for local, global, and synthetic references.
 type Reference interface {
 	Type() types.Type // Return the data type of the underlying local or global
 	String() string
 	Node() ssa.Value
 }
 
-// ReferenceContext represents the calling context of a reference.
+// Context represents the calling context of a reference.
 // Typically, it contains a stack of call instructions.
-type ReferenceContext []ssa.Instruction
+type Context []ssa.Instruction
 
-// ReferenceLocal is a heap partition that represents all abstract
+// Local is a heap partition that represents all abstract
 // objects that a register of reference type can point to in a specific context.
-type ReferenceLocal struct {
-	context *ReferenceContext
+type Local struct {
+	context *Context
 	reg     ssa.Value
 }
 
-func (ref ReferenceLocal) Type() types.Type {
-	return ref.reg.Type()
+func (l Local) Type() types.Type {
+	return l.reg.Type()
 }
 
-func (ref ReferenceLocal) Node() ssa.Value {
-	return ref.reg
+func (l Local) Node() ssa.Value {
+	return l.reg
 }
 
-func (ref ReferenceLocal) String() string {
-	reg := ref.reg
+func (l Local) String() string {
+	reg := l.reg
 	if reg.Parent() != nil {
-		return ref.context.String() + reg.Parent().Name() + "." + reg.Name()
+		return l.context.String() + reg.Parent().Name() + "." + reg.Name()
 	} else {
-		return ref.context.String() + reg.Name()
+		return l.context.String() + reg.Name()
 	}
 }
 
-// ReferenceGlobal is a heap partition that represents all abstract
+// Global is a heap partition that represents all abstract
 // objects that a global of reference type can point to.
-type ReferenceGlobal struct {
+type Global struct {
 	global *ssa.Global
 }
 
-func (ref ReferenceGlobal) Type() types.Type {
-	return ref.global.Type()
+func (g Global) Type() types.Type {
+	return g.global.Type()
 }
 
-func (ref ReferenceGlobal) Node() ssa.Value {
-	return ref.global
+func (g Global) Node() ssa.Value {
+	return g.global
 }
 
-func (ref ReferenceGlobal) String() string {
-	return ref.global.String()
+func (g Global) String() string {
+	return g.global.String()
 }
 
-type InternalKind int
+type SyntheticKind int
 
 const (
-	VALUEOF InternalKind = iota
-	FIELD
+	SyntheticValueOf SyntheticKind = iota
+	SyntheticField
 )
 
-// ReferenceInternal is for references created internally with an operator
+// Synthetic is for references created internally with an operator
 // and an operand reference. It is for creating references not directly associated
 // with an IR element. For example,
 // (1) *r0 can be represented by using operator VALUEOF (*);
 // (2) a unknown field can be represented by using operator FIELD.
-type ReferenceInternal struct {
-	kind InternalKind
+type Synthetic struct {
+	kind SyntheticKind
 	ref  Reference
 }
 
-func (ref ReferenceInternal) Type() types.Type {
-	return ref.ref.Type()
+func (s Synthetic) Type() types.Type {
+	return s.ref.Type()
 }
 
-func (ref ReferenceInternal) Node() ssa.Value {
-	return ref.ref.Node()
+func (s Synthetic) Node() ssa.Value {
+	return s.ref.Node()
 }
 
-func (ref ReferenceInternal) String() string {
-	if ref.kind == VALUEOF {
-		return "*" + ref.ref.String()
+func (s Synthetic) String() string {
+	if s.kind == SyntheticValueOf {
+		return "*" + s.ref.String()
 	}
-	return ref.ref.String() + "[.]"
+	return s.ref.String() + "[.]"
 }
 
 // Field can be (1) a struct field linked to an IR field (Var);
@@ -138,36 +138,36 @@ func getDirectPointToField() Field {
 // ReferenceSet is a hash set of references.
 type ReferenceSet map[Reference]bool
 
-// ReferenceFieldMap maps from Fields to a reference handle. It
+// FieldMap maps from Fields to a reference handle. It
 // is used for maintaining points-to relationships for the fields of a
 // reference partition. The number of fields is not expected to
 // be high on average, so O(n) or O(log(n)) lookup time is acceptable.
-type ReferenceFieldMap map[Field]Reference
+type FieldMap map[Field]Reference
 
 // Constructs Reference for local "reg" in context "context".
 // TODO: hashconst the object to save memory.
-func GetReferenceForLocal(context *ReferenceContext, reg ssa.Value) Reference {
-	return ReferenceLocal{context: context, reg: reg}
+func GetLocal(context *Context, reg ssa.Value) Reference {
+	return Local{context: context, reg: reg}
 }
 
-func GetReferenceForLocalWithEmptyContext(reg ssa.Value) Reference {
-	return ReferenceLocal{context: &emptyContext, reg: reg}
+func GetLocalWithEmptyContext(reg ssa.Value) Reference {
+	return Local{context: &emptyContext, reg: reg}
 }
 
-func GetReferenceForGlobal(global *ssa.Global) Reference {
-	return ReferenceGlobal{global: global}
+func GetGlobal(global *ssa.Global) Reference {
+	return Global{global: global}
 }
 
-func GetReference(context *ReferenceContext, reg ssa.Value) Reference {
+func GetReference(context *Context, reg ssa.Value) Reference {
 	if global, ok := reg.(*ssa.Global); ok {
-		return ReferenceGlobal{global: global}
+		return Global{global: global}
 	}
-	return ReferenceLocal{context: context, reg: reg}
+	return Local{context: context, reg: reg}
 }
 
-// Constructs internal Reference.
-func GetReferenceForInternal(kind InternalKind, ref Reference) Reference {
-	return ReferenceInternal{kind: kind, ref: ref}
+// Constructs synthetic reference.
+func GetSynthetic(kind SyntheticKind, ref Reference) Reference {
+	return Synthetic{kind: kind, ref: ref}
 }
 
 // Returns whether a value of this type may share an object pointed by other
@@ -202,9 +202,9 @@ func typeMayShareObject(tp types.Type) bool {
 }
 
 // emptyContext defines an empty context handle to be shared by local references.
-var emptyContext = make(ReferenceContext, 0)
+var emptyContext = make(Context, 0)
 
-func (ctx ReferenceContext) String() string {
+func (ctx Context) String() string {
 	if len(ctx) == 0 {
 		return ""
 	}
