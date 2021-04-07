@@ -75,4 +75,9 @@ jobs:
 
       - name: Run tests
         run: |
-          go test -v ./...
+          go test -v ./... -coverprofile=coverage.txt
+
+      - name: Code coverage
+        uses: codecov/codecov-action@v1
+        with:
+          file: coverage.txt
