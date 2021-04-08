@@ -43,10 +43,10 @@ func init() {
 	FlagSet.StringVar(&configFile, "config", "config.yaml", "path to analysis configuration file")
 }
 
-// SetConfigBytes allows the contents of a configuration file
+// SetBytes allows the contents of a configuration file
 // to be provided directly. This is useful when running the tool
 // in an environment where file access is inconvenient.
-func SetConfigBytes(b []byte) {
+func SetBytes(b []byte) {
 	configBytes = b
 }
 
@@ -319,11 +319,12 @@ func ReadConfig() (*Config, error) {
 
 func readConfigBytes() (*Config, error) {
 	if configFromBytes == nil {
-		configFromBytes = new(Config)
-		configFromBytesErr = yaml.UnmarshalStrict(configBytes, configFromBytes)
-		if configFromBytesErr != nil {
-			fmt.Println(configFromBytesErr)
+		unmarshalled := new(Config)
+		unmarshalledErr := yaml.UnmarshalStrict(configBytes, unmarshalled)
+		if unmarshalledErr != nil {
+			fmt.Println(unmarshalledErr)
 		}
+		configFromBytes, configFromBytesErr = unmarshalled, unmarshalledErr
 	}
 
 	return configFromBytes, configFromBytesErr

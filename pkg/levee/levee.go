@@ -24,4 +24,4 @@ import (
 var Analyzer = levee.Analyzer
 
 // SetConfigBytes is a wrapper around the config package's SetConfigBytes function.
-var SetConfigBytes = config.SetConfigBytes
+var SetConfigBytes = config.SetBytes

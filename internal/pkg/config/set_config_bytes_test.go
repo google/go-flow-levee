@@ -18,26 +18,20 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"gopkg.in/yaml.v2"
 )
 
 func TestSetConfigBytes(t *testing.T) {
 	set := &Config{ReportMessage: "test"}
+	bytes := []byte(`ReportMessage: "test"`)
 
-	bytes, err := yaml.Marshal(set)
-	if err != nil {
-		t.Fatalf("yaml.Marshal returned an unexpected error: %v", err)
-	}
-
-	SetConfigBytes(bytes)
+	SetBytes(bytes)
 
 	read, err := ReadConfig()
 	if err != nil {
 		t.Fatalf("ReadConfig returned an unexpected error: %v", err)
 	}
 
-	if diff := cmp.Diff(set, read, cmpopts.EquateEmpty()); diff != "" {
+	if diff := cmp.Diff(set, read); diff != "" {
 		t.Errorf("set config differs from read config (-set, +read):\n%s", diff)
 	}
 }
