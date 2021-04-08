@@ -29,6 +29,7 @@ However, as a program's type hierarchy becomes more complex or
   as program logic grows to warrant increasingly detailed logging,
   it is easy to overlook when a class might contain these sensitive data and
   which log statements might accidentally expose them.
+Motivation is important.
 
 ### Technical design
 
