@@ -33,10 +33,21 @@ var (
 	// FlagSet should be used by analyzers to reuse -config flag.
 	FlagSet    flag.FlagSet
 	configFile string
+
+	configBytes        []byte
+	configFromBytes    *Config
+	configFromBytesErr error
 )
 
 func init() {
 	FlagSet.StringVar(&configFile, "config", "config.yaml", "path to analysis configuration file")
+}
+
+// SetBytes allows the contents of a configuration file
+// to be provided directly. This is useful when running the tool
+// in an environment where file access is inconvenient.
+func SetBytes(b []byte) {
+	configBytes = b
 }
 
 // Config contains matchers and analysis scope information.
@@ -295,10 +306,28 @@ func (fm funcMatcher) MatchFunction(path, receiver, name string) bool {
 	return fm.Package.MatchString(path) && fm.Receiver.MatchString(receiver) && fm.Method.MatchString(name)
 }
 
-// ReadConfig fetches configuration from the config cache.
-// The cache reads, parses, and validates config file if necessary.
+// ReadConfig reads configuration from the config cache.
+// The cache reads, parses, and validates the config file if necessary.
+// If the config bytes were set using SetConfigBytes, they are used instead.
 func ReadConfig() (*Config, error) {
+	if configBytes != nil {
+		return readConfigBytes()
+	}
+
 	return cache.read(configFile)
+}
+
+func readConfigBytes() (*Config, error) {
+	if configFromBytes == nil {
+		unmarshalled := new(Config)
+		unmarshalledErr := yaml.UnmarshalStrict(configBytes, unmarshalled)
+		if unmarshalledErr != nil {
+			fmt.Println(unmarshalledErr)
+		}
+		configFromBytes, configFromBytesErr = unmarshalled, unmarshalledErr
+	}
+
+	return configFromBytes, configFromBytesErr
 }
 
 // configCacheElement reduces disk access across multiple ReadConfig calls.
