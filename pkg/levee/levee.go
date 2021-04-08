@@ -17,6 +17,7 @@ package levee
 
 import (
 	"github.com/google/go-flow-levee/internal/pkg/config"
+	"github.com/google/go-flow-levee/internal/pkg/levee"
 	"github.com/google/go-flow-levee/internal/pkg/propagation/summary"
 )
 
