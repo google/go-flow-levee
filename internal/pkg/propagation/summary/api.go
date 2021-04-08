@@ -30,10 +30,10 @@ import (
 // For returns the summary for a given call if it exists,
 // or nil if no summary matches the called function.
 func For(call *ssa.Call) *Summary {
-	if summ, ok := funcSummaries[staticFuncName(call)]; ok {
+	if summ, ok := FuncSummaries[staticFuncName(call)]; ok {
 		return &summ
 	}
-	if summ, ok := interfaceFuncSummaries[funcKey{methodNameWithoutReceiver(call), sigTypeString(call.Call.Signature())}]; ok {
+	if summ, ok := InterfaceFuncSummaries[funcKey{methodNameWithoutReceiver(call), sigTypeString(call.Call.Signature())}]; ok {
 		return &summ
 	}
 	return nil

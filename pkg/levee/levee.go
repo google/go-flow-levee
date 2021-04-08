@@ -17,11 +17,19 @@ package levee
 
 import (
 	"github.com/google/go-flow-levee/internal/pkg/config"
-	"github.com/google/go-flow-levee/internal/pkg/levee"
+	"github.com/google/go-flow-levee/internal/pkg/propagation/summary"
 )
 
 // Analyzer reports instances of source data reaching a sink.
 var Analyzer = levee.Analyzer
 
-// SetConfigBytes is a wrapper around the config package's SetConfigBytes function.
-var SetConfigBytes = config.SetBytes
+// SetBytes is a wrapper around the config package's SetBytes function.
+var SetBytes = config.SetBytes
+
+// FuncSummaries is a wrapper around the propagation/summary
+// package's map of regular function summaries.
+var FuncSummaries = summary.FuncSummaries
+
+// InterfaceFuncSummaries is a wrapper around the propagation/summary
+// package's map of interface function summaries.
+var InterfaceFuncSummaries = summary.InterfaceFuncSummaries
