@@ -31,9 +31,9 @@ var fromFirstArgToFirstRet = Summary{
 	TaintedRets: []int{0},
 }
 
-// funcSummaries contains summaries for regular functions
+// FuncSummaries contains summaries for regular functions
 // that could be called statically.
-var funcSummaries = map[string]Summary{
+var FuncSummaries = map[string]Summary{
 	// func Errorf(format string, a ...interface{}) error
 	"fmt.Errorf": {
 		IfTainted:   first | second,
@@ -642,13 +642,13 @@ type funcKey struct {
 	name, signature string
 }
 
-// interfaceFuncSummaries contains summaries for common interface functions
+// InterfaceFuncSummaries contains summaries for common interface functions
 // such as Write or Read, that could be called statically (i.e. a call to
 // a concrete method whose signature matches an interface method) or dynamically
 // (i.e. a call to an interface method on an interface value).
 // Since all of these functions have receivers, the "first" argument in `ifTainted`
 // always corresponds to the receiver.
-var interfaceFuncSummaries = map[funcKey]Summary{
+var InterfaceFuncSummaries = map[funcKey]Summary{
 	// type io.Reader interface {
 	//  Read(p []byte) (n int, err error)
 	// }
