@@ -88,14 +88,23 @@ func TestNamedReturnValues() (val Source, ptr *Source) { // want "source identif
 }
 
 func TestSourceExtracts() {
+	// We expect two reports for this case, because creating s
+	// will require an Extract and an Alloc.
 	s, err := CreateSource() // want "source identified" "source identified"
 	sptr, err := NewSource() // want "source identified"
 
-	// we expect two reports for the following cases, since the map is a Source
-	mapSource, ok := map[string]Source{}[""]     // want "source identified" "source identified" "source identified"
+	// We expect three reports for this case, because:
+	// 1. the map is a Source
+	// 2. there is an Extract for the mapSource value
+	// 3. there is an Alloc for the mapSource value
+	mapSource, ok := map[string]Source{}[""] // want "source identified" "source identified" "source identified"
+
+	// We expect two reports here, for the map and the Extract.
+	// (There won't be an Alloc because mapSourcePtr is a pointer.)
 	mapSourcePtr, ok := map[string]*Source{}[""] // want "source identified" "source identified"
 
-	// we expect two reports for the following cases, since the chan is a Source
+	// These two cases are similar to the map cases above.
+	// The reasoning behind the number of expected reports is the same.
 	chanSource, ok := <-(make(chan Source))     // want "source identified" "source identified" "source identified"
 	chanSourcePtr, ok := <-(make(chan *Source)) // want "source identified" "source identified"
 
