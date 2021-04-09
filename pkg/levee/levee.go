@@ -27,6 +27,10 @@ var Analyzer = levee.Analyzer
 // SetBytes is a wrapper around the config package's SetBytes function.
 var SetBytes = config.SetBytes
 
+// Summary is a wrapper around the propagation/summary
+// package's Summary type.
+type Summary = summary.Summary
+
 // FuncSummaries is a wrapper around the propagation/summary
 // package's map of regular function summaries.
 var FuncSummaries = summary.FuncSummaries
