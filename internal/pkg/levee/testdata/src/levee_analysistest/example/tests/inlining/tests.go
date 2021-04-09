@@ -22,8 +22,21 @@ func NewSource() *core.Source {
 	return &core.Source{}
 }
 
+func MaybeSource() (core.Source, error) {
+	return core.Source{}, nil
+}
+
+func MaybeSourcePtr() (*core.Source, error) {
+	return &core.Source{}, nil
+}
+
 func TestInlinedCall() {
 	core.Sink(NewSource()) // want "a source has reached a sink"
+}
+
+func TestInlinedTupleCall() {
+	core.Sink(MaybeSource())    // want "a source has reached a sink"
+	core.Sink(MaybeSourcePtr()) // want "a source has reached a sink"
 }
 
 func TestInlinedRecv(sources <-chan core.Source) {
