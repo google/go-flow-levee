@@ -88,15 +88,15 @@ func TestNamedReturnValues() (val Source, ptr *Source) { // want "source identif
 }
 
 func TestSourceExtracts() {
-	s, err := CreateSource() // want "source identified"
+	s, err := CreateSource() // want "source identified" "source identified"
 	sptr, err := NewSource() // want "source identified"
 
 	// we expect two reports for the following cases, since the map is a Source
-	mapSource, ok := map[string]Source{}[""]     // want "source identified" "source identified"
+	mapSource, ok := map[string]Source{}[""]     // want "source identified" "source identified" "source identified"
 	mapSourcePtr, ok := map[string]*Source{}[""] // want "source identified" "source identified"
 
 	// we expect two reports for the following cases, since the chan is a Source
-	chanSource, ok := <-(make(chan Source))     // want "source identified" "source identified"
+	chanSource, ok := <-(make(chan Source))     // want "source identified" "source identified" "source identified"
 	chanSourcePtr, ok := <-(make(chan *Source)) // want "source identified" "source identified"
 
 	_, _, _, _, _, _, _, _ = s, sptr, mapSource, chanSource, mapSourcePtr, chanSourcePtr, err, ok

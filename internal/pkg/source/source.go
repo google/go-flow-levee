@@ -147,12 +147,13 @@ func isSourceNode(n ssa.Node, conf *config.Config, propagators fieldpropagator.R
 		return !v.CommaOk && sourcetype.IsSourceType(conf, taggedFields, v.AssertedType)
 
 	// An Extract is used to obtain a value from an instruction that returns multiple values.
-	// If the extracted value is a Pointer to a Source, it won't have an Alloc, so we need to
-	// identify the Source from the Extract.
+	// In some cases, an extracted value isn't tied to any other instruction that could be used
+	// to detect a source value, so the Extract itself has to be used. Specifically:
+	// - If the extracted value is a Pointer to a Source
+	// - If the extracted value is inlined into a call
 	case *ssa.Extract:
 		t := v.Tuple.Type().(*types.Tuple).At(v.Index).Type()
-		_, ok := t.(*types.Pointer)
-		return ok && sourcetype.IsSourceType(conf, taggedFields, t)
+		return sourcetype.IsSourceType(conf, taggedFields, t)
 
 	// Unary operator <- can receive sources from a channel.
 	case *ssa.UnOp:
