@@ -15,6 +15,7 @@
 package earpointer
 
 import (
+	"fmt"
 	"go/types"
 	"strings"
 
@@ -26,9 +27,10 @@ import (
 
 // Reference is the base interface for local, global, and synthetic references.
 type Reference interface {
+	fmt.Stringer
+
 	Type() types.Type // Return the data type of the underlying local or global
-	String() string
-	Node() ssa.Value
+	Value() ssa.Value
 }
 
 // Context represents the calling context of a reference.
@@ -46,17 +48,16 @@ func (l Local) Type() types.Type {
 	return l.reg.Type()
 }
 
-func (l Local) Node() ssa.Value {
+func (l Local) Value() ssa.Value {
 	return l.reg
 }
 
 func (l Local) String() string {
 	reg := l.reg
-	if reg.Parent() != nil {
-		return l.context.String() + reg.Parent().Name() + "." + reg.Name()
-	} else {
-		return l.context.String() + reg.Name()
+	if p := reg.Parent(); p != nil {
+		return l.context.String() + p.Name() + "." + reg.Name()
 	}
+	return l.context.String() + reg.Name()
 }
 
 // Global is a heap partition that represents all abstract
@@ -69,7 +70,7 @@ func (g Global) Type() types.Type {
 	return g.global.Type()
 }
 
-func (g Global) Node() ssa.Value {
+func (g Global) Value() ssa.Value {
 	return g.global
 }
 
@@ -89,6 +90,8 @@ const (
 // with an IR element. For example,
 // (1) *r0 can be represented by using operator VALUEOF (*);
 // (2) a unknown field can be represented by using operator FIELD.
+//     For example, when a struct is cloned, some fields may not appear in the IR,
+//     these "unused" fields can be synthesized and stored in the heap.
 type Synthetic struct {
 	kind SyntheticKind
 	ref  Reference
@@ -98,8 +101,8 @@ func (s Synthetic) Type() types.Type {
 	return s.ref.Type()
 }
 
-func (s Synthetic) Node() ssa.Value {
-	return s.ref.Node()
+func (s Synthetic) Value() ssa.Value {
+	return s.ref.Value()
 }
 
 func (s Synthetic) String() string {

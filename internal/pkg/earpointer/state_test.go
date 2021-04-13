@@ -15,6 +15,7 @@
 package earpointer_test
 
 import (
+	"github.com/google/go-flow-levee/internal/pkg/earpointer"
 	"go/ast"
 	"go/importer"
 	"go/parser"
@@ -23,7 +24,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/google/go-flow-levee/internal/pkg/earpointer"
+	//"github.com/google/go-flow-levee/internal/pkg/earpointer"
 	"golang.org/x/tools/go/ssa"
 	"golang.org/x/tools/go/ssa/ssautil"
 )
@@ -54,7 +55,7 @@ func parseSourceCode(src string) (*ssa.Package, error) {
 // Test basic state operations using single global variables.
 // No fields are involved.
 func TestBasic(t *testing.T) {
-	code := `package p;
+	code := `package p
 	type T struct {}
 	var g1 *int
 	var g2 *int
@@ -93,13 +94,22 @@ func TestBasic(t *testing.T) {
 		t.Errorf("should have 2 representatives")
 	}
 
-	// Test the PartitionState.
+	// Test the Partitions.
 	// The members information is built after the state is finalized.
-	pstate := state.GetPartitionState()
+	partitions := state.ToPartitions()
 	if state.Representative(refs["g1"]) != state.Representative(refs["g2"]) {
 		t.Errorf("g1 and g2 should have the same representative")
 	}
-	members := pstate.PartitionMembers(refs["g1"])
+	if !partitions.Has(refs["g1"]) {
+		t.Errorf("g1 should be in the partitions")
+	}
+	if len(partitions.References()) != 3 {
+		t.Errorf("partitions should contain 3 references")
+	}
+	if partitions.NumPartitions() != 2 {
+		t.Errorf("should have 2 partitions")
+	}
+	members := partitions.PartitionMembers(refs["g1"])
 	if len(members) != 2 {
 		t.Errorf("g1's partition should have 2 members")
 	}
@@ -108,11 +118,15 @@ func TestBasic(t *testing.T) {
 	if mstrs[0] != "t.g1" || mstrs[1] != "t.g2" {
 		t.Errorf("g1's partition should contain [t.g1, t.g2]")
 	}
+	want = "{t.g1,t.g2}: [], {t.g3}: []"
+	if got := partitions.String(); got != want {
+		t.Errorf("after unifying g1 and g2:\n got: %s\n want: %s", got, want)
+	}
 }
 
 // Test field unification on global variables.
 func TestGlobalField(t *testing.T) {
-	code := `package p;
+	code := `package p
 	type T struct { x *int; y *int }
 	var g1 *T
 	var g2 *T
@@ -144,14 +158,14 @@ func TestGlobalField(t *testing.T) {
 		t.Errorf("initial:\n got: %s\n want: %s", got, want)
 	}
 
-	// Unify "g1" and "g2"
+	// unify "g1" and "g2"
 	state.Unify(refs["g1"], refs["g2"])
 	want = "{t.g1,t.g2}: [x->t.g3], {t.g3}: [], {t.g4}: []"
 	if got := state.String(); got != want {
 		t.Errorf("after unifying g1 and g2:\n got: %s\n want: %s", got, want)
 	}
 
-	// Further Unify "g3" and "g4"
+	// Further unify "g3" and "g4"
 	fm3 := state.PartitionFieldMap(refs["g3"])
 	fm3[earpointer.Field{Name: "y"}] = refs["g1"]
 	fm4 := state.PartitionFieldMap(refs["g4"])
@@ -161,11 +175,18 @@ func TestGlobalField(t *testing.T) {
 	if got := state.String(); got != want {
 		t.Errorf("after unifying g3 and g4:\n got: %s\n want: %s", got, want)
 	}
+
+	// Test the Partitions.
+	partitions := state.ToPartitions()
+	want = "{t.g1,t.g2}: [x->t.g4], {t.g3,t.g4}: [y->t.g2]"
+	if got := partitions.String(); got != want {
+		t.Errorf("partitions:\n got: %s\n want: %s", got, want)
+	}
 }
 
 // Test field unification on local variables including parameters and registers.
 func TestLocalField(t *testing.T) {
-	code := `package p;
+	code := `package p
 	type T struct { x *int; y *int }
 	func f(a *T, b *T) {
 		var c T
@@ -203,16 +224,23 @@ func TestLocalField(t *testing.T) {
 		t.Errorf("after setting fields:\n got: %s\n want: %s", got, want)
 	}
 
-	// Unify parameter "a" and local "c".
+	// unify parameter "a" and local "c".
 	state.Unify(refa, refc)
 	want = "{f.a,f.b,f.t0}: [x->f.t0, y->f.a]"
 	if got := state.String(); got != want {
 		t.Errorf("after unifying 'a' and 'b':\n got: %s\n want: %s", got, want)
 	}
+
+	// Test the Partitions.
+	partitions := state.ToPartitions()
+	want = "{f.a,f.b,f.t0}: [x->f.t0, y->f.t0]"
+	if got := partitions.String(); got != want {
+		t.Errorf("partitions:\n got: %s\n want: %s", got, want)
+	}
 }
 
 func TestSyntheticReference(t *testing.T) {
-	code := `package p;
+	code := `package p
 	var g1 *int
 	`
 	pkg, err := parseSourceCode(code)
