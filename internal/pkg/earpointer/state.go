@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package earpoint introduces a pointer analysis based on unifying
+// Package earpointer introduces a pointer analysis based on unifying
 // equivalent abstract references (EAR), which implements Steensgaard's algorithm.
 // Extensions include adding context sensitivity and field sensitivity.
 // Abstract references defines the data structure to represent abstract heap.
@@ -41,7 +41,7 @@ type partitionInfo struct {
 // partitionInfoMap maps a reference to its partition.
 type partitionInfoMap map[Reference]partitionInfo
 
-// state is Equivalent Abstract References (EAR) state, which maintains
+// state is Equivalent Abstract references (EAR) state, which maintains
 // an abstract heap information. It contains data structures that
 // may be mutated during heap construction.
 type state struct {
@@ -60,14 +60,8 @@ func NewState() *state {
 	}
 }
 
-// Has returns true if "ref" is a reference present in the state.
-func (state *state) Has(ref Reference) bool {
-	_, ok := state.parents[ref]
-	return ok
-}
-
-// References gets all references.
-func (state *state) References() ReferenceSet {
+// references gets all references.
+func (state *state) references() ReferenceSet {
 	refs := make(ReferenceSet)
 	for k := range state.parents {
 		refs[k] = true
@@ -75,8 +69,8 @@ func (state *state) References() ReferenceSet {
 	return refs
 }
 
-// Representatives gets all references that are partition representatives.
-func (state *state) Representatives() ReferenceSet {
+// representatives gets all references that are partition representatives.
+func (state *state) representatives() ReferenceSet {
 	reps := make(ReferenceSet)
 	for k, v := range state.parents {
 		if k == v {
@@ -86,19 +80,18 @@ func (state *state) Representatives() ReferenceSet {
 	return reps
 }
 
-// Representative gets the partition representative of reference "ref"
+// representative gets the partition representative of reference "ref"
 // ("ref" must belong to this state).
-func (state *state) Representative(ref Reference) Reference {
+func (state *state) representative(ref Reference) Reference {
 	failureCallback := func(ref Reference) Reference {
-		log.Fatalf("Representative: Reference [%s] not found in state", ref)
+		log.Fatalf("representative: Reference [%s] not found in state", ref)
 		return nil
 	}
 	return state.lookupPartitionRep(ref, failureCallback)
 }
 
 // PartitionFieldMap gets the partition-level field map for partition
-// representative "ref". The result maps a field (ConstTermHandle type)
-// to a reference that is a partition representative.
+// representative "ref". The result maps a field to a partition representative.
 // Note "ref" must be a partition representative.
 func (state *state) PartitionFieldMap(ref Reference) FieldMap {
 	return state.partitionInfo(ref).fieldRefs
@@ -106,22 +99,22 @@ func (state *state) PartitionFieldMap(ref Reference) FieldMap {
 
 // Pretty printer
 func (state *state) String() string {
-	refs := state.References()
+	refs := state.references()
 	members := make(map[Reference][]Reference)
 	for ref := range refs {
-		rep := state.Representative(ref)
+		rep := state.representative(ref)
 		members[rep] = append(members[rep], ref)
 	}
 
 	var pstrs []string
-	for p, s := range members {
-		var mstrs []string
-		for _, v := range s {
-			mstrs = append(mstrs, v.String())
+	for rep, mems := range members {
+		mstrs := make([]string, len(mems))
+		for i, v := range mems {
+			mstrs[i] = v.String()
 		}
 		sort.Strings(mstrs)
 		pstr := "{" + strings.Join(mstrs, ",") + "}: " +
-			state.PartitionFieldMap(p).String()
+			state.PartitionFieldMap(rep).String()
 		pstrs = append(pstrs, pstr)
 	}
 	sort.Strings(pstrs)
@@ -149,7 +142,7 @@ func (state *state) Insert(ref Reference) Reference {
 	// Lookup failure will create new entry in the parent table.
 	failureCallback := func(ref Reference) Reference {
 		state.parents[ref] = ref
-		state.partitions[ref] = partitionInfo{numMembers: 0, fieldRefs: make(FieldMap)}
+		state.partitions[ref] = partitionInfo{numMembers: 1, fieldRefs: make(FieldMap)}
 		return ref
 	}
 	return state.lookupPartitionRep(ref, failureCallback)
@@ -157,11 +150,11 @@ func (state *state) Insert(ref Reference) Reference {
 
 // unify unifies the references "ref1" and "ref2"
 func (state *state) Unify(ref1 Reference, ref2 Reference) {
-	state.unifyReps(state.Representative(ref1), state.Representative(ref2))
+	state.unifyReps(state.representative(ref1), state.representative(ref2))
 }
 
 // unifyReps unifies the references "ref1" and "ref2", assuming both are
-// partition representative. This allows to avoid calling Representative
+// partition representative. This allows to avoid calling representative
 // unnecesarilly. Using this function with non-representative
 // references will raise an error.
 func (state *state) unifyReps(ref1 Reference, ref2 Reference) {
@@ -181,35 +174,31 @@ func (state *state) unifyReps(ref1 Reference, ref2 Reference) {
 	}
 
 	// Create state by having "prep1" point to "prep2" as parent and
-	// by erasing "prep2" as a partition rep. We then call MergeFieldMap()
+	// by erasing "prep1" as a partition rep. We then call MergeFieldMap()
 	// to merge field maps (which can trigger further unification). This process
 	// will converge since the number of partitions is guaranteed to decrease at
 	// every unification and is lower-bounded by 1.
 
 	// Update parent pointer and partition info map for ref1 while retaining
-	// its field map in fmap1 and number of members in n1
+	// its field map in fmap1.
 	state.parents[prep1] = prep2
 	fmap1 := pinfo1.fieldRefs
-	pinfo1.fieldRefs = make(FieldMap)
-	n1 := pinfo1.numMembers
+	pinfo1.fieldRefs = nil
 	delete(state.partitions, prep1)
 
 	// Update partition info for ref2 and merge the field map fmap1 in-place.
-	pinfo2.numMembers += n1
+	pinfo2.numMembers += pinfo1.numMembers
 	state.mergeFieldMap(fmap1, pinfo2.fieldRefs)
 }
 
 // Helper to find a partition representative. It calls onfailure callback
 // to delegate the action on lookup failure.
-func (state *state) lookupPartitionRep(
-	ref Reference,
-	onfailure func(abs Reference) Reference) Reference {
+func (state *state) lookupPartitionRep(ref Reference, onfailure func(abs Reference) Reference) Reference {
 	rep, ok := state.parents[ref]
 	if !ok {
 		res := onfailure(ref)
 		return res
 	}
-
 	// If we found the partition rep, return right away.
 	if rep == ref {
 		return rep
@@ -229,8 +218,7 @@ func (state *state) lookupPartitionRep(
 // mergeFieldMap sets the partition info for "rep" as a merge of the field
 // maps in "oldMap" and "newMap" (the last is an out-parameter to save
 // on memory copies).
-func (state *state) mergeFieldMap(oldMap FieldMap,
-	newMap FieldMap) {
+func (state *state) mergeFieldMap(oldMap FieldMap, newMap FieldMap) {
 	// Merge field maps of "oldMap" and update "newMap" suitably. For any
 	// common fields, we unify the pointers, else we copy over the field mapping
 	// as such.  We first compute the list of references to unify, update the
@@ -238,7 +226,7 @@ func (state *state) mergeFieldMap(oldMap FieldMap,
 	toUnify := make(map[Reference]Reference)
 	// Merging old fmap to a new fmap. We iterate over oldMap and insert all elements
 	// to newMap. If a field already exists in the newMap, we unify the corresponding heap
-	// partitions. This takes O(mlog(n)) times, where 'n' is the size of newMap.
+	// partitions. This takes linear time.
 	for k, v := range oldMap {
 		w, ok := newMap[k]
 		if !ok {
@@ -263,7 +251,8 @@ func (state *state) partitionInfo(ref Reference) *partitionInfo {
 	return &v
 }
 
-// valueReferenceOrNil returns the reference holding the value *r of an address r.
+// valueReferenceOrNil returns the reference holding the value *r of an address r
+// which is a partition representative.
 // Return nil if such a value reference doesn't exists.
 //lint:ignore U1000 ignore dead code for now
 func (state *state) valueReferenceOrNil(addr Reference) Reference {
@@ -322,11 +311,11 @@ func (p *Partitions) finalize() {
 	p.constructFieldParentMap()
 
 	// Construct the members. members maps partitions representatives to the
-	// members (References) of partitions.
+	// members (references) of partitions.
 	for ref, parent := range p.parents {
 		if ref == parent {
 			// If ref is equal to its parent, then ref is partition
-			// representative. No need to call Representative.
+			// representative. No need to call representative.
 			p.members[ref] = append(p.members[ref], ref)
 		} else {
 			rep := p.Representative(ref)
@@ -349,7 +338,7 @@ func (p *Partitions) Has(ref Reference) bool {
 	return ok
 }
 
-// References gets all references.
+// references gets all references.
 func (p *Partitions) References() ReferenceSet {
 	refs := make(ReferenceSet)
 	for k := range p.parents {
@@ -358,7 +347,7 @@ func (p *Partitions) References() ReferenceSet {
 	return refs
 }
 
-// Representatives gets all references that are partition representatives.
+// representatives gets all references that are partition representatives.
 func (p *Partitions) Representatives() ReferenceSet {
 	reps := make(ReferenceSet)
 	for k := range p.members {
@@ -367,7 +356,7 @@ func (p *Partitions) Representatives() ReferenceSet {
 	return reps
 }
 
-// Representative gets the partition representative of reference "ref"
+// representative gets the partition representative of reference "ref"
 // ("ref" must belong to this state).
 func (p *Partitions) Representative(ref Reference) Reference {
 	return p.parents[ref]

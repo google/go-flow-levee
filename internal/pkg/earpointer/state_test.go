@@ -66,7 +66,7 @@ func TestBasic(t *testing.T) {
 	}
 	state := earpointer.NewState()
 	getGlobal := func(name string) earpointer.Reference {
-		return earpointer.GetGlobal(pkg.Members[name].(*ssa.Global))
+		return earpointer.MakeGlobal(pkg.Members[name].(*ssa.Global))
 	}
 	refs := map[string]earpointer.Reference{
 		"g1": getGlobal("g1"),
@@ -88,17 +88,9 @@ func TestBasic(t *testing.T) {
 		t.Errorf("after unifying g1 and g2:\n got: %s\n want: %s", got, want)
 	}
 
-	reps := state.Representatives()
-	if len(reps) != 2 {
-		t.Errorf("should have 2 representatives")
-	}
-
 	// Test the Partitions.
 	// The members information is built after the state is finalized.
 	partitions := state.ToPartitions()
-	if state.Representative(refs["g1"]) != state.Representative(refs["g2"]) {
-		t.Errorf("g1 and g2 should have the same representative")
-	}
 	if !partitions.Has(refs["g1"]) {
 		t.Errorf("g1 should be in the partitions")
 	}
@@ -138,7 +130,7 @@ func TestGlobalField(t *testing.T) {
 	}
 	state := earpointer.NewState()
 	getGlobal := func(name string) earpointer.Reference {
-		return earpointer.GetGlobal(pkg.Members[name].(*ssa.Global))
+		return earpointer.MakeGlobal(pkg.Members[name].(*ssa.Global))
 	}
 	refs := map[string]earpointer.Reference{
 		"g1": getGlobal("g1"),
@@ -200,7 +192,7 @@ func TestLocalField(t *testing.T) {
 	f := pkg.Members["f"].(*ssa.Function)
 	var emptyContext earpointer.Context
 	getLocal := func(param ssa.Value) earpointer.Reference {
-		r := earpointer.GetLocal(&emptyContext, param)
+		r := earpointer.MakeLocal(&emptyContext, param)
 		state.Insert(r)
 		return r
 	}
@@ -247,10 +239,10 @@ func TestSyntheticReference(t *testing.T) {
 		t.Fatalf("compilation failed: %s", code)
 	}
 	g1 := pkg.Members["g1"].(*ssa.Global)
-	ref1 := earpointer.GetGlobal(g1)
+	ref1 := earpointer.MakeGlobal(g1)
 
-	i1 := earpointer.GetSynthetic(earpointer.SyntheticValueOf, ref1)
-	i2 := earpointer.GetSynthetic(earpointer.SyntheticValueOf, ref1)
+	i1 := earpointer.MakeSynthetic(earpointer.SyntheticValueOf, ref1)
+	i2 := earpointer.MakeSynthetic(earpointer.SyntheticValueOf, ref1)
 	if i1 != i2 {
 		t.Errorf("[%s] != [%s]", i1, i2)
 	}
@@ -259,7 +251,7 @@ func TestSyntheticReference(t *testing.T) {
 		t.Errorf("String():\n got: %s\n want: %s", got, want)
 	}
 
-	i3 := earpointer.GetSynthetic(earpointer.SyntheticField, ref1)
+	i3 := earpointer.MakeSynthetic(earpointer.SyntheticField, ref1)
 	if i1 == i3 {
 		t.Errorf("[%s] == [%s]", i1, i3)
 	}
