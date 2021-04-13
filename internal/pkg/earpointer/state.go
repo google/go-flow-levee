@@ -70,6 +70,7 @@ func (state *state) references() ReferenceSet {
 }
 
 // representatives gets all references that are partition representatives.
+//lint:ignore U1000 ignore dead code for now
 func (state *state) representatives() ReferenceSet {
 	reps := make(ReferenceSet)
 	for k, v := range state.parents {

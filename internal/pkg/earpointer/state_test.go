@@ -149,14 +149,7 @@ func TestGlobalField(t *testing.T) {
 		t.Errorf("initial:\n got: %s\n want: %s", got, want)
 	}
 
-	// unify "g1" and "g2"
-	state.Unify(refs["g1"], refs["g2"])
-	want = "{t.g1,t.g2}: [x->t.g3], {t.g3}: [], {t.g4}: []"
-	if got := state.String(); got != want {
-		t.Errorf("after unifying g1 and g2:\n got: %s\n want: %s", got, want)
-	}
-
-	// Further unify "g3" and "g4"
+	// Unify "g3" and "g4", which will also unify "g1" and "g2"
 	fm3 := state.PartitionFieldMap(refs["g3"])
 	fm3[earpointer.Field{Name: "y"}] = refs["g1"]
 	fm4 := state.PartitionFieldMap(refs["g4"])
