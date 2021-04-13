@@ -15,7 +15,6 @@
 package earpointer_test
 
 import (
-	"github.com/google/go-flow-levee/internal/pkg/earpointer"
 	"go/ast"
 	"go/importer"
 	"go/parser"
@@ -24,7 +23,7 @@ import (
 	"sort"
 	"testing"
 
-	//"github.com/google/go-flow-levee/internal/pkg/earpointer"
+	"github.com/google/go-flow-levee/internal/pkg/earpointer"
 	"golang.org/x/tools/go/ssa"
 	"golang.org/x/tools/go/ssa/ssautil"
 )

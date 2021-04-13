@@ -265,6 +265,7 @@ func (state *state) partitionInfo(ref Reference) *partitionInfo {
 
 // valueReferenceOrNil returns the reference holding the value *r of an address r.
 // Return nil if such a value reference doesn't exists.
+//lint:ignore U1000 ignore dead code for now
 func (state *state) valueReferenceOrNil(addr Reference) Reference {
 	// In the heap, r --> *r is implemented as r[PointToMarker] = *r.
 	fmap := state.PartitionFieldMap(addr)
@@ -304,10 +305,10 @@ type Partitions struct {
 
 func (state *state) ToPartitions() *Partitions {
 	p := &Partitions{
-		parents:     state.parents,
+		parents:    state.parents,
 		partitions: state.partitions,
-		members:   make(map[Reference][]Reference),
-		revFields: make(map[Reference][]Reference),
+		members:    make(map[Reference][]Reference),
+		revFields:  make(map[Reference][]Reference),
 	}
 	p.finalize()
 	return p
