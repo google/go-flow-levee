@@ -35,6 +35,7 @@ var (
 	configFile string
 
 	configBytes        []byte
+	configBytesOnce    sync.Once
 	configFromBytes    *Config
 	configFromBytesErr error
 )
@@ -318,14 +319,13 @@ func ReadConfig() (*Config, error) {
 }
 
 func readConfigBytes() (*Config, error) {
-	if configFromBytes == nil {
-		unmarshalled := new(Config)
-		unmarshalledErr := yaml.UnmarshalStrict(configBytes, unmarshalled)
-		if unmarshalledErr != nil {
-			fmt.Println(unmarshalledErr)
+	configBytesOnce.Do(func() {
+		configFromBytes = new(Config)
+		configFromBytesErr = yaml.UnmarshalStrict(configBytes, configFromBytes)
+		if configFromBytesErr != nil {
+			fmt.Println(configFromBytesErr)
 		}
-		configFromBytes, configFromBytesErr = unmarshalled, unmarshalledErr
-	}
+	})
 
 	return configFromBytes, configFromBytesErr
 }
