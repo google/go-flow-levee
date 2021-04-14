@@ -125,17 +125,13 @@ type Field struct {
 // array/slice/map index. For example, consider a register x of type T[], where
 // T is a struct type. The contents of the array/slice, namely x[i], is
 // over-approximated as the heap partition pointed-to by a pseudo-field named
-// getIndexField().
+// anyIndexField.
 //lint:ignore U1000 ignore dead code for now
-func getIndexField() Field {
-	return Field{Name: "AnyField"}
-}
+var anyIndexField Field = Field{Name: "AnyField"}
 
 // A pseudo-field to denote the direct points-to relation. For example, r1 = &r0
-// is modeled as r1[getDirectPointToField()] = r0.
-func getDirectPointToField() Field {
-	return Field{Name: "->"}
-}
+// is modeled as r1[directPointToField] = r0.
+var directPointToField Field = Field{Name: "->"}
 
 // Commonly used data structures.
 
@@ -181,8 +177,14 @@ func MakeSynthetic(kind SyntheticKind, ref Reference) Synthetic {
 //lint:ignore U1000 ignore dead code for now
 func typeMayShareObject(tp types.Type) bool {
 	switch tp := tp.(type) {
-	case *types.Pointer, *types.Struct, *types.Chan, *types.Interface, *types.Slice,
-		*types.Signature, *types.Array, *types.Map:
+	case *types.Pointer,
+		*types.Struct,
+		*types.Chan,
+		*types.Interface,
+		*types.Slice,
+		*types.Signature,
+		*types.Array,
+		*types.Map:
 		return true
 	case *types.Basic:
 		if tp.Kind() == types.String || tp.Kind() == types.UnsafePointer {

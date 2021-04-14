@@ -52,7 +52,7 @@ type state struct {
 	parents parentMap
 }
 
-// newState creates an empty abstract state.
+// NewState creates an empty abstract state.
 func NewState() *state {
 	return &state{
 		partitions: make(partitionInfoMap),
@@ -124,7 +124,7 @@ func (state *state) String() string {
 
 // Pretty prints a field map.
 func (fmap FieldMap) String() string {
-	if v, ok := fmap[getDirectPointToField()]; ok {
+	if v, ok := fmap[directPointToField]; ok {
 		return "--> " + v.String()
 	}
 	var fstrs []string
@@ -137,7 +137,7 @@ func (fmap FieldMap) String() string {
 
 // Various state mutation operation
 
-// insert inserts reference "ref" to the state and returns the current
+// Insert inserts reference "ref" to the state and returns the current
 // partition representative of "ref".
 func (state *state) Insert(ref Reference) Reference {
 	// Lookup failure will create new entry in the parent table.
@@ -149,7 +149,7 @@ func (state *state) Insert(ref Reference) Reference {
 	return state.lookupPartitionRep(ref, failureCallback)
 }
 
-// unify unifies the references "ref1" and "ref2"
+// Unify unifies the references "ref1" and "ref2"
 func (state *state) Unify(ref1 Reference, ref2 Reference) {
 	state.unifyReps(state.representative(ref1), state.representative(ref2))
 }
@@ -257,9 +257,9 @@ func (state *state) partitionInfo(ref Reference) *partitionInfo {
 // Return nil if such a value reference doesn't exists.
 //lint:ignore U1000 ignore dead code for now
 func (state *state) valueReferenceOrNil(addr Reference) Reference {
-	// In the heap, r --> *r is implemented as r[PointToMarker] = *r.
+	// In the heap, r --> *r is implemented as r[directPointToField] = *r.
 	fmap := state.PartitionFieldMap(addr)
-	if v, ok := fmap[getDirectPointToField()]; ok {
+	if v, ok := fmap[directPointToField]; ok {
 		return v
 	}
 	return nil
@@ -339,7 +339,7 @@ func (p *Partitions) Has(ref Reference) bool {
 	return ok
 }
 
-// references gets all references.
+// References gets all references.
 func (p *Partitions) References() ReferenceSet {
 	refs := make(ReferenceSet)
 	for k := range p.parents {
@@ -348,7 +348,7 @@ func (p *Partitions) References() ReferenceSet {
 	return refs
 }
 
-// representatives gets all references that are partition representatives.
+// Representatives gets all references that are partition representatives.
 func (p *Partitions) Representatives() ReferenceSet {
 	reps := make(ReferenceSet)
 	for k := range p.members {
@@ -357,7 +357,7 @@ func (p *Partitions) Representatives() ReferenceSet {
 	return reps
 }
 
-// representative gets the partition representative of reference "ref"
+// Representative gets the partition representative of reference "ref"
 // ("ref" must belong to this state).
 func (p *Partitions) Representative(ref Reference) Reference {
 	return p.parents[ref]

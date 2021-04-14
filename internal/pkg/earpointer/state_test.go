@@ -28,9 +28,9 @@ import (
 	"golang.org/x/tools/go/ssa/ssautil"
 )
 
-// parseSourceCode parses the source code, convert it to SSA form, and return the SSA package.
+// buildSSA parses the source code, convert it to SSA form, and return the SSA package.
 // The filename for source is always "test.go", and the package is "t" at an empty path.
-func parseSourceCode(src string) (*ssa.Package, error) {
+func buildSSA(src string) (*ssa.Package, error) {
 	// Parse the source files.
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "test.go", src, parser.ParseComments)
@@ -60,7 +60,7 @@ func TestBasic(t *testing.T) {
 	var g2 *int
 	var g3 T
 	`
-	pkg, err := parseSourceCode(code)
+	pkg, err := buildSSA(code)
 	if err != nil {
 		t.Fatalf("compilation failed: %s", code)
 	}
@@ -124,7 +124,7 @@ func TestGlobalField(t *testing.T) {
 	var g3 *T
 	var g4 *T
 	`
-	pkg, err := parseSourceCode(code)
+	pkg, err := buildSSA(code)
 	if err != nil {
 		t.Fatalf("compilation failed: %s", code)
 	}
@@ -177,7 +177,7 @@ func TestLocalField(t *testing.T) {
 		_ = c
 	}
 	`
-	pkg, err := parseSourceCode(code)
+	pkg, err := buildSSA(code)
 	if err != nil {
 		t.Fatalf("compilation failed: %s", code)
 	}
@@ -227,7 +227,7 @@ func TestSyntheticReference(t *testing.T) {
 	code := `package p
 	var g1 *int
 	`
-	pkg, err := parseSourceCode(code)
+	pkg, err := buildSSA(code)
 	if err != nil {
 		t.Fatalf("compilation failed: %s", code)
 	}
