@@ -65,7 +65,7 @@ func TestSourceCollectionInStructFieldIsSource() {
 
 type SourceSlice []core.Source
 
-func TestAliasedSourceSollectionIsSource() {
+func TestAliasedSourceCollectionIsSource() {
 	core.Sink(SourceSlice{}) // want "a source has reached a sink"
 }
 
