@@ -29,11 +29,11 @@ import (
 
 // For returns the summary for a given call if it exists,
 // or nil if no summary matches the called function.
-func For(call *ssa.Call) *Summary {
-	if summ, ok := FuncSummaries[staticFuncName(call)]; ok {
+func For(call ssa.Node, callCommon ssa.CallCommon) *Summary {
+	if summ, ok := FuncSummaries[staticFuncName(call, callCommon)]; ok {
 		return &summ
 	}
-	if summ, ok := InterfaceFuncSummaries[funcKey{methodNameWithoutReceiver(call), sigTypeString(call.Call.Signature())}]; ok {
+	if summ, ok := InterfaceFuncSummaries[funcKey{methodNameWithoutReceiver(callCommon), sigTypeString(callCommon.Signature())}]; ok {
 		return &summ
 	}
 	return nil
@@ -70,19 +70,19 @@ type Summary struct {
 	TaintedRets []int
 }
 
-func staticFuncName(call *ssa.Call) string {
-	if sc := call.Call.StaticCallee(); sc != nil {
+func staticFuncName(call ssa.Node, callCommon ssa.CallCommon) string {
+	if sc := callCommon.StaticCallee(); sc != nil {
 		return sc.RelString(call.Parent().Pkg.Pkg)
 	}
 	return ""
 }
 
-func methodNameWithoutReceiver(call *ssa.Call) string {
-	cc := call.Call
-	if cc.IsInvoke() {
-		return cc.Method.Name()
+func methodNameWithoutReceiver(callCommon ssa.CallCommon) string {
+	if callCommon.IsInvoke() {
+		return callCommon.Method.Name()
 	}
-	if sc := cc.StaticCallee(); sc != nil {
+	if sc := callCommon.StaticCallee(); sc != nil {
+
 		if sc.Signature.Recv() == nil {
 			return ""
 		}
