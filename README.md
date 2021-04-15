@@ -18,7 +18,7 @@ See `guides/` for guided introductions on:
 * [How to configure and run the analyzer](guides/quickstart.md)
 * More topics coming soon!
 
-### Motivation
+## Motivation
 
 Much data should not be freely shared.
 For instance, secrets (e.g, OAuth tokens, passwords),
@@ -30,11 +30,11 @@ However, as a program's type hierarchy becomes more complex or
   it is easy to overlook when a class might contain these sensitive data and
   which log statements might accidentally expose them.
 
-### Technical design
+## Technical design
 
 See [design/](design/README.md).
 
-### Configuration
+## Configuration
 
 See [configuration/](configuration/README.md) for configuration details.
 
