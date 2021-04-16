@@ -141,18 +141,11 @@ func (prop *Propagation) taintNeighbors(n ssa.Node, maxInstrReached map[*ssa.Bas
 		}
 
 	case *ssa.Call:
-		if callee := t.Call.StaticCallee(); callee != nil && prop.config.IsSanitizer(utils.DecomposeFunction(callee)) {
-			prop.sanitizers = append(prop.sanitizers, &sanitizer.Sanitizer{Call: t})
-			return
-		}
-		prop.taintCall(t, t.Call, maxInstrReached, lastBlockVisited)
+		prop.taintCall(t, maxInstrReached, lastBlockVisited)
 
-	// These nodes are wrappers around an implicit Call instruction.
-	// (The cases can't be merged because we need to access the .Call field.)
-	case *ssa.Defer:
-		prop.taintCall(t, t.Call, maxInstrReached, lastBlockVisited)
+	// The Go instruction is a wrapper around an implicit Call instruction.
 	case *ssa.Go:
-		prop.taintCall(t, t.Call, maxInstrReached, lastBlockVisited)
+		prop.taintStdlibCall(t, t.Call, maxInstrReached, lastBlockVisited)
 
 	case *ssa.Field:
 		prop.taintField(n, maxInstrReached, lastBlockVisited, t.X.Type(), t.Field)
@@ -211,7 +204,7 @@ func (prop *Propagation) taintNeighbors(n ssa.Node, maxInstrReached map[*ssa.Bas
 		prop.taintOperands(n, maxInstrReached, lastBlockVisited)
 
 	// These nodes cannot propagate taint.
-	case *ssa.Builtin, *ssa.DebugRef, *ssa.Function, *ssa.If, *ssa.Jump, *ssa.MakeClosure, *ssa.Next, *ssa.Panic, *ssa.Return, *ssa.RunDefers:
+	case *ssa.Builtin, *ssa.DebugRef, *ssa.Defer, *ssa.Function, *ssa.If, *ssa.Jump, *ssa.MakeClosure, *ssa.Next, *ssa.Panic, *ssa.Return, *ssa.RunDefers:
 
 	default:
 		fmt.Printf("unexpected node received: %T %v; please report this issue\n", n, n)
@@ -247,28 +240,34 @@ func (prop *Propagation) taintOperands(n ssa.Node, maxInstrReached map[*ssa.Basi
 	}
 }
 
-func (prop *Propagation) taintCall(call ssa.Node, callCommon ssa.CallCommon, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
-	// Some builtins require special handling
-	if builtin, ok := callCommon.Value.(*ssa.Builtin); ok {
-		prop.taintBuiltin(call, callCommon, builtin.Name(), maxInstrReached, lastBlockVisited)
+func (prop *Propagation) taintCall(call *ssa.Call, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+	if callee := call.Call.StaticCallee(); callee != nil && prop.config.IsSanitizer(utils.DecomposeFunction(callee)) {
+		prop.sanitizers = append(prop.sanitizers, &sanitizer.Sanitizer{Call: call})
 		return
 	}
-	prop.taintStdlibCall(call, callCommon, maxInstrReached, lastBlockVisited)
+
+	// Some builtins require special handling
+	if builtin, ok := call.Call.Value.(*ssa.Builtin); ok {
+		prop.taintBuiltin(call, builtin.Name(), maxInstrReached, lastBlockVisited)
+		return
+	}
+
+	prop.taintStdlibCall(call, call.Call, maxInstrReached, lastBlockVisited)
 }
 
-func (prop *Propagation) taintBuiltin(call ssa.Node, callCommon ssa.CallCommon, builtinName string, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+func (prop *Propagation) taintBuiltin(call *ssa.Call, builtinName string, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
 	switch builtinName {
 	// The values being appended cannot be tainted.
 	case "append":
 		// The slice argument needs to be tainted because if its underlying array has
 		// enough remaining capacity, the appended values will be written to it.
-		prop.taintCallArg(callCommon.Args[0], maxInstrReached, lastBlockVisited)
+		prop.taintCallArg(call.Call.Args[0], maxInstrReached, lastBlockVisited)
 		// The returned slice is tainted if either the slice argument or the values
 		// are tainted, so we need to visit the referrers.
 		prop.taintReferrers(call, maxInstrReached, lastBlockVisited)
 	// Only the first argument (dst) can be tainted. (The src cannot be tainted.)
 	case "copy":
-		prop.taintCallArg(callCommon.Args[0], maxInstrReached, lastBlockVisited)
+		prop.taintCallArg(call.Call.Args[0], maxInstrReached, lastBlockVisited)
 	// The builtin delete(m map[Type]Type1, key Type) func does not propagate taint.
 	case "delete":
 	}

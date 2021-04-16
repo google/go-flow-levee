@@ -22,35 +22,13 @@ import (
 	"levee_analysistest/example/core"
 )
 
-func TestGoBuiltin(dst, src []interface{}, s core.Source) {
-	src[0] = s
-	go copy(dst, src)
-	core.Sink(dst) // want "a source has reached a sink"
-}
-
-func TestDeferBuiltin(dst, src []interface{}, s core.Source) {
-	src[0] = s
-	defer copy(dst, src)
-	core.Sink(dst) // want "a source has reached a sink"
-}
-
 func TestGoStdlib(w io.Writer, s core.Source) {
 	go fmt.Fprint(w, s.Data)
 	core.Sink(w) // want "a source has reached a sink"
 }
 
-func TestDeferStdlib(w io.Writer, s core.Source) {
-	defer fmt.Fprint(w, s.Data)
-	core.Sink(w) // want "a source has reached a sink"
-}
-
 func TestGoUnknownFunction(i *core.Innocuous, s core.Source) {
 	go baz(i, s)
-	core.Sink(i)
-}
-
-func TestDeferUnknownFunction(i *core.Innocuous, s core.Source) {
-	defer baz(i, s)
 	core.Sink(i)
 }
 
