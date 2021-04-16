@@ -145,7 +145,7 @@ func (prop *Propagation) taintNeighbors(n ssa.Node, maxInstrReached map[*ssa.Bas
 
 	// The Go instruction is a wrapper around an implicit Call instruction.
 	case *ssa.Go:
-		prop.taintStdlibCall(t, t.Call, maxInstrReached, lastBlockVisited)
+		prop.taintStdlibCall(t, maxInstrReached, lastBlockVisited)
 
 	case *ssa.Field:
 		prop.taintField(n, maxInstrReached, lastBlockVisited, t.X.Type(), t.Field)
@@ -252,7 +252,7 @@ func (prop *Propagation) taintCall(call *ssa.Call, maxInstrReached map[*ssa.Basi
 		return
 	}
 
-	prop.taintStdlibCall(call, call.Call, maxInstrReached, lastBlockVisited)
+	prop.taintStdlibCall(call, maxInstrReached, lastBlockVisited)
 }
 
 func (prop *Propagation) taintBuiltin(call *ssa.Call, builtinName string, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {

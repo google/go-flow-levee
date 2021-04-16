@@ -54,7 +54,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 		for _, instr := range f.Blocks[0].Instrs {
 			if call, ok := instr.(*ssa.Call); ok {
-				pass.Reportf(call.Pos(), staticFuncName(call, call.Call))
+				pass.Reportf(call.Pos(), staticFuncName(call))
 			}
 		}
 	}
@@ -66,7 +66,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 		for _, instr := range f.Blocks[0].Instrs {
 			if call, ok := instr.(*ssa.Call); ok {
-				pass.Reportf(call.Pos(), methodNameWithoutReceiver(call.Call))
+				pass.Reportf(call.Pos(), methodNameWithoutReceiver(call))
 			}
 		}
 	}
