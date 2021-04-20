@@ -72,6 +72,34 @@ func TestFieldAddr(t *testing.T) {
 	}
 }
 
+func TestField(t *testing.T) {
+	code := `package p;
+	type T struct { x *int }
+	func f(a *int) {
+		_ = T{x: a}.x
+	}
+	`
+	/*
+		func f(a *int):
+		0:                                  entry P:0 S:0
+			t0 = local T (complit)          *T
+			t1 = &t0.x [#0]                 **int
+			*t1 = a
+			t2 = *t0                        T
+			t3 = t2.x [#0]                  *int
+			return
+	*/
+	state, err := runCode(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// t2's field x points to t3
+	want := "{*f.t0}: [x->f.t1], {f.a}: [], {f.t0}: --> *f.t0, {f.t1}: --> f.a, {f.t2[.],f.t3}: --> f.a, {f.t2}: [x->f.t3]"
+	if got := state.String(); got != want {
+		t.Errorf("got: %s\n want: %s", got, want)
+	}
+}
+
 func TestIndexAddr(t *testing.T) {
 	code := `package p;
 	func f(a, b []*int, i int) {
@@ -91,7 +119,34 @@ func TestIndexAddr(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{f.a}: [1:int->f.t0], {f.b}: [AnyField->f.t1], {f.t0}: --> f.t2, {f.t1}: --> f.t2, {f.t2}: []"
+	want := "{f.a}: [1->f.t0], {f.b}: [AnyField->f.t1], {f.t0}: --> f.t2, {f.t1}: --> f.t2, {f.t2}: []"
+	if got := state.String(); got != want {
+		t.Errorf("got: %s\n want: %s", got, want)
+	}
+}
+
+func TestIndex(t *testing.T) {
+	code := `package p;
+	func f(a *int) {
+		_ = [10]*int{a}[0]
+	}
+	`
+	/*
+		func f(a *int):
+		0:                                    entry P:0 S:0
+			t0 = local [10]*int (complit)     *[10]*int
+			t1 = &t0[0:int]                   **int
+			*t1 = a
+			t2 = *t0                          [10]*int
+			t3 = t2[0:int]                    *int
+			return
+	*/
+	state, err := runCode(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// t2's field 0 points to t3
+	want := "{f.a}: [], {f.t0}: --> f.t2, {f.t1}: --> f.a, {f.t2}: [0->f.t3], {f.t3}: []"
 	if got := state.String(); got != want {
 		t.Errorf("got: %s\n want: %s", got, want)
 	}
@@ -115,7 +170,8 @@ func TestPhi(t *testing.T) {
 		1:                                   if.then P:1 S:1
 			jump 2
 		2:                                   if.done P:2 S:0
-			return
+			t1 = phi [0: a, 1: b] #c         *int
+			t2 = print(t1)                   ()
 	*/
 	state, err := runCode(code)
 	if err != nil {
@@ -130,11 +186,11 @@ func TestPhi(t *testing.T) {
 func TestStore(t *testing.T) {
 	code := `package p;
 	type A struct { x *int; y *int }
-   var z *int
-   func f(a *A, b []*int) {
-     a.x = z
-     a.y = b[10]
-   }
+var z *int
+func f(a *A, b []*int) {
+  a.x = z
+  a.y = b[10]
+}
 	`
 	/*
 		func f(a *A, b []*int):
@@ -153,37 +209,7 @@ func TestStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	want :=
-		`{*f.a}: [x->f.t0, y->f.t2], {f.a}: --> *f.a, {f.b}: [10:int->f.t3], {f.t0}: --> f.t1, {f.t1}: [], {f.t2}: --> f.t4, {f.t3}: --> f.t4, {f.t4}: [], {t.z}: --> f.t1`
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
-	}
-}
-
-func TestLoad(t *testing.T) {
-	code := `package p;
-	type A struct { x *int; y *int }
-	var z *int
-	func f(a *A) *int {
-  		z = a.x
-  		return a.y
-	}
-	`
-	/*
-		func f(a *A) *int:
-		0:                         entry P:0 S:0
-			t0 = &a.x [#0]         **int
-			t1 = *t0               *int
-			*z = t1
-			t2 = &a.y [#1]         **int
-			t3 = *t2               *int
-			return t3
-	*/
-	state, err := runCode(code)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := "{*f.a}: [x->f.t0, y->f.t2], {f.a}: --> *f.a, {f.t0}: --> f.t1, {f.t1}: [], " +
-		"{f.t2}: --> f.t3, {f.t3}: [], {t.z}: --> f.t1"
+		`{*f.a}: [x->f.t0, y->f.t2], {f.a}: --> *f.a, {f.b}: [10->f.t3], {f.t0}: --> f.t1, {f.t1}: [], {f.t2}: --> f.t4, {f.t3}: --> f.t4, {f.t4}: [], {t.z}: --> f.t1`
 	if got := state.String(); got != want {
 		t.Errorf("got: %s\n want: %s", got, want)
 	}
@@ -194,8 +220,8 @@ func TestMapAccess(t *testing.T) {
 	type T struct { }
 	var t *T
 	func f(m map[int]*T, i int) {
- 		m[0] = t
- 		m[i] = m[1]
+		m[0] = t
+		m[i] = m[1]
 		_ = m[i]
 	}
 	`
@@ -213,7 +239,7 @@ func TestMapAccess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{f.m}: [0:int->f.t0, 1:int->f.t2, AnyField->f.t2], {f.t0}: [], {f.t1,f.t2}: [], {t.t}: --> f.t0"
+	want := "{f.m}: [0->f.t0, 1->f.t2, AnyField->f.t2], {f.t0}: [], {f.t1,f.t2}: [], {t.t}: --> f.t0"
 	if got := state.String(); got != want {
 		t.Errorf("got: %s\n want: %s", got, want)
 	}
@@ -222,9 +248,9 @@ func TestMapAccess(t *testing.T) {
 func TestLookUp(t *testing.T) {
 	code := `package p;
 	func f(a map[int]**int) {
-  		v, ok := a[10]
-  		_ = *v
-  		_ = ok
+		v, ok := a[10]
+		_ = *v
+		_ = ok
 	}
 	`
 	/*
@@ -240,7 +266,7 @@ func TestLookUp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{f.a}: [0->f.t1], {f.t1}: --> f.t3, {f.t3}: []"
+	want := "{f.a}: [10->f.t1], {f.t1}: --> f.t3, {f.t3}: []"
 	if got := state.String(); got != want {
 		t.Errorf("got: %s\n want: %s", got, want)
 	}
@@ -249,7 +275,7 @@ func TestLookUp(t *testing.T) {
 func TestConvert(t *testing.T) {
 	code := `package p;
 	func f(a []byte) {
- 		_ = (string)(a)
+		_ = (string)(a)
 	}
 	`
 	state, err := runCode(code)
@@ -265,10 +291,10 @@ func TestConvert(t *testing.T) {
 func TestTypeAssert(t *testing.T) {
 	code := `package p;
 	func f(a interface{}) {
-   	b,_ := a.(*bool)
+	b,_ := a.(*bool)
 		_ = b
 		_ = a.(*int)
- 	}
+	}
 	`
 	/*
 		func f(a interface{}):
@@ -289,11 +315,41 @@ func TestTypeAssert(t *testing.T) {
 	}
 }
 
+func TestChangeInterfaceOrType(t *testing.T) {
+	code := `package p;
+	type I interface{}
+	type T1 struct {}
+	type T2 struct {}
+	func f(a I) interface{} {
+		var t1 T1
+		_ = (T2)(t1)
+		return a
+	}
+	`
+	/*
+		func f(a I) interface{}:
+		0:                                            entry P:0 S:0
+			t0 = local T1 (t1)                        *T1
+			t1 = *t0                                  T1
+			t2 = changetype T2 <- T1 (t1)             T2
+			t3 = changetype interface{} <- I (a)      interface{}
+			return t3
+	*/
+	state, err := runCode(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "{f.a,f.t3}: [], {f.t0}: --> f.t1, {f.t1,f.t2}: []"
+	if got := state.String(); got != want {
+		t.Errorf("got: %s\n want: %s", got, want)
+	}
+}
+
 func TestBinOp(t *testing.T) {
 	code := `package p;
 	func f(a, b string) {
-   	_ = a + b
- 	}
+	_ = a + b
+	}
 	`
 	state, err := runCode(code)
 	if err != nil {
@@ -308,11 +364,11 @@ func TestBinOp(t *testing.T) {
 func TestRange(t *testing.T) {
 	code := `package p;
 	func f(a map[string]*int) {
-   	for i, v := range a {
-     		_ = i
-     		_ = v
-   	}
- 	}
+	for i, v := range a {
+  		_ = i
+  		_ = v
+	}
+	}
 	`
 	/*
 		func f(a map[string]*int):
@@ -343,9 +399,9 @@ func TestRange(t *testing.T) {
 func TestChannel(t *testing.T) {
 	code := `package p;
 	func f(ch chan string, z string) {
-   	ch <- z   // Send v to channel ch.
-   	_ = <-ch  // Receive from ch, and
- 	}
+	ch <- z   // Send v to channel ch.
+	_ = <-ch  // Receive from ch.
+	}
 	`
 	state, err := runCode(code)
 	if err != nil {
@@ -362,7 +418,7 @@ func TestSlice(t *testing.T) {
 	func f(s [6]int) {
 		t1 := s[1:4]
 		_ = t1[2:]
- 	}
+	}
 	`
 	/*
 		func f(s [6]int):
@@ -387,7 +443,7 @@ func TestMakeInterface(t *testing.T) {
 	code := `package p;
 	func f(s *int) interface{} {
 		return s
-  	}
+	}
 	`
 	state, err := runCode(code)
 	if err != nil {

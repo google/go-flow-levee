@@ -40,18 +40,18 @@ var Analyzer = &analysis.Analyzer{
 	Requires:   []*analysis.Analyzer{buildssa.Analyzer},
 }
 
-// transformer processes the instructions in a function and perform unifications
+// visitor processes the instructions in a function and perform unifications
 // for all reachable contexts for that function. Both the intra-procedural
 // instructions and inter-procedural instructions (i.e. CallInstruction) are processed.
-type transformer struct {
+type visitor struct {
 	state    *state // mutable state
 	contexts []*Context
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	ssainput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
-	p := transformer{state: NewState(), contexts: []*Context{&emptyContext}}
-	initReferences(ssainput, p.state)
+	p := visitor{state: NewState(), contexts: []*Context{&emptyContext}}
+	p.initReferences(ssainput)
 	for _, fn := range ssainput.SrcFuncs {
 		for _, blk := range fn.Blocks {
 			for _, instr := range blk.Instrs {
@@ -63,7 +63,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 }
 
 // Insert into the state all the local references and global references.
-func initReferences(ssainput *buildssa.SSA, state *state) {
+func (p *visitor) initReferences(ssainput *buildssa.SSA) {
+	state := p.state
 	for _, member := range ssainput.Pkg.Members {
 		if m, ok := member.(*ssa.Global); ok {
 			if typeMayShareObject(m.Type()) && m.Name() != "init$guard" {
@@ -92,7 +93,7 @@ func initReferences(ssainput *buildssa.SSA, state *state) {
 	}
 }
 
-func (p *transformer) visitInstruction(instr ssa.Instruction) {
+func (p *visitor) visitInstruction(instr ssa.Instruction) {
 	switch i := instr.(type) {
 	case *ssa.FieldAddr:
 		p.visitFieldAddr(i)
@@ -112,6 +113,10 @@ func (p *transformer) visitInstruction(instr ssa.Instruction) {
 		p.visitLookup(i)
 	case *ssa.Convert:
 		p.visitConvert(i)
+	case *ssa.ChangeInterface:
+		p.visitChangeInterface(i)
+	case *ssa.ChangeType:
+		p.visitChangeType(i)
 	case *ssa.TypeAssert:
 		p.visitTypeAssert(i)
 	case *ssa.UnOp:
@@ -128,6 +133,8 @@ func (p *transformer) visitInstruction(instr ssa.Instruction) {
 		p.visitSlice(i)
 	case *ssa.MakeInterface:
 		p.visitMakeInterface(i)
+	case *ssa.Select:
+		p.VisitSelect(i)
 
 	case *ssa.Call:
 		p.visitCall(i.Call, instr)
@@ -135,57 +142,77 @@ func (p *transformer) visitInstruction(instr ssa.Instruction) {
 		p.visitCall(i.Call, instr)
 	case *ssa.Defer:
 		p.visitCall(i.Call, instr)
+
+	case *ssa.Alloc,
+		*ssa.MakeChan,
+		*ssa.MakeClosure,
+		*ssa.MakeMap,
+		*ssa.MakeSlice:
+		// Local variables are created in the beginning of the pass by initReferences().
+		// These instructions won't be handled after that.
+	case *ssa.If,
+		*ssa.Jump:
+		// The analysis is flow insensitive.
+	case *ssa.Next:
+		// Next is handled in visitExtract().
+	case *ssa.Return:
+		// Return is handled in visitCall().
+	case *ssa.RunDefers:
+		// To be implemented.
+	case *ssa.Panic:
+		// To be implemented.
+	case *ssa.DebugRef:
+		// Not related.
 	}
 }
 
-func (p *transformer) visitFieldAddr(addr *ssa.FieldAddr) {
-	// "t1 = t0.x" is implemented by t0[x -> t1].
-	field := &Field{Name: getFieldName(addr.X.Type(), addr.Field)}
-	// "t1 = t0.x" is handled through address unification.
+func (p *visitor) visitFieldAddr(addr *ssa.FieldAddr) {
 	if !typeMayShareObject(addr.Type()) {
 		return
 	}
-	// unify instance field
+	// "t1 = t0.x" is implemented by t0[x -> t1] through address unification.
+	obj := addr.X
+	field := getField(obj.Type(), addr.Field)
 	for _, c := range p.contexts {
-		p.unifyFieldAddress(c, addr.X, field, addr)
+		p.unifyFieldAddress(c, obj, field, addr)
 	}
 }
 
-func (p *transformer) visitField(field *ssa.Field) {
+func (p *visitor) visitField(field *ssa.Field) {
 	// "t1 = t0.x" is implemented by t0[x -> t1].
-	fd := Field{Name: getFieldName(field.X.Type(), field.Field)}
-	p.processHeapAccess(field, field.X, fd /*unifyByValue=*/, false)
+	obj := field.X
+	fd := getField(obj.Type(), field.Field)
+	p.processHeapAccess(field, obj, *fd)
 }
 
-func (p *transformer) visitIndexAddr(addr *ssa.IndexAddr) {
+func (p *visitor) visitIndexAddr(addr *ssa.IndexAddr) {
 	// "t2 = &t1[t0]" is handled through address unification.
-	p.processMemoryIndexAccess(addr, addr.X, addr.Index /*unifyByValue=*/, false)
+	p.processMemoryIndexAccess(addr, addr.X, addr.Index)
 }
 
-func (p *transformer) visitIndex(index *ssa.Index) {
-	p.processMemoryIndexAccess(index, index.X, index.Index /*unifyByValue=*/, false)
+func (p *visitor) visitIndex(index *ssa.Index) {
+	p.processMemoryIndexAccess(index, index.X, index.Index)
 }
 
-func (p *transformer) visitLookup(lookup *ssa.Lookup) {
+func (p *visitor) visitLookup(lookup *ssa.Lookup) {
 	if !lookup.CommaOk {
-		p.processMemoryIndexAccess(lookup, lookup.X, lookup.Index,
-			/*unify_by_value=*/ true)
+		p.processMemoryIndexAccess(lookup, lookup.X, lookup.Index)
 	}
 	// The comma case will be processed by the subsequent extract instruction.
 }
 
-func (p *transformer) visitStore(store *ssa.Store) {
+func (p *visitor) visitStore(store *ssa.Store) {
 	// The Address can be a (memory) address, a global variable, or a free
 	// variable.
 	// Here store instruction "*address = data" is implemented by a
 	// semantics-equivalent (w.r.t. unification) load instruction "data =
 	// *address".
 	if mayShareObject(store.Val) {
-		p.processAddressToValue(store.Addr, store.Val /*unifyByValue=*/, false)
+		p.processAddressToValue(store.Addr, store.Val)
 	}
 }
 
-func (p *transformer) visitPhi(phi *ssa.Phi) {
+func (p *visitor) visitPhi(phi *ssa.Phi) {
 	if !typeMayShareObject(phi.Type()) {
 		return
 	}
@@ -194,37 +221,45 @@ func (p *transformer) visitPhi(phi *ssa.Phi) {
 	}
 }
 
-func (p *transformer) visitMapUpdate(update *ssa.MapUpdate) {
+func (p *visitor) visitMapUpdate(update *ssa.MapUpdate) {
 	p.processMemoryIndexAccess(update.Value, update.Map,
-		update.Key /*unifyByValue=*/, false)
+		update.Key)
 }
 
-func (p *transformer) visitConvert(convert *ssa.Convert) {
+func (p *visitor) visitConvert(convert *ssa.Convert) {
 	p.unifyLocals(convert, convert.X)
 }
 
-func (p *transformer) visitUnOp(op *ssa.UnOp) {
+func (p *visitor) visitChangeInterface(change *ssa.ChangeInterface) {
+	p.unifyLocals(change, change.X)
+}
+
+func (p *visitor) visitChangeType(change *ssa.ChangeType) {
+	p.unifyLocals(change, change.X)
+}
+
+func (p *visitor) visitUnOp(op *ssa.UnOp) {
 	switch op.Op {
 	case token.ARROW: // channel read
 		// Use array read to simulate channel read.
-		p.processHeapAccess(op, op.X, anyIndexField /*unifyByValue=*/, false)
+		p.processHeapAccess(op, op.X, anyIndexField)
 	case token.MUL:
 		{ // v = *addr
 			// The LHS is a register; the RHS can be a (memory) address, a global
 			// variable, or a free variable.
 			// t1 = *addr is implemented as "addr[directPointToField] = t1",
 			// i.e., address addr points to value t1.
-			p.processAddressToValue(op.X, op /*unifyByValue=*/, false)
+			p.processAddressToValue(op.X, op)
 		}
 	}
 }
 
-func (p *transformer) visitBinOp(op *ssa.BinOp) {
+func (p *visitor) visitBinOp(op *ssa.BinOp) {
 	p.unifyLocals(op, op.X)
 	p.unifyLocals(op, op.Y)
 }
 
-func (p *transformer) visitTypeAssert(assert *ssa.TypeAssert) {
+func (p *visitor) visitTypeAssert(assert *ssa.TypeAssert) {
 	if !assert.CommaOk {
 		// t1 = typeassert t0.(*int)
 		p.unifyLocals(assert, assert.X)
@@ -232,7 +267,7 @@ func (p *transformer) visitTypeAssert(assert *ssa.TypeAssert) {
 	// The comma case will be processed by the subsequent extract instruction.
 }
 
-func (p *transformer) visitExtract(extract *ssa.Extract) {
+func (p *visitor) visitExtract(extract *ssa.Extract) {
 	switch base := extract.Tuple.(type) {
 	case *ssa.TypeAssert:
 		// t1 = typeassert,ok t0.(*int)
@@ -247,87 +282,82 @@ func (p *transformer) visitExtract(extract *ssa.Extract) {
 		if rng, ok := base.Iter.(*ssa.Range); ok {
 			if mayShareObject(extract) && extract.Index == 2 { // extract the value v
 				// The value from the map flows into the field: m[*] = v.
-				p.processHeapAccess(extract, rng.X, anyIndexField,
-					/*unify_by_value=*/ false)
+				p.processHeapAccess(extract, rng.X, anyIndexField)
 			}
 		}
 	case *ssa.Lookup:
 		// t2 = t0[t1],ok
 		// t3 = extract t2 ?
 		if base.CommaOk && extract.Index == 0 {
-			p.processHeapAccess(extract, base.X, Field{Name: "0"},
-				/*unify_by_value=*/ false)
+			p.processMemoryIndexAccess(extract, base.X, base.Index)
 		}
 	default: // Other cases: model "r1 = extract r0 #n" as "r0["n"] = r1".
 		field := Field{Name: strconv.Itoa(extract.Index)}
-		p.processHeapAccess(extract, base, field,
-			/*unify_by_value=*/ false)
+		p.processHeapAccess(extract, base, field)
 	}
 }
 
-func (p *transformer) visitNext(next *ssa.Next) {
+func (p *visitor) visitNext(next *ssa.Next) {
 	// The next instruction will be processed by the subsequent extract
 	// instruction.
 }
 
-func (p *transformer) visitSlice(slice *ssa.Slice) {
+func (p *visitor) visitSlice(slice *ssa.Slice) {
 	p.unifyLocals(slice, slice.X)
 }
 
-func (p *transformer) visitMakeInterface(makeInterface *ssa.MakeInterface) {
+func (p *visitor) visitMakeInterface(makeInterface *ssa.MakeInterface) {
 	if mayShareObject(makeInterface.X) {
 		p.unifyLocals(makeInterface, makeInterface.X)
 	}
 }
 
-func (p *transformer) visitSend(send *ssa.Send) {
-	p.processHeapAccess(send.X, send.Chan,
-		anyIndexField /*unify_by_value=*/, false)
+func (p *visitor) visitSend(send *ssa.Send) {
+	p.processHeapAccess(send.X, send.Chan, anyIndexField)
 }
 
-func (p *transformer) visitRange(rng *ssa.Range) {
+func (p *visitor) visitRange(rng *ssa.Range) {
 	// t1 = range t0: unify t0 and t1.
-	p.unifyLocals(rng, rng.X)
+	// It will be processed by the subsequent extract instruction that also handled the relevant Next.
 }
 
-func (p *transformer) VisitSelect() {
+func (p *visitor) VisitSelect(s *ssa.Select) {
 	// TODO: to be implemented.
 }
 
-func (p *transformer) visitCall(call ssa.CallCommon, instr ssa.Instruction) {
+func (p *visitor) visitCall(call ssa.CallCommon, instr ssa.Instruction) {
 	// TODO: to be added.
 }
 
 // Process a load/store using an index (which can be constant).
-func (p *transformer) processMemoryIndexAccess(data ssa.Value, base ssa.Value, index ssa.Value, unifyByValue bool) {
+func (p *visitor) processMemoryIndexAccess(data ssa.Value, base ssa.Value, index ssa.Value) {
 	// If the index is a constant, its string name is used as the field name;
 	// otherwise the predefined field name is used.
 	var field Field
 	if c, ok := index.(*ssa.Const); ok {
-		field = Field{Name: c.Name()}
+		field = Field{Name: c.Value.String()}
 	} else {
 		field = anyIndexField
 	}
-	p.processHeapAccess(data, base, field, unifyByValue)
+	p.processHeapAccess(data, base, field)
 }
 
 // Process a load/store from data_reg to (base, index), where base can be a register
-// or global variable. Here heap access can be through unify-by-reference or
-// unifyByValue simulation.
-func (p *transformer) processHeapAccess(data ssa.Value, base ssa.Value, fd Field, unifyByValue bool) {
+// or global variable. Here heap access is through unify-by-reference simulation.
+func (p *visitor) processHeapAccess(data ssa.Value, base ssa.Value, fd Field) {
 	// Skip unification if lhs is not a sharable type.
 	if !mayShareObject(data) {
 		return
 	}
 	// unify instance field
 	for _, context := range p.contexts {
-		p.unifyField(context, base, fd, data, unifyByValue)
+		p.unifyField(context, base, fd, data)
 	}
 }
 
 // Process memory operator & and * by making the address pointing to the value.
-func (p *transformer) processAddressToValue(addr ssa.Value,
-	value ssa.Value, unifyByValue bool) {
+func (p *visitor) processAddressToValue(addr ssa.Value,
+	value ssa.Value) {
 	if !typeMayShareObject(addr.Type()) || !typeMayShareObject(value.Type()) {
 		return
 	}
@@ -339,11 +369,10 @@ func (p *transformer) processAddressToValue(addr ssa.Value,
 		field := directPointToField
 		// Add or unify the field.
 		if v, ok := fmap[field]; ok {
-			if (!unifyByValue) ||
-				isUnifyByReference(value.Type()) { // unify-by-reference
-				p.unify(v, cvalue)
+			if isUnifyByReference(value.Type()) { // unify-by-reference
+				state.Unify(v, cvalue)
 			} else {
-				p.unifyByValue(cvalue, v)
+				p.unifyByValue(v, cvalue)
 			}
 		} else {
 			fmap[field] = cvalue
@@ -352,17 +381,18 @@ func (p *transformer) processAddressToValue(addr ssa.Value,
 }
 
 // Unify local regs "v1" and "v2" in all contexts.
-func (p *transformer) unifyLocals(v1 ssa.Value, v2 ssa.Value) {
+func (p *visitor) unifyLocals(v1 ssa.Value, v2 ssa.Value) {
 	if !mayShareObject(v1) || !mayShareObject(v2) {
 		return
 	}
+	state := p.state
 	for _, context := range p.contexts {
-		p.unify(MakeReference(context, v1), MakeReference(context, v2))
+		state.Unify(MakeReference(context, v1), MakeReference(context, v2))
 	}
 }
 
 // Unify "v1.field" and "v2" in "context".
-func (p *transformer) unifyField(context *Context, v1 ssa.Value, fd Field, v2 ssa.Value, unifyByValue bool) {
+func (p *visitor) unifyField(context *Context, v1 ssa.Value, fd Field, v2 ssa.Value) {
 	// This generates the unification constraint v1.f = v2
 	if !typeMayShareObject(v2.Type()) {
 		return
@@ -380,7 +410,7 @@ func (p *transformer) unifyField(context *Context, v1 ssa.Value, fd Field, v2 ss
 	cv2 := state.Insert(MakeReference(context, v2))
 	// Add mapping from field to v2. If v1's partition already has a mapping for
 	// this field, unify v2 with the suitable partition,
-	if !unifyByValue || isUnifyByReference(cv2.Type()) { // unify the two references
+	if isUnifyByReference(cv2.Type()) { // unify the two references
 		// Add or unify the field.
 		if v, ok := fmap[fd]; ok {
 			state.Unify(v, cv2)
@@ -395,7 +425,7 @@ func (p *transformer) unifyField(context *Context, v1 ssa.Value, fd Field, v2 ss
 }
 
 // Unify "&v1.field" and "v2" in "context".
-func (p *transformer) unifyFieldAddress(context *Context, v1 ssa.Value, field *Field, v2 ssa.Value) {
+func (p *visitor) unifyFieldAddress(context *Context, v1 ssa.Value, field *Field, v2 ssa.Value) {
 	// This generates the unification constraint &v1.f = v2
 	if !typeMayShareObject(v1.Type()) {
 		return
@@ -420,7 +450,7 @@ func (p *transformer) unifyFieldAddress(context *Context, v1 ssa.Value, field *F
 // Return the reference holding the value *r of an address r (which can be
 // either a Register or a GlobalVariable). Create the value reference if
 // it doesn't exist. In the heap, the address points to the value, i.e., r --> *r.
-func (p *transformer) getValueReference(addr Reference) Reference {
+func (p *visitor) getValueReference(addr Reference) Reference {
 	state := p.state
 	arep := state.representative(addr)
 	// if ref is an address pointing to a value, return the value instead.
@@ -436,16 +466,10 @@ func (p *transformer) getValueReference(addr Reference) Reference {
 	return val
 }
 
-// Unify two abstract references "ref1" and "ref2".
-func (p *transformer) unify(ref1 Reference, ref2 Reference) {
-	state := p.state
-	state.unifyReps(state.Insert(ref1), state.Insert(ref2))
-}
-
 // Unify a value with another value pointed by an address.
 // For example, unifying value v2 and address addr --> v1 results in addr ->
 // {v1, v2}.
-func (p *transformer) unifyFieldValueToAddress(toAddr Reference, fromVal Reference) {
+func (p *visitor) unifyFieldValueToAddress(toAddr Reference, fromVal Reference) {
 	state := p.state
 	toFmap := state.PartitionFieldMap(toAddr)
 	if toFmap == nil {
@@ -467,7 +491,7 @@ func (p *transformer) unifyFieldValueToAddress(toAddr Reference, fromVal Referen
 // (2) for the addressable case such as &r1 --> *r1 and &r2 --> *r2,
 // keep &r1 and &r2 intact, but unify *r1 and *r2 if they are references,
 // otherwise return {*r1, *r2}.
-func (p *transformer) unifyFields(ref1 Reference, ref2 Reference, addressable bool) (Reference, Reference) {
+func (p *visitor) unifyFields(ref1 Reference, ref2 Reference, addressable bool) (Reference, Reference) {
 	// A function to return a pair of references to be unified.
 	toBeUnified := func(r1 Reference, r2 Reference) (Reference, Reference) {
 		if typeMayShareObject(r1.Type()) && typeMayShareObject(r2.Type()) {
@@ -513,7 +537,7 @@ func (p *transformer) unifyFields(ref1 Reference, ref2 Reference, addressable bo
 //   v1 := v2;
 // After the unification, the partitions are:
 // { v1.x, v2.x }, {v1.z.x, v2.z.x }, ...
-func (p *transformer) unifyByValue(ref1 Reference, ref2 Reference) {
+func (p *visitor) unifyByValue(ref1 Reference, ref2 Reference) {
 	// A field may be addressable or non-addressable:
 	// (1) for the non-addressable case such that r1 -> r1.x and r2 -> r2.x, unify
 	// r1.x and r2.x;
@@ -564,8 +588,7 @@ func (p *transformer) unifyByValue(ref1 Reference, ref2 Reference) {
 // it is assumed to be unifyByValue.
 func isUnifyByReference(tp types.Type) bool {
 	switch t := tp.(type) {
-	case *types.Struct,
-		*types.Array:
+	case *types.Struct, *types.Array:
 		return false
 	case *types.Named:
 		return isUnifyByReference(t.Underlying())
@@ -582,31 +605,12 @@ func isUnifyByReference(tp types.Type) bool {
 // is compiled into "t1 = &A.x; *t1 = 1".
 func isFieldAddressable(tp types.Type) bool {
 	switch t := tp.(type) {
-	case *types.Struct,
-		*types.Slice,
-		*types.Array:
+	case *types.Struct, *types.Slice, *types.Array:
 		return true
 	case *types.Named:
 		return isFieldAddressable(t.Underlying())
 	}
 	return false
-}
-
-// Return the name of a field in a struct.
-// It the field is not found, then it returns the string format of the index.
-//
-// For example, for struct T {x int, y int), getFieldName(*T, 1) returns "y".
-func getFieldName(tp types.Type, index int) string {
-	if pt, ok := tp.(*types.Pointer); ok {
-		tp = pt.Elem()
-	}
-	if named, ok := tp.(*types.Named); ok {
-		tp = named.Underlying()
-	}
-	if stp, ok := tp.(*types.Struct); ok {
-		return stp.Field(index).Name()
-	}
-	return fmt.Sprintf("%d", index)
 }
 
 // Return whether a value is a local variable  such as a paramter or a register instruction.
@@ -632,4 +636,20 @@ func isGlobal(v ssa.Value) bool {
 // and its type allows object sharing.
 func mayShareObject(v ssa.Value) bool {
 	return typeMayShareObject(v.Type()) && (isLocal(v) || isGlobal(v))
+}
+
+// Construct a field from a type and a field index.
+// For example, for struct T {x int, y int), getField(*T, 1) returns Field{Name:"y", IrField:y}.
+func getField(tp types.Type, index int) *Field {
+	if pt, ok := tp.(*types.Pointer); ok {
+		tp = pt.Elem()
+	}
+	if named, ok := tp.(*types.Named); ok {
+		tp = named.Underlying()
+	}
+	if stp, ok := tp.(*types.Struct); ok {
+		fvar := stp.Field(index)
+		return &Field{Name: fvar.Name(), irField: fvar}
+	}
+	return &Field{Name: fmt.Sprintf("%d", index)}
 }
