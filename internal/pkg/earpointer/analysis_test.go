@@ -49,7 +49,7 @@ func runCode(code string) (*earpointer.Partitions, error) {
 }
 
 func TestFieldAddr(t *testing.T) {
-	code := `package p;
+	code := `package p
 	type T struct { x *int; y *int }
 	func f(a *T, b *int) {
 		a.x = b
@@ -73,7 +73,7 @@ func TestFieldAddr(t *testing.T) {
 }
 
 func TestField(t *testing.T) {
-	code := `package p;
+	code := `package p
 	type T struct { x *int }
 	func f(a *int) {
 		_ = T{x: a}.x
@@ -101,7 +101,7 @@ func TestField(t *testing.T) {
 }
 
 func TestIndexAddr(t *testing.T) {
-	code := `package p;
+	code := `package p
 	func f(a, b []*int, i int) {
 		a[1] = b[i]
 	}
@@ -126,7 +126,7 @@ func TestIndexAddr(t *testing.T) {
 }
 
 func TestIndex(t *testing.T) {
-	code := `package p;
+	code := `package p
 	func f(a *int) {
 		_ = [10]*int{a}[0]
 	}
@@ -153,7 +153,7 @@ func TestIndex(t *testing.T) {
 }
 
 func TestPhi(t *testing.T) {
-	code := `package p;
+	code := `package p
 	func f(a, b *int, i int) {
 		c := a
 		if i > 0 {
@@ -184,7 +184,7 @@ func TestPhi(t *testing.T) {
 }
 
 func TestStore(t *testing.T) {
-	code := `package p;
+	code := `package p
 	type A struct { x *int; y *int }
 var z *int
 func f(a *A, b []*int) {
@@ -216,7 +216,7 @@ func f(a *A, b []*int) {
 }
 
 func TestMapAccess(t *testing.T) {
-	code := `package p;
+	code := `package p
 	type T struct { }
 	var t *T
 	func f(m map[int]*T, i int) {
@@ -246,7 +246,7 @@ func TestMapAccess(t *testing.T) {
 }
 
 func TestLookUp(t *testing.T) {
-	code := `package p;
+	code := `package p
 	func f(a map[int]**int) {
 		v, ok := a[10]
 		_ = *v
@@ -273,7 +273,7 @@ func TestLookUp(t *testing.T) {
 }
 
 func TestConvert(t *testing.T) {
-	code := `package p;
+	code := `package p
 	func f(a []byte) {
 		_ = (string)(a)
 	}
@@ -289,7 +289,7 @@ func TestConvert(t *testing.T) {
 }
 
 func TestTypeAssert(t *testing.T) {
-	code := `package p;
+	code := `package p
 	func f(a interface{}) {
 	b,_ := a.(*bool)
 		_ = b
@@ -316,7 +316,7 @@ func TestTypeAssert(t *testing.T) {
 }
 
 func TestChangeInterfaceOrType(t *testing.T) {
-	code := `package p;
+	code := `package p
 	type I interface{}
 	type T1 struct {}
 	type T2 struct {}
@@ -346,7 +346,7 @@ func TestChangeInterfaceOrType(t *testing.T) {
 }
 
 func TestBinOp(t *testing.T) {
-	code := `package p;
+	code := `package p
 	func f(a, b string) {
 	_ = a + b
 	}
@@ -362,7 +362,7 @@ func TestBinOp(t *testing.T) {
 }
 
 func TestRange(t *testing.T) {
-	code := `package p;
+	code := `package p
 	func f(a map[string]*int) {
 	for i, v := range a {
   		_ = i
@@ -397,7 +397,7 @@ func TestRange(t *testing.T) {
 }
 
 func TestChannel(t *testing.T) {
-	code := `package p;
+	code := `package p
 	func f(ch chan string, z string) {
 	ch <- z   // Send v to channel ch.
 	_ = <-ch  // Receive from ch.
@@ -414,7 +414,7 @@ func TestChannel(t *testing.T) {
 }
 
 func TestSlice(t *testing.T) {
-	code := `package p;
+	code := `package p
 	func f(s [6]int) {
 		t1 := s[1:4]
 		_ = t1[2:]
@@ -440,7 +440,7 @@ func TestSlice(t *testing.T) {
 }
 
 func TestMakeInterface(t *testing.T) {
-	code := `package p;
+	code := `package p
 	func f(s *int) interface{} {
 		return s
 	}
