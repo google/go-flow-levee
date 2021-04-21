@@ -21,6 +21,7 @@ import (
 	"log"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
 
@@ -44,8 +45,8 @@ var Analyzer = &analysis.Analyzer{
 // for all reachable contexts for that function. Both the intra-procedural
 // instructions and inter-procedural instructions (i.e. CallInstruction) are processed.
 type visitor struct {
-	state    *state // mutable state
-	contexts []*Context
+	state    *state     // mutable state
+	contexts []*Context // for context sensitive analysis
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -54,8 +55,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	vis.initReferences(ssainput)
 	for _, fn := range ssainput.SrcFuncs {
 		for _, blk := range fn.Blocks {
-			for _, instr := range blk.Instrs {
-				vis.visitInstruction(instr)
+			for _, i := range blk.Instrs {
+				vis.visitInstruction(i)
 			}
 		}
 	}
@@ -67,7 +68,8 @@ func (vis *visitor) initReferences(ssainput *buildssa.SSA) {
 	state := vis.state
 	for _, member := range ssainput.Pkg.Members {
 		if m, ok := member.(*ssa.Global); ok {
-			if typeMayShareObject(m.Type()) && m.Name() != "init$guard" {
+			if typeMayShareObject(m.Type()) &&
+				!strings.HasPrefix(m.Name(), "init$") { // skip some synthetic variables
 				state.Insert(MakeGlobal(m))
 			}
 		}
@@ -172,7 +174,7 @@ func (vis *visitor) visitFieldAddr(addr *ssa.FieldAddr) {
 	}
 	// "t1 = t0.x" is implemented by t0[x -> t1] through address unification.
 	obj := addr.X
-	field := getField(obj.Type(), addr.Field)
+	field := makeField(obj.Type(), addr.Field)
 	for _, c := range vis.contexts {
 		vis.unifyFieldAddress(c, obj, field, addr)
 	}
@@ -181,7 +183,7 @@ func (vis *visitor) visitFieldAddr(addr *ssa.FieldAddr) {
 func (vis *visitor) visitField(field *ssa.Field) {
 	// "t1 = t0.x" is implemented by t0[x -> t1].
 	obj := field.X
-	fd := getField(obj.Type(), field.Field)
+	fd := makeField(obj.Type(), field.Field)
 	vis.processHeapAccess(field, obj, *fd)
 }
 
@@ -202,11 +204,11 @@ func (vis *visitor) visitLookup(lookup *ssa.Lookup) {
 }
 
 func (vis *visitor) visitStore(store *ssa.Store) {
-	// The Address can be a (memory) address, a global variable, or a free
-	// variable.
 	// Here store instruction "*address = data" is implemented by a
 	// semantics-equivalent (w.r.t. unification) load instruction "data =
 	// *address".
+	// The address can be a (memory) address, a global variable, or a free
+	// variable.
 	if mayShareObject(store.Val) {
 		vis.processAddressToValue(store.Addr, store.Val)
 	}
@@ -222,8 +224,7 @@ func (vis *visitor) visitPhi(phi *ssa.Phi) {
 }
 
 func (vis *visitor) visitMapUpdate(update *ssa.MapUpdate) {
-	vis.processMemoryIndexAccess(update.Value, update.Map,
-		update.Key)
+	vis.processMemoryIndexAccess(update.Value, update.Map, update.Key)
 }
 
 func (vis *visitor) visitConvert(convert *ssa.Convert) {
@@ -254,8 +255,12 @@ func (vis *visitor) visitUnOp(op *ssa.UnOp) {
 }
 
 func (vis *visitor) visitBinOp(op *ssa.BinOp) {
-	vis.unifyLocals(op, op.X)
-	vis.unifyLocals(op, op.Y)
+	// Numeric binop will be skipped.
+	// The only binop that matters now is "+" that concatenates strings.
+	if op.Op == token.ADD {
+		vis.unifyLocals(op, op.X)
+		vis.unifyLocals(op, op.Y)
+	}
 }
 
 func (vis *visitor) visitTypeAssert(assert *ssa.TypeAssert) {
@@ -280,7 +285,7 @@ func (vis *visitor) visitExtract(extract *ssa.Extract) {
 		// t3 = extract t2 ?
 		if rng, ok := base.Iter.(*ssa.Range); ok {
 			if mayShareObject(extract) && extract.Index == 2 { // extract the value v
-				// The value from the map flows into the field: m[*] = v.
+				// The value from the map t0 flows into the field: t0[*] = v.
 				vis.processHeapAccess(extract, rng.X, anyIndexField)
 			}
 		}
@@ -306,9 +311,7 @@ func (vis *visitor) visitSlice(slice *ssa.Slice) {
 }
 
 func (vis *visitor) visitMakeInterface(makeInterface *ssa.MakeInterface) {
-	if mayShareObject(makeInterface.X) {
-		vis.unifyLocals(makeInterface, makeInterface.X)
-	}
+	vis.unifyLocals(makeInterface, makeInterface.X)
 }
 
 func (vis *visitor) visitSend(send *ssa.Send) {
@@ -317,7 +320,7 @@ func (vis *visitor) visitSend(send *ssa.Send) {
 
 func (vis *visitor) visitRange(rng *ssa.Range) {
 	// t1 = range t0: unify t0 and t1.
-	// It will be processed by the subsequent extract instruction that also handled the relevant Next.
+	// It will be processed by the subsequent extract instruction that also handles the relevant Next.
 }
 
 func (vis *visitor) VisitSelect(s *ssa.Select) {
@@ -331,7 +334,7 @@ func (vis *visitor) visitCall(call ssa.CallCommon, instr ssa.Instruction) {
 // Process a load/store using an index (which can be constant).
 func (vis *visitor) processMemoryIndexAccess(data ssa.Value, base ssa.Value, index ssa.Value) {
 	// If the index is a constant, its string name is used as the field name;
-	// otherwise the predefined field name is used.
+	// otherwise the predefined field name "AnyField" is used.
 	var field Field
 	if c, ok := index.(*ssa.Const); ok {
 		field = Field{Name: c.Value.String()}
@@ -355,8 +358,7 @@ func (vis *visitor) processHeapAccess(data ssa.Value, base ssa.Value, fd Field) 
 }
 
 // Process memory operator & and * by making the address pointing to the value.
-func (vis *visitor) processAddressToValue(addr ssa.Value,
-	value ssa.Value) {
+func (vis *visitor) processAddressToValue(addr ssa.Value, value ssa.Value) {
 	if !typeMayShareObject(addr.Type()) || !typeMayShareObject(value.Type()) {
 		return
 	}
@@ -389,66 +391,66 @@ func (vis *visitor) unifyLocals(v1 ssa.Value, v2 ssa.Value) {
 	}
 }
 
-// Unify "v1.field" and "v2" in "context".
-func (vis *visitor) unifyField(context *Context, v1 ssa.Value, fd Field, v2 ssa.Value) {
-	// This generates the unification constraint v1.f = v2
-	if !typeMayShareObject(v2.Type()) {
+// Unify "obj.field" and "target" in "context".
+func (vis *visitor) unifyField(context *Context, obj ssa.Value, fd Field, target ssa.Value) {
+	if !typeMayShareObject(target.Type()) {
 		return
 	}
+	// This generates the unification constraint obj.field = target
 	state := vis.state
-	cv1 := MakeReference(context, v1)
-	fmap := state.PartitionFieldMap(state.representative(cv1))
-	if fmap == nil {
+	objr := MakeReference(context, obj)
+	fmap := state.PartitionFieldMap(state.representative(objr))
+	if fmap == nil { // Should not happen
 		log.Fatal("field map is nil")
 	}
-	// if v1 is an address pointing to a value, use the value instead.
+	// if obj is an address pointing to a value, use the value instead.
 	if v, ok := fmap[directPointToField]; ok {
-		cv1 = v
+		objr = v
 	}
-	cv2 := state.Insert(MakeReference(context, v2))
-	// Add mapping from field to v2. If v1's partition already has a mapping for
-	// this field, unify v2 with the suitable partition,
-	if isUnifyByReference(cv2.Type()) { // unify the two references
+	tr := state.Insert(MakeReference(context, target))
+	// Add mapping from field to target. If obj's partition already has a mapping for
+	// this field, unify target with the suitable partition,
+	if isUnifyByReference(tr.Type()) { // unify the two references
 		// Add or unify the field.
 		if v, ok := fmap[fd]; ok {
-			state.Unify(v, cv2)
+			state.Unify(v, tr)
 		} else {
-			fmap[fd] = cv2
+			fmap[fd] = tr
 		}
 	} else { // unify by value
 		if v, ok := fmap[fd]; ok {
-			vis.unifyByValue(v, cv2)
+			vis.unifyByValue(v, tr)
 		}
 	}
 }
 
-// Unify "&v1.field" and "v2" in "context".
-func (vis *visitor) unifyFieldAddress(context *Context, v1 ssa.Value, field *Field, v2 ssa.Value) {
-	// This generates the unification constraint &v1.f = v2
-	if !typeMayShareObject(v1.Type()) {
+// Unify "&obj.field" and "target" in "context".
+// For example, for "t1 = &t0.x", after the unification, t0 has a field x pointing to t1.
+func (vis *visitor) unifyFieldAddress(context *Context, obj ssa.Value, field *Field, target *ssa.FieldAddr) {
+	// This generates the unification constraint &obj.field = target
+	if !typeMayShareObject(obj.Type()) {
 		return
 	}
 	state := vis.state
-	addr := vis.state.Insert(MakeReference(context, v1))
-	cv1 := vis.getValueReference(addr)
-	fmap := state.PartitionFieldMap(state.representative(cv1))
-	if fmap == nil {
-		log.Fatalf("reference [%s] has no field map", cv1)
+	objv := vis.getPointee(MakeReference(context, obj))
+	fmap := state.PartitionFieldMap(state.representative(objv))
+	if fmap == nil { // Should not happen
+		log.Fatalf("reference [%s] has no field map", objv)
 	}
-	cv2 := state.Insert(MakeReference(context, v2))
-	// If v1's partition already has a mapping for this field, unify v2 with the
-	// suitable partition. Otherwise set v2 as the ref.
+	tv := MakeReference(context, target)
+	// If obj's partition already has a mapping for this field, unify v with the
+	// suitable partition. Otherwise set v as the ref.
 	if v, ok := fmap[*field]; ok {
-		state.Unify(v, cv2)
+		state.Unify(v, tv)
 	} else {
-		fmap[*field] = cv2
+		fmap[*field] = tv
 	}
 }
 
 // Return the reference holding the value *r of an address r (which can be
-// either a Register or a GlobalVariable). Create the value reference if
+// either a Local or a Global). Create the value reference if
 // it doesn't exist. In the heap, the address points to the value, i.e., r --> *r.
-func (vis *visitor) getValueReference(addr Reference) Reference {
+func (vis *visitor) getPointee(addr Reference) Reference {
 	state := vis.state
 	arep := state.representative(addr)
 	// if ref is an address pointing to a value, return the value instead.
@@ -456,7 +458,7 @@ func (vis *visitor) getValueReference(addr Reference) Reference {
 	if pval != nil {
 		return pval
 	}
-	// The value doesn't exist.
+	// The value doesn't exist; synthesize a reference for it.
 	val := MakeSynthetic(SyntheticValueOf, arep)
 	state.Insert(val)
 	state.PartitionFieldMap(arep)[directPointToField] = val
@@ -464,12 +466,12 @@ func (vis *visitor) getValueReference(addr Reference) Reference {
 }
 
 // Unify a value with another value pointed by an address.
-// For example, unifying value v2 and address addr --> v1 results in addr ->
-// {v1, v2}.
+// For example, unifying value "v2" and address "addr --> v1"
+// results in "addr -> {v1, v2}".
 func (vis *visitor) unifyFieldValueToAddress(toAddr Reference, fromVal Reference) {
 	state := vis.state
 	toFmap := state.PartitionFieldMap(toAddr)
-	if toFmap == nil {
+	if toFmap == nil { // Should not happen
 		log.Fatal("field maps are nil")
 	}
 	if toVal, ok := toFmap[directPointToField]; ok {
@@ -543,7 +545,7 @@ func (vis *visitor) unifyByValue(ref1 Reference, ref2 Reference) {
 	state := vis.state
 	rep1, rep2 := state.representative(ref1), state.representative(ref2)
 	fmap1, fmap2 := state.PartitionFieldMap(rep1), state.PartitionFieldMap(rep2)
-	if fmap1 == nil || fmap2 == nil {
+	if fmap1 == nil || fmap2 == nil { // Should not happen
 		log.Fatal("field maps are nil")
 	}
 	if &fmap1 == &fmap2 { // already unified
@@ -631,8 +633,8 @@ func mayShareObject(v ssa.Value) bool {
 }
 
 // Construct a field from a type and a field index.
-// For example, for struct T {x int, y int), getField(*T, 1) returns Field{Name:"y", IrField:y}.
-func getField(tp types.Type, index int) *Field {
+// For example, for struct T {x int, y int), makeField(*T, 1) returns Field{Name:"y", IrField:y}.
+func makeField(tp types.Type, index int) *Field {
 	if pt, ok := tp.(*types.Pointer); ok {
 		tp = pt.Elem()
 	}

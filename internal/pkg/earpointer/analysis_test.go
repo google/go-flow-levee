@@ -100,6 +100,35 @@ func TestField(t *testing.T) {
 	}
 }
 
+func TestEmbeddedField(t *testing.T) {
+	code := `package p
+    type T1 struct { }
+	type T2 struct { t T1 }
+	func f(i *int) {
+		_ = T2{t: T1{}}.t
+	}
+	`
+	/*
+		func f(i *int):
+		0:                                  entry P:0 S:0
+			t0 = local T2 (complit)         *T2
+			t1 = &t0.t [#0]                 *T1
+			t2 = *t0                        T2
+			t3 = t2.t [#0]                  T1
+			return
+	*/
+	state, err := runCode(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// t3 is not unified with t2.t since they are structs.
+	// f.t2 has a field t pointing to a synthetic reference t2[.].
+	want := "{*f.t0}: [t->f.t1], {f.i}: [], {f.t0}: --> *f.t0, {f.t1}: [], {f.t2[.]}: [], {f.t2}: [t->f.t2[.]], {f.t3}: []"
+	if got := state.String(); got != want {
+		t.Errorf("got: %s\n want: %s", got, want)
+	}
+}
+
 func TestIndexAddr(t *testing.T) {
 	code := `package p
 	func f(a, b []*int, i int) {
@@ -186,11 +215,11 @@ func TestPhi(t *testing.T) {
 func TestStore(t *testing.T) {
 	code := `package p
 	type A struct { x *int; y *int }
-var z *int
-func f(a *A, b []*int) {
-  a.x = z
-  a.y = b[10]
-}
+	var z *int
+	func f(a *A, b []*int) {
+		a.x = z
+		a.y = b[10]
+	}
 	`
 	/*
 		func f(a *A, b []*int):
@@ -210,6 +239,33 @@ func f(a *A, b []*int) {
 	}
 	want :=
 		`{*f.a}: [x->f.t0, y->f.t2], {f.a}: --> *f.a, {f.b}: [10->f.t3], {f.t0}: --> f.t1, {f.t1}: [], {f.t2}: --> f.t4, {f.t3}: --> f.t4, {f.t4}: [], {t.z}: --> f.t1`
+	if got := state.String(); got != want {
+		t.Errorf("got: %s\n want: %s", got, want)
+	}
+}
+
+func TestDereference(t *testing.T) {
+	code := `package p
+	var x *int
+	func f(y, z **int) {
+ 		x = *y
+		x = *z
+	}
+	`
+	/*
+		func f(y **int, z **int):
+		0:                                  entry P:0 S:0
+			t0 = *y                         *int
+			*x = t0
+			t1 = *z                         *int
+			*x = t1
+			return
+	*/
+	state, err := runCode(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{f.t0,f.t1}: [], {f.y}: --> f.t1, {f.z}: --> f.t1, {t.x}: --> f.t1`
 	if got := state.String(); got != want {
 		t.Errorf("got: %s\n want: %s", got, want)
 	}
@@ -365,8 +421,8 @@ func TestRange(t *testing.T) {
 	code := `package p
 	func f(a map[string]*int) {
 	for i, v := range a {
-  		_ = i
-  		_ = v
+		_ = i
+		_ = v
 	}
 	}
 	`
