@@ -129,6 +129,8 @@ func (vis *visitor) visitInstruction(instr ssa.Instruction) {
 		vis.visitExtract(i)
 	case *ssa.Range:
 		vis.visitRange(i)
+	case *ssa.Next:
+		vis.visitNext(i)
 	case *ssa.Send:
 		vis.visitSend(i)
 	case *ssa.Slice:
@@ -155,8 +157,6 @@ func (vis *visitor) visitInstruction(instr ssa.Instruction) {
 	case *ssa.If,
 		*ssa.Jump:
 		// The analysis is flow insensitive.
-	case *ssa.Next:
-		// Next is handled in visitExtract().
 	case *ssa.Return:
 		// Return is handled in visitCall().
 	case *ssa.RunDefers:
@@ -398,14 +398,13 @@ func (vis *visitor) unifyField(context *Context, obj ssa.Value, fd Field, target
 	}
 	// This generates the unification constraint obj.field = target
 	state := vis.state
-	objr := MakeReference(context, obj)
-	fmap := state.PartitionFieldMap(state.representative(objr))
+	fmap := state.PartitionFieldMap(state.representative(MakeReference(context, obj)))
 	if fmap == nil { // Should not happen
 		log.Fatal("field map is nil")
 	}
 	// if obj is an address pointing to a value, use the value instead.
 	if v, ok := fmap[directPointToField]; ok {
-		objr = v
+		fmap = state.PartitionFieldMap(v)
 	}
 	tr := state.Insert(MakeReference(context, target))
 	// Add mapping from field to target. If obj's partition already has a mapping for
