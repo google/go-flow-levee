@@ -23,18 +23,18 @@ import (
 // library function, or through an implementation of a standard library
 // interface function, provided that the function's taint propagation behavior
 // is known (i.e. the function has a summary).
-func (prop *Propagation) taintStdlibCall(call *ssa.Call, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
-	summ := summary.For(call)
+func (prop *Propagation) taintStdlibCall(callInstr ssa.CallInstruction, maxInstrReached map[*ssa.BasicBlock]int, lastBlockVisited *ssa.BasicBlock) {
+	summ := summary.For(callInstr)
 	if summ == nil {
 		return
 	}
 
 	var args []ssa.Value
 	// For "invoke" calls, Value is the receiver
-	if call.Call.IsInvoke() {
-		args = append(args, call.Call.Value)
+	if callInstr.Common().IsInvoke() {
+		args = append(args, callInstr.Common().Value)
 	}
-	args = append(args, call.Call.Args...)
+	args = append(args, callInstr.Common().Args...)
 
 	// Determine whether we need to propagate taint.
 	tainted := int64(0)
@@ -52,6 +52,12 @@ func (prop *Propagation) taintStdlibCall(call *ssa.Call, maxInstrReached map[*ss
 		prop.taint(args[i].(ssa.Node), maxInstrReached, lastBlockVisited, false)
 	}
 
+	// Only actual Call instructions can have Referrers.
+	call, ok := callInstr.(*ssa.Call)
+	if !ok {
+		return
+	}
+
 	// If there are no referrers, exit early.
 	if call.Referrers() == nil {
 		return
@@ -60,7 +66,7 @@ func (prop *Propagation) taintStdlibCall(call *ssa.Call, maxInstrReached map[*ss
 	// If the call has a single return value, the return value is the call
 	// instruction itself, so if the call's return value is tainted, taint
 	// the Referrers.
-	if call.Call.Signature().Results().Len() == 1 {
+	if call.Common().Signature().Results().Len() == 1 {
 		if len(summ.TaintedRets) > 0 {
 			prop.taintReferrers(call, maxInstrReached, lastBlockVisited)
 		}

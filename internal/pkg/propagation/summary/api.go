@@ -29,11 +29,11 @@ import (
 
 // For returns the summary for a given call if it exists,
 // or nil if no summary matches the called function.
-func For(call *ssa.Call) *Summary {
+func For(call ssa.CallInstruction) *Summary {
 	if summ, ok := FuncSummaries[staticFuncName(call)]; ok {
 		return &summ
 	}
-	if summ, ok := InterfaceFuncSummaries[funcKey{methodNameWithoutReceiver(call), sigTypeString(call.Call.Signature())}]; ok {
+	if summ, ok := InterfaceFuncSummaries[funcKey{methodNameWithoutReceiver(call), sigTypeString(call.Common().Signature())}]; ok {
 		return &summ
 	}
 	return nil
@@ -70,15 +70,15 @@ type Summary struct {
 	TaintedRets []int
 }
 
-func staticFuncName(call *ssa.Call) string {
-	if sc := call.Call.StaticCallee(); sc != nil {
+func staticFuncName(call ssa.CallInstruction) string {
+	if sc := call.Common().StaticCallee(); sc != nil {
 		return sc.RelString(call.Parent().Pkg.Pkg)
 	}
 	return ""
 }
 
-func methodNameWithoutReceiver(call *ssa.Call) string {
-	cc := call.Call
+func methodNameWithoutReceiver(call ssa.CallInstruction) string {
+	cc := call.Common()
 	if cc.IsInvoke() {
 		return cc.Method.Name()
 	}
