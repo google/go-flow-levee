@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"go/token"
 	"go/types"
-	"log"
 	"reflect"
 	"strconv"
 	"strings"
@@ -127,10 +126,6 @@ func (vis *visitor) visitInstruction(instr ssa.Instruction) {
 		vis.visitBinOp(i)
 	case *ssa.Extract:
 		vis.visitExtract(i)
-	case *ssa.Range:
-		vis.visitRange(i)
-	case *ssa.Next:
-		vis.visitNext(i)
 	case *ssa.Send:
 		vis.visitSend(i)
 	case *ssa.Slice:
@@ -138,14 +133,10 @@ func (vis *visitor) visitInstruction(instr ssa.Instruction) {
 	case *ssa.MakeInterface:
 		vis.visitMakeInterface(i)
 	case *ssa.Select:
-		vis.VisitSelect(i)
+		vis.visitSelect(i)
 
-	case *ssa.Call:
-		vis.visitCall(i.Call, instr)
-	case *ssa.Go:
-		vis.visitCall(i.Call, instr)
-	case *ssa.Defer:
-		vis.visitCall(i.Call, instr)
+	case *ssa.Call, *ssa.Go, *ssa.Defer:
+		vis.visitCall(i.(ssa.CallInstruction).Common(), instr)
 
 	case *ssa.Alloc,
 		*ssa.MakeChan,
@@ -157,6 +148,11 @@ func (vis *visitor) visitInstruction(instr ssa.Instruction) {
 	case *ssa.If,
 		*ssa.Jump:
 		// The analysis is flow insensitive.
+	case *ssa.Range:
+		// t1 = range t0: unify t0 and t1.
+		// It will be processed by the subsequent extract instruction that also handles the relevant Next.
+	case *ssa.Next:
+		// The next instruction will be processed by the subsequent extract instruction.
 	case *ssa.Return:
 		// Return is handled in visitCall().
 	case *ssa.RunDefers:
@@ -165,13 +161,12 @@ func (vis *visitor) visitInstruction(instr ssa.Instruction) {
 		// To be implemented.
 	case *ssa.DebugRef:
 		// Not related.
+	default:
+		fmt.Printf("unsupported instruction: %s; please report this issue\n", i)
 	}
 }
 
 func (vis *visitor) visitFieldAddr(addr *ssa.FieldAddr) {
-	if !typeMayShareObject(addr.Type()) {
-		return
-	}
 	// "t1 = t0.x" is implemented by t0[x -> t1] through address unification.
 	obj := addr.X
 	field := makeField(obj.Type(), addr.Field)
@@ -189,16 +184,16 @@ func (vis *visitor) visitField(field *ssa.Field) {
 
 func (vis *visitor) visitIndexAddr(addr *ssa.IndexAddr) {
 	// "t2 = &t1[t0]" is handled through address unification.
-	vis.processMemoryIndexAccess(addr, addr.X, addr.Index)
+	vis.processIndex(addr, addr.X, addr.Index)
 }
 
 func (vis *visitor) visitIndex(index *ssa.Index) {
-	vis.processMemoryIndexAccess(index, index.X, index.Index)
+	vis.processIndex(index, index.X, index.Index)
 }
 
 func (vis *visitor) visitLookup(lookup *ssa.Lookup) {
 	if !lookup.CommaOk {
-		vis.processMemoryIndexAccess(lookup, lookup.X, lookup.Index)
+		vis.processIndex(lookup, lookup.X, lookup.Index)
 	}
 	// The comma case will be processed by the subsequent extract instruction.
 }
@@ -224,7 +219,7 @@ func (vis *visitor) visitPhi(phi *ssa.Phi) {
 }
 
 func (vis *visitor) visitMapUpdate(update *ssa.MapUpdate) {
-	vis.processMemoryIndexAccess(update.Value, update.Map, update.Key)
+	vis.processIndex(update.Value, update.Map, update.Key)
 }
 
 func (vis *visitor) visitConvert(convert *ssa.Convert) {
@@ -258,8 +253,10 @@ func (vis *visitor) visitBinOp(op *ssa.BinOp) {
 	// Numeric binop will be skipped.
 	// The only binop that matters now is "+" that concatenates strings.
 	if op.Op == token.ADD {
-		vis.unifyLocals(op, op.X)
-		vis.unifyLocals(op, op.Y)
+		if tp, ok := op.X.Type().(*types.Basic); ok && tp.Kind() == types.String {
+			vis.unifyLocals(op, op.X)
+			vis.unifyLocals(op, op.Y)
+		}
 	}
 }
 
@@ -293,17 +290,12 @@ func (vis *visitor) visitExtract(extract *ssa.Extract) {
 		// t2 = t0[t1],ok
 		// t3 = extract t2 ?
 		if base.CommaOk && extract.Index == 0 {
-			vis.processMemoryIndexAccess(extract, base.X, base.Index)
+			vis.processIndex(extract, base.X, base.Index)
 		}
 	default: // Other cases: model "r1 = extract r0 #n" as "r0["n"] = r1".
 		field := Field{Name: strconv.Itoa(extract.Index)}
 		vis.processHeapAccess(extract, base, field)
 	}
-}
-
-func (vis *visitor) visitNext(next *ssa.Next) {
-	// The next instruction will be processed by the subsequent extract
-	// instruction.
 }
 
 func (vis *visitor) visitSlice(slice *ssa.Slice) {
@@ -318,21 +310,16 @@ func (vis *visitor) visitSend(send *ssa.Send) {
 	vis.processHeapAccess(send.X, send.Chan, anyIndexField)
 }
 
-func (vis *visitor) visitRange(rng *ssa.Range) {
-	// t1 = range t0: unify t0 and t1.
-	// It will be processed by the subsequent extract instruction that also handles the relevant Next.
-}
-
-func (vis *visitor) VisitSelect(s *ssa.Select) {
+func (vis *visitor) visitSelect(s *ssa.Select) {
 	// TODO: to be implemented.
 }
 
-func (vis *visitor) visitCall(call ssa.CallCommon, instr ssa.Instruction) {
+func (vis *visitor) visitCall(call *ssa.CallCommon, instr ssa.Instruction) {
 	// TODO: to be added.
 }
 
 // Process a load/store using an index (which can be constant).
-func (vis *visitor) processMemoryIndexAccess(data ssa.Value, base ssa.Value, index ssa.Value) {
+func (vis *visitor) processIndex(data ssa.Value, base ssa.Value, index ssa.Value) {
 	// If the index is a constant, its string name is used as the field name;
 	// otherwise the predefined field name "AnyField" is used.
 	var field Field
@@ -398,13 +385,11 @@ func (vis *visitor) unifyField(context *Context, obj ssa.Value, fd Field, target
 	}
 	// This generates the unification constraint obj.field = target
 	state := vis.state
-	fmap := state.PartitionFieldMap(state.representative(MakeReference(context, obj)))
+	objr := state.representative(MakeReference(context, obj))
+	fmap := state.PartitionFieldMap(objr)
 	if fmap == nil { // Should not happen
-		log.Fatal("field map is nil")
-	}
-	// if obj is an address pointing to a value, use the value instead.
-	if v, ok := fmap[directPointToField]; ok {
-		fmap = state.PartitionFieldMap(v)
+		fmt.Printf("unexpected nil field map: %s; please report this issue\n", objr)
+		return
 	}
 	tr := state.Insert(MakeReference(context, target))
 	// Add mapping from field to target. If obj's partition already has a mapping for
@@ -427,14 +412,12 @@ func (vis *visitor) unifyField(context *Context, obj ssa.Value, fd Field, target
 // For example, for "t1 = &t0.x", after the unification, t0 has a field x pointing to t1.
 func (vis *visitor) unifyFieldAddress(context *Context, obj ssa.Value, field *Field, target *ssa.FieldAddr) {
 	// This generates the unification constraint &obj.field = target
-	if !typeMayShareObject(obj.Type()) {
-		return
-	}
 	state := vis.state
 	objv := vis.getPointee(MakeReference(context, obj))
 	fmap := state.PartitionFieldMap(state.representative(objv))
 	if fmap == nil { // Should not happen
-		log.Fatalf("reference [%s] has no field map", objv)
+		fmt.Printf("unexpected nil field map: %s; please report this issue\n", objv)
+		return
 	}
 	tv := MakeReference(context, target)
 	// If obj's partition already has a mapping for this field, unify v with the
@@ -471,7 +454,8 @@ func (vis *visitor) unifyFieldValueToAddress(toAddr Reference, fromVal Reference
 	state := vis.state
 	toFmap := state.PartitionFieldMap(toAddr)
 	if toFmap == nil { // Should not happen
-		log.Fatal("field maps are nil")
+		fmt.Printf("unexpected nil field map: %s; please report this issue\n", toAddr)
+		return
 	}
 	if toVal, ok := toFmap[directPointToField]; ok {
 		state.Unify(toVal, fromVal)
@@ -500,9 +484,12 @@ func (vis *visitor) unifyFields(ref1 Reference, ref2 Reference, addressable bool
 
 	state := vis.state
 	if !addressable {
+		// TODO: check whether this is possible,
+		//  i.e. non-addressable fields (e.g. map elements) may have been unified before reaching here.
 		// unify directly for non-addressable fields.
 		if isUnifyByReference(ref1.Type()) { // unify-by-reference
 			state.Unify(ref1, ref2)
+			return nil, nil
 		} else { // unify-by-value
 			return toBeUnified(ref1, ref2)
 		}
@@ -545,7 +532,8 @@ func (vis *visitor) unifyByValue(ref1 Reference, ref2 Reference) {
 	rep1, rep2 := state.representative(ref1), state.representative(ref2)
 	fmap1, fmap2 := state.PartitionFieldMap(rep1), state.PartitionFieldMap(rep2)
 	if fmap1 == nil || fmap2 == nil { // Should not happen
-		log.Fatal("field maps are nil")
+		fmt.Printf("unexpected nil field map: %s or %s; please report this issue\n", rep1, rep2)
+		return
 	}
 	if &fmap1 == &fmap2 { // already unified
 		return
@@ -559,7 +547,7 @@ func (vis *visitor) unifyByValue(ref1 Reference, ref2 Reference) {
 		if fd, ok := fmap1[k]; ok {
 			addr1 = fd
 		} else {
-			addr1 = state.Insert(MakeSynthetic(1 /*FIELD*/, rep1))
+			addr1 = state.Insert(MakeSynthetic(SyntheticField, rep1))
 			fmap1[k] = addr1
 		}
 		toUnified[addr1] = addr2
@@ -571,7 +559,7 @@ func (vis *visitor) unifyByValue(ref1 Reference, ref2 Reference) {
 		if _, ok := fmap2[k]; ok {
 			continue
 		}
-		addr2 := state.Insert(MakeSynthetic(1 /*FIELD*/, rep2))
+		addr2 := state.Insert(MakeSynthetic(SyntheticField, rep2))
 		fmap2[k] = addr2
 		toUnified[addr1] = addr2
 	}

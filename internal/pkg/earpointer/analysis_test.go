@@ -40,8 +40,7 @@ func runCode(code string) (*earpointer.Partitions, error) {
 	ssainput := buildssa.SSA{Pkg: pkg, SrcFuncs: srcFuncs}
 	pass := analysis.Pass{ResultOf: map[*analysis.Analyzer]interface{}{buildssa.Analyzer: &ssainput}}
 	// Run the analysis.
-	analyzer := earpointer.Analyzer
-	partitions, err := analyzer.Run(&pass)
+	partitions, err := earpointer.Analyzer.Run(&pass)
 	if err != nil {
 		return nil, fmt.Errorf("analyzer run failed: %v", ssainput)
 	}
@@ -67,6 +66,33 @@ func TestFieldAddr(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "{*f.a}: [x->f.t0], {f.a}: --> *f.a, {f.b}: [], {f.t0}: --> f.b"
+	if got := state.String(); got != want {
+		t.Errorf("got: %s\n want: %s", got, want)
+	}
+}
+
+func TestFieldAddr2(t *testing.T) {
+	code := `package p
+	type T struct { x *int; y *int }
+	func f(a *T, b, c *int) {
+		a.x = b
+		a.x = c
+	}
+	`
+	/*
+		func f(a *T, b *int, c *int):
+		0:                                                entry P:0 S:0
+			t0 = &a.x [#0]                                **int
+			*t0 = b
+			t1 = &a.x [#0]                                **int
+			*t1 = c
+			return
+	*/
+	state, err := runCode(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "{*f.a}: [x->f.t1], {f.a}: --> *f.a, {f.b,f.c}: [], {f.t0,f.t1}: --> f.c"
 	if got := state.String(); got != want {
 		t.Errorf("got: %s\n want: %s", got, want)
 	}
@@ -102,7 +128,7 @@ func TestField(t *testing.T) {
 
 func TestEmbeddedField(t *testing.T) {
 	code := `package p
-    type T1 struct { }
+	type T1 struct { }
 	type T2 struct { t T1 }
 	func f(i *int) {
 		_ = T2{t: T1{}}.t
@@ -124,6 +150,84 @@ func TestEmbeddedField(t *testing.T) {
 	// t3 is not unified with t2.t since they are structs.
 	// f.t2 has a field t pointing to a synthetic reference t2[.].
 	want := "{*f.t0}: [t->f.t1], {f.i}: [], {f.t0}: --> *f.t0, {f.t1}: [], {f.t2[.]}: [], {f.t2}: [t->f.t2[.]], {f.t3}: []"
+	if got := state.String(); got != want {
+		t.Errorf("got: %s\n want: %s", got, want)
+	}
+}
+
+func TestStructCopy(t *testing.T) { // mainly for coverage test
+	code := `package p
+	type T1 struct { }
+	type T2 struct { x *T1; y *int }
+	func f(v1, v2 T2, i *T1, j *int) {
+		v1.x = i
+		v1.y = j
+		v2.x = i
+		v2 = v1
+	}
+	`
+	/*
+		func f(v1 T2, v2 T2, i *T1, j *int):
+		0:                                   entry P:0 S:0
+			t0 = local T2 (v1)               *T2
+			*t0 = v1
+			t1 = local T2 (v2)               *T2
+			*t1 = v2
+			t2 = &t0.x [#0]                  **T1
+			*t2 = i
+			t3 = &t0.y [#1]                  **int
+			*t3 = j
+			t4 = &t1.x [#0]                  **T1
+			*t4 = i
+			t5 = *t0                         T2
+			*t1 = t5
+			return
+	*/
+	state, err := runCode(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// TODO: there is a non-determinism (f.t3 --> f.i or f.j) that depends on the order of the unification.
+	want1 := "{f.i,f.j}: [], {f.t0}: --> f.v1, {f.t1}: --> f.v2, {f.t2}: --> f.i, {f.t3}: --> f.i, {f.t4}: --> f.i, {f.t5[.]}: --> f.i, " +
+		"{f.t5}: [x->f.t5[.], y->f.t5[.]], {f.v1}: [x->f.t2, y->f.t3], {f.v2[.]}: --> f.i, {f.v2}: [x->f.t4, y->f.v2[.]]"
+	want2 := "{f.i,f.j}: [], {f.t0}: --> f.v1, {f.t1}: --> f.v2, {f.t2}: --> f.j, {f.t3}: --> f.j, {f.t4}: --> f.j, {f.t5[.]}: --> f.j, " +
+		"{f.t5}: [x->f.t5[.], y->f.t5[.]], {f.v1}: [x->f.t2, y->f.t3], {f.v2[.]}: --> f.j, {f.v2}: [x->f.t4, y->f.v2[.]]"
+	if got := state.String(); got != want1 && got != want2 {
+		t.Errorf("got: %s\n want: %s or %s", got, want1, want2)
+	}
+}
+
+func TestEmbeddedFieldClone(t *testing.T) {
+	code := `package p
+  	type T1 struct { x *int}
+	type T2 struct { x T1 }
+	func f(i T1, v1, v2 T2) {
+		v2.x = i
+		v1 = v2
+	}
+	`
+	/*
+		func f(i T1, v1 T2, v2 T2):
+		0:                                                   entry P:0 S:0
+			t0 = local T1 (i)                                *T1
+			*t0 = i
+			t1 = local T2 (v1)                               *T2
+			*t1 = v1
+			t2 = local T2 (v2)                               *T2
+			*t2 = v2
+			t3 = &t2.x [#0]                                  *T1
+			t4 = *t0                                         T1
+			*t3 = t4
+			t5 = *t2                                         T2
+			*t1 = t5
+			return
+	*/
+	state, err := runCode(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "{f.i}: [], {f.t0}: --> f.i, {f.t1}: --> f.v1, {f.t2}: --> f.v2, {f.t3}: --> f.t4, {f.t4}: [], " +
+		"{f.t5[.]}: [], {f.t5}: [x->f.t5[.]], {f.v1[.]}: [], {f.v1}: [x->f.v1[.]], {f.v2}: [x->f.t3]"
 	if got := state.String(); got != want {
 		t.Errorf("got: %s\n want: %s", got, want)
 	}
@@ -189,6 +293,12 @@ func TestPhi(t *testing.T) {
 		    c = b
 	    }
 		print(c)
+
+		d := 10  // non-pointer type
+		if i > 0 {
+		    d = i
+	    }
+		print(d)
 	}
 	`
 	/*
@@ -201,6 +311,7 @@ func TestPhi(t *testing.T) {
 		2:                                   if.done P:2 S:0
 			t1 = phi [0: a, 1: b] #c         *int
 			t2 = print(t1)                   ()
+		...
 	*/
 	state, err := runCode(code)
 	if err != nil {
@@ -248,8 +359,8 @@ func TestDereference(t *testing.T) {
 	code := `package p
 	var x *int
 	func f(y, z **int) {
- 		x = *y
-		x = *z
+		x = *y
+		*z = x
 	}
 	`
 	/*
@@ -373,7 +484,7 @@ func TestTypeAssert(t *testing.T) {
 
 func TestChangeInterfaceOrType(t *testing.T) {
 	code := `package p
-	type I interface{}
+	type I interface{ f() }
 	type T1 struct {}
 	type T2 struct {}
 	func f(a I) interface{} {
@@ -506,6 +617,36 @@ func TestMakeInterface(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "{f.s,f.t0}: []"
+	if got := state.String(); got != want {
+		t.Errorf("got: %s\n want: %s", got, want)
+	}
+}
+
+func TestUnimplemented(t *testing.T) {
+	code := `package p
+	func f() {
+		defer func() {
+			print("defer")
+		}()
+		go func() {
+			print("go")
+		}()
+
+		c1 := make(chan string)
+		c2 := make(chan string)
+		select {
+	        case <-c1: { print("c1") }
+	        case <-c2: { print("c2") }
+		}
+
+		panic("test")
+	}
+	`
+	state, err := runCode(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "{f.t0}: [], {f.t1}: [], {f.t5}: [], {f.t9}: []"
 	if got := state.String(); got != want {
 		t.Errorf("got: %s\n want: %s", got, want)
 	}
