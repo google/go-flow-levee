@@ -33,10 +33,22 @@ var (
 	// FlagSet should be used by analyzers to reuse -config flag.
 	FlagSet    flag.FlagSet
 	configFile string
+
+	configBytes        []byte
+	configBytesOnce    sync.Once
+	configFromBytes    *Config
+	configFromBytesErr error
 )
 
 func init() {
 	FlagSet.StringVar(&configFile, "config", "config.yaml", "path to analysis configuration file")
+}
+
+// SetBytes allows the contents of a configuration file
+// to be provided directly. This is useful when running the tool
+// in an environment where file access is inconvenient.
+func SetBytes(b []byte) {
+	configBytes = b
 }
 
 // Config contains matchers and analysis scope information.
@@ -295,10 +307,27 @@ func (fm funcMatcher) MatchFunction(path, receiver, name string) bool {
 	return fm.Package.MatchString(path) && fm.Receiver.MatchString(receiver) && fm.Method.MatchString(name)
 }
 
-// ReadConfig fetches configuration from the config cache.
-// The cache reads, parses, and validates config file if necessary.
+// ReadConfig reads configuration from the config cache.
+// The cache reads, parses, and validates the config file if necessary.
+// If the config bytes were set using SetConfigBytes, they are used instead.
 func ReadConfig() (*Config, error) {
+	if configBytes != nil {
+		return readConfigBytes()
+	}
+
 	return cache.read(configFile)
+}
+
+func readConfigBytes() (*Config, error) {
+	configBytesOnce.Do(func() {
+		configFromBytes = new(Config)
+		configFromBytesErr = yaml.UnmarshalStrict(configBytes, configFromBytes)
+		if configFromBytesErr != nil {
+			fmt.Println(configFromBytesErr)
+		}
+	})
+
+	return configFromBytes, configFromBytesErr
 }
 
 // configCacheElement reduces disk access across multiple ReadConfig calls.
@@ -314,11 +343,13 @@ func (r *configCacheElement) readOnce() (*Config, error) {
 		c := new(Config)
 		bytes, err := ioutil.ReadFile(r.sourceFile)
 		if err != nil {
+			fmt.Println(err)
 			r.err = fmt.Errorf("error reading analysis config: %v", err)
 			return
 		}
 
 		if err := yaml.UnmarshalStrict(bytes, c); err != nil {
+			fmt.Println(err)
 			r.err = err
 			return
 		}

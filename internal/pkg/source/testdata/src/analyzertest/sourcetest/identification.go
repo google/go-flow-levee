@@ -64,15 +64,15 @@ func TestSourceDeclarations() {
 	var ptr *Source
 	// We do want a "source identified" here.
 	// ptr does not get optimized out because it gets assigned.
-	ptr = &Source{}                                       // want "source identified"
-	newPtr := new(Source)                                 // want "source identified"
-	ptrToDeclZero := &Source{}                            // want "source identified"
-	ptrToDeclPopulataed := &Source{Data: "secret", ID: 1} // want "source identified"
+	ptr = &Source{}                                      // want "source identified"
+	newPtr := new(Source)                                // want "source identified"
+	ptrToDeclZero := &Source{}                           // want "source identified"
+	ptrToDeclPopulated := &Source{Data: "secret", ID: 1} // want "source identified"
 
 	alias := Alias{} // want "source identified"
 	def := Definition{}
 
-	noop(varZeroVal, declZeroVal, populatedVal, constPtr, ptr, newPtr, ptrToDeclZero, ptrToDeclPopulataed, alias, def)
+	noop(varZeroVal, declZeroVal, populatedVal, constPtr, ptr, newPtr, ptrToDeclZero, ptrToDeclPopulated, alias, def)
 }
 
 // A report should be emitted for each parameter, as well as the (implicit) Alloc for val.
@@ -88,15 +88,24 @@ func TestNamedReturnValues() (val Source, ptr *Source) { // want "source identif
 }
 
 func TestSourceExtracts() {
-	s, err := CreateSource() // want "source identified"
+	// We expect two reports for this case, because creating s
+	// will require an Extract and an Alloc.
+	s, err := CreateSource() // want "source identified" "source identified"
 	sptr, err := NewSource() // want "source identified"
 
-	// we expect two reports for the following cases, since the map is a Source
-	mapSource, ok := map[string]Source{}[""]     // want "source identified" "source identified"
+	// We expect three reports for this case, because:
+	// 1. the map is a Source
+	// 2. there is an Extract for the mapSource value
+	// 3. there is an Alloc for the mapSource value
+	mapSource, ok := map[string]Source{}[""] // want "source identified" "source identified" "source identified"
+
+	// We expect two reports here, for the map and the Extract.
+	// (There won't be an Alloc because mapSourcePtr is a pointer.)
 	mapSourcePtr, ok := map[string]*Source{}[""] // want "source identified" "source identified"
 
-	// we expect two reports for the following cases, since the chan is a Source
-	chanSource, ok := <-(make(chan Source))     // want "source identified" "source identified"
+	// These two cases are similar to the map cases above.
+	// The reasoning behind the number of expected reports is the same.
+	chanSource, ok := <-(make(chan Source))     // want "source identified" "source identified" "source identified"
 	chanSourcePtr, ok := <-(make(chan *Source)) // want "source identified" "source identified"
 
 	_, _, _, _, _, _, _, _ = s, sptr, mapSource, chanSource, mapSourcePtr, chanSourcePtr, err, ok

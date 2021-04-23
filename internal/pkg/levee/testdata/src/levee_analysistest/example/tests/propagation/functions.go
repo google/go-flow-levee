@@ -15,31 +15,13 @@
 package propagation
 
 import (
-	"fmt"
-
+	"errors"
 	"levee_analysistest/example/core"
+	"os"
 )
 
-func Identity(arg interface{}) interface{} {
-	return arg
-}
-
-func TestIdentityPropagator(s core.Source) {
-	i := Identity(s)
-	core.Sink(i)           // want "a source has reached a sink"
-	core.Sink(Identity(s)) // want "a source has reached a sink"
-}
-
-func ToString(arg interface{}) string {
-	return fmt.Sprintf("%v", arg)
-}
-
-func TestToStringPropagator(s core.Source) {
-	v := ToString(s)
-	core.Sink(v) // want "a source has reached a sink"
-}
-
-func TestPropagationViaSourceMethod(s core.Source) {
-	tainted := s.Propagate(s.Data)
-	core.Sink(tainted) // want "a source has reached a sink"
+func TestPropagationViaFunctionReturningBool(s core.Source, err *os.PathError) {
+	if ok := errors.As(errors.New(s.Data), err); !ok {
+		core.Sinkf("not a PathError: %v", err) // want "a source has reached a sink"
+	}
 }

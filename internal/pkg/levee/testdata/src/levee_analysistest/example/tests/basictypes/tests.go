@@ -12,18 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package method
+package basic
 
 import (
 	"levee_analysistest/example/core"
 )
 
-func TestMethodCallOnStaticallyKnownReceiverPropagatesTaint(s core.Source) {
-	data := s.Propagate(s.Data)
-	core.Sink(data) // want "a source has reached a sink"
+func BooleansDontPropagateTaint(s *core.Source) {
+	is := isSourcey(s)
+	core.Sink(is)
 }
 
-func TestMethodCallOnStaticallyUnknownReceiverPropagatesTaint(sm core.SourceManipulator, s core.Source) {
-	data := sm.Propagate(s.Data)
-	core.Sink(data) // want "a source has reached a sink"
+func isSourcey(x interface{}) bool {
+	// not taking any chances
+	return true
+}
+
+func IntegersDontPropagateTaint(sources []core.Source) {
+	core.Sink(len(sources))
 }

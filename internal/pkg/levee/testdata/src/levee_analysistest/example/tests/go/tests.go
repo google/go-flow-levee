@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package callorder
+// Package callcommon contains tests for Defer and Go instructions,
+// which should be treated similarly to Call instructions.
+package callcommon
 
 import (
 	"fmt"
@@ -20,26 +22,14 @@ import (
 	"levee_analysistest/example/core"
 )
 
-func TestTaintedColocatedArgumentDoesNotReachSinkThatPrecedesColocation(w io.Writer, src core.Source) {
-	if true {
-		core.Sink(w)
-	}
-	fmt.Fprint(w, src)
+func TestGoStdlib(w io.Writer, s core.Source) {
+	go fmt.Fprint(w, s.Data)
+	core.Sink(w) // want "a source has reached a sink"
 }
 
-func TestTaintedColocatedArgumentReachesSinkThatFollowsColocation(w io.Writer, src core.Source) {
-	if _, err := fmt.Fprint(w, src); err != nil {
-		core.Sink(w) // want "a source has reached a sink"
-	}
+func TestGoUnknownFunction(i *core.Innocuous, s core.Source) {
+	go baz(i, s)
+	core.Sink(i)
 }
 
-func TestAvoidingIncorrectPropagationFromColocationDoesNotPreventCorrectReport(w io.Writer, src core.Source) {
-	_, err := fmt.Fprint(w, src)
-	if err != nil {
-		core.Sink(w) // want "a source has reached a sink"
-	}
-
-	if true {
-		fmt.Fprint(w, src)
-	}
-}
+func baz(a, b interface{}) {}

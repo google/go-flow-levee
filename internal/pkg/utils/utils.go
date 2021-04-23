@@ -17,7 +17,6 @@ package utils
 
 import (
 	"go/types"
-	"strings"
 
 	"golang.org/x/tools/go/ssa"
 )
@@ -60,13 +59,12 @@ func DecomposeField(t types.Type, field int) (typePath, typeName, fieldName stri
 	return
 }
 
-func unqualifiedName(v *types.Var) string {
-	packageQualifiedName := v.Type().String()
-	dotPos := strings.LastIndexByte(packageQualifiedName, '.')
-	if dotPos == -1 {
-		return packageQualifiedName
-	}
-	return packageQualifiedName[dotPos+1:]
+// UnqualifiedName returns the name of the given type, without the qualifying
+// prefix containing the package in which it was declared.
+// Example: for a type named T declared in package p, the returned string will
+// be just `T` instead of `p.T`.
+func UnqualifiedName(t *types.Var) string {
+	return types.TypeString(t.Type(), func(*types.Package) string { return "" })
 }
 
 // DecomposeFunction returns the path, receiver, and name strings of a ssa.Function.
@@ -79,7 +77,7 @@ func DecomposeFunction(f *ssa.Function) (path, recv, name string) {
 	}
 	name = f.Name()
 	if recvVar := f.Signature.Recv(); recvVar != nil {
-		recv = unqualifiedName(recvVar)
+		recv = UnqualifiedName(recvVar)
 	}
 	return
 }

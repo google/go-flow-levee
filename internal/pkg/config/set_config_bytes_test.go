@@ -12,17 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package deletethis
+package config
 
 import (
-	"levee_analysistest/example/core"
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
-func TestTaintingInterfaceValueDoesNotTaintContainedValue(s *core.Source, str string) {
-	var x interface{} = str
-	colocate(s, x)
-	// TODO(#209): no report should be produced below
-	core.Sink(str) // want "a source has reached a sink"
-}
+func TestSetConfigBytes(t *testing.T) {
+	set := &Config{ReportMessage: "test"}
+	bytes := []byte(`ReportMessage: "test"`)
 
-func colocate(s *core.Source, x interface{}) {}
+	SetBytes(bytes)
+
+	read, err := ReadConfig()
+	if err != nil {
+		t.Fatalf("ReadConfig returned an unexpected error: %v", err)
+	}
+
+	if diff := cmp.Diff(set, read); diff != "" {
+		t.Errorf("set config differs from read config (-set, +read):\n%s", diff)
+	}
+}
