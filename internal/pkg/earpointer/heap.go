@@ -116,7 +116,7 @@ func (s Synthetic) String() string {
 // Field can be (1) a struct field linked to an IR field (Var);
 // (2) or one with a name but not linked to any IR element (irField = nil).
 type Field struct {
-	Name string
+	Name    string
 	irField *types.Var
 }
 
