@@ -199,7 +199,7 @@ func TestStructCopy(t *testing.T) { // mainly for coverage test
 
 func TestEmbeddedFieldClone(t *testing.T) {
 	code := `package p
- 	type T1 struct { x *int}
+	type T1 struct { x *int}
 	type T2 struct { x T1 }
 	func f(i T1, v1, v2 T2) {
 		v2.x = i
@@ -349,7 +349,7 @@ func TestStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	want :=
-		`{*f.a}: [x->f.t0, y->f.t2], {f.a}: --> *f.a, {f.b}: [10->f.t3], {f.t0}: --> f.t1, {f.t1}: [], {f.t2}: --> f.t4, {f.t3}: --> f.t4, {f.t4}: [], {t.z}: --> f.t1`
+		`{*f.a}: [x->f.t0, y->f.t2], {f.a}: --> *f.a, {f.b}: [10->f.t3], {f.t0}: --> f.t1, {f.t1}: [], {f.t2}: --> f.t4, {f.t3}: --> f.t4, {f.t4}: [], {z}: --> f.t1`
 	if got := state.String(); got != want {
 		t.Errorf("got: %s\n want: %s", got, want)
 	}
@@ -376,7 +376,7 @@ func TestDereference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{f.t0,f.t1}: [], {f.y}: --> f.t1, {f.z}: --> f.t1, {t.x}: --> f.t1`
+	want := `{f.t0,f.t1}: [], {f.y}: --> f.t1, {f.z}: --> f.t1, {x}: --> f.t1`
 	if got := state.String(); got != want {
 		t.Errorf("got: %s\n want: %s", got, want)
 	}
@@ -406,7 +406,7 @@ func TestMapAccess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{f.m}: [0->f.t0, 1->f.t2, AnyField->f.t2], {f.t0}: [], {f.t1,f.t2}: [], {t.t}: --> f.t0"
+	want := "{f.m}: [0->f.t0, 1->f.t2, AnyField->f.t2], {f.t0}: [], {f.t1,f.t2}: [], {t}: --> f.t0"
 	if got := state.String(); got != want {
 		t.Errorf("got: %s\n want: %s", got, want)
 	}
@@ -515,7 +515,7 @@ func TestChangeInterfaceOrType(t *testing.T) {
 func TestBinOp(t *testing.T) {
 	code := `package p
 	func f(a, b string) {
-	_ = a + b
+		_ = a + b
 	}
 	`
 	state, err := runCode(code)
@@ -531,10 +531,10 @@ func TestBinOp(t *testing.T) {
 func TestRange(t *testing.T) {
 	code := `package p
 	func f(a map[string]*int) {
-	for i, v := range a {
-		_ = i
-		_ = v
-	}
+		for i, v := range a {
+			_ = i
+			_ = v
+		}
 	}
 	`
 	/*
@@ -566,8 +566,8 @@ func TestRange(t *testing.T) {
 func TestChannel(t *testing.T) {
 	code := `package p
 	func f(ch chan string, z string) {
-	ch <- z   // Send v to channel ch.
-	_ = <-ch  // Receive from ch.
+		ch <- z   // Send v to channel ch.
+		_ = <-ch  // Receive from ch.
 	}
 	`
 	state, err := runCode(code)
@@ -648,20 +648,20 @@ func TestUnimplemented(t *testing.T) {
 func TestSimpleCall(t *testing.T) {
 	code := `package p
 	func f(x *int, y *int) *int {
- 		return g(x, nil)
+		return g(x, nil)
 	}
 	func g(a *int, b *int) *int {
- 		return a
+		return a
 	}
 	`
 	/*
 		func f(x *int, y *int) *int:
-		0:                                                                entry P:0 S:0
-			t0 = g(x, nil:*int)                                                *int
+		0:                                             entry P:0 S:0
+			t0 = g(x, nil:*int)                        *int
 			return t0
 
 		func g(a *int, b *int) *int:
-		0:                                                                entry P:0 S:0
+		0:                                             entry P:0 S:0
 			return a
 	*/
 	state, err := runCode(code)
@@ -681,11 +681,11 @@ func TestCallWithTupleReturn(t *testing.T) {
 	type T struct { }
 	var x T
 	func f(a *T) *T {
- 		t1,_ := g(a)
- 		return t1
+		t0,_ := g(a)
+		return t0
 	}
 	func g(a *T) (*T,T) {
- 		return a, x
+		return a, x
 	}
 	`
 	/*
@@ -705,9 +705,12 @@ func TestCallWithTupleReturn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// f.a and g.a are unified due to the call; f.t1 and g.a are unified due to the return of this call.
-	// Here (f.t1, f.t2) == f.t0 == (g.a, g.t0). Note that g.t0 and f.t2 are not unified because they are structs.
-	want := "{f.a,f.t1,g.a}: [], {f.t0}: [0->f.t1], {f.t2}: [], {g.t0}: [], {t.x}: --> g.t0"
+	// f.a and g.a are unified due to the call;
+	// f.t1 and g.a are unified due to the return of this call.
+	// Here (f.t1, f.t2) == f.t0 == (g.a, g.t0).
+	// Note that g.t0 and f.t2 are not unified because they are structs.
+	want := "{f.a,f.t1,g.a}: [], {f.t0}: [0->f.t1], {f.t2}: [], {g.t0}: [], " +
+		"{x}: --> g.t0"
 	if got := state.String(); got != want {
 		t.Errorf("got: %s\n want: %s", got, want)
 	}
@@ -742,7 +745,8 @@ func TestClosureCall(t *testing.T) {
 	}
 	// Free variable f$1.i is unified with f.t0 due to argument passing,
 	// and with f.t4 due to the return of the closure function.
-	want := "{f$1.i,f.t0,f.t4}: [], {f$1.j,f.t1,f.t5}: [], {f.t2}: [], {f.t3}: [0->f.t4, 1->f.t5]"
+	want := "{f$1.i,f.t0,f.t4}: [], {f$1.j,f.t1,f.t5}: [], {f.t2}: [], " +
+		"{f.t3}: [0->f.t4, 1->f.t5]"
 	if got := state.String(); got != want {
 		t.Errorf("got: %s\n want: %s", got, want)
 	}
@@ -751,12 +755,12 @@ func TestClosureCall(t *testing.T) {
 func TestMethod(t *testing.T) {
 	code := `package p
 	type A struct {}
- 	func (a A) g(x *int) *int {
-   	return x
- 	}
- 	func f(x *int, a *A) *int {
-   	return a.g(x)
- 	}
+	func (a A) g(x *int) *int {
+  		return x
+	}
+	func f(x *int, a *A) *int {
+  		return a.g(x)
+	}
 	`
 	/*
 		func (a A) g(x *int) *int:
@@ -777,7 +781,8 @@ func TestMethod(t *testing.T) {
 	}
 	// f.t1, f.x and g.x are unified due to calling g().
 	// Note g.a is a struct receiver that won't be unified.
-	want := "{f.a}: --> f.t0, {f.t0}: [], {f.t1,f.x,g.x}: [], {g.a}: [], {g.t0}: []"
+	want := "{f.a}: --> f.t0, {f.t0}: [], {f.t1,f.x,g.x}: [], {g.a}: [], " +
+		"{g.t0}: []"
 	if got := state.String(); got != want {
 		t.Errorf("got: %s\n want: %s", got, want)
 	}
@@ -787,10 +792,10 @@ func TestGoDefer(t *testing.T) {
 	code := `package p
 	func g(i *int) {
 		go func() {
-  			print(*i)
+ 			print(*i)
 		}()
 		defer func(k *int) {
-  			print(*k)
+ 			print(*k)
 		}(i)
 	}
 	`
@@ -814,7 +819,8 @@ func TestGoDefer(t *testing.T) {
 	}
 	// Free variable g$1.i is unified with g.t0 due to closure binding;
 	// Arguments g$2.k and g.i are unified due to the defer call.
-	want := "{g$1.i,g.t0}: --> g.t2, {g$1.t0}: [], {g$2.k,g.i,g.t2}: [], {g.t1}: []"
+	want := "{g$1.i,g.t0}: --> g.t2, {g$1.t0}: [], {g$2.k,g.i,g.t2}: [], " +
+		"{g.t1}: []"
 	if got := state.String(); got != want {
 		t.Errorf("got: %s\n want: %s", got, want)
 	}
@@ -823,9 +829,9 @@ func TestGoDefer(t *testing.T) {
 func TestCallBuiltin(t *testing.T) {
 	code := `package p
 	func f(s []*int, x *int, d1 []*int) {
- 		d2 := append(s, x)
- 		copy(d1, s)
- 		print(d1, d2)
+		d2 := append(s, x)
+		copy(d1, s)
+		print(d1, d2)
 	}
 	`
 	/*
@@ -844,9 +850,11 @@ func TestCallBuiltin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// f.s and f.d1 are separate due to the "copy";
+	// f.s and f.d1 are separate due to the "copy".
+	// f.d1 contains a field pointing at f.x due to the "copy".
 	// f.s, f.t2 and f.r3 ("d2") are unified due to the "append".
-	want := "{f.d1[.],f.t1}: --> f.x, {f.d1}: [0->f.t1], {f.s,f.t0,f.t2,f.t3}: [0->f.t1], {f.x}: []"
+	want := "{f.d1[.],f.t1}: --> f.x, {f.d1}: [0->f.t1], " +
+		"{f.s,f.t0,f.t2,f.t3}: [0->f.t1], {f.x}: []"
 	if got := state.String(); got != want {
 		t.Errorf("got: %s\n want: %s", got, want)
 	}
@@ -855,10 +863,10 @@ func TestCallBuiltin(t *testing.T) {
 func TestVariadicCall(t *testing.T) {
 	code := `package p
 	func g(ks ...*int) *int {
-  		return ks[0]
+ 		return ks[0]
 	}
 	func f(a *int, b *int) *int {
-  		return g(a, b)
+ 		return g(a, b)
 	}
 	`
 	/*
@@ -883,7 +891,55 @@ func TestVariadicCall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{f.a,f.t4,g.t1}: [], {f.b}: [], {f.t0,f.t3,g.ks}: [0->g.t0, 1->f.t2], {f.t1,g.t0}: --> g.t1, {f.t2}: --> f.b"
+	want := "{f.a,f.t4,g.t1}: [], {f.b}: [], {f.t0,f.t3,g.ks}: " +
+		"[0->g.t0, 1->f.t2], {f.t1,g.t0}: --> g.t1, {f.t2}: --> f.b"
+	if got := state.String(); got != want {
+		t.Errorf("got: %s\n want: %s", got, want)
+	}
+}
+
+func TestMethodInvoke(t *testing.T) {
+	code := `package p
+	type T1 struct {}
+	func (T1) f(x *int) {}
+
+	type T2 struct {
+		T1
+	}
+	func g(t2 *T2, x *int) {
+		t2.f(x)
+	}
+	`
+	/*
+		func (arg0 T1) f(x *int):
+		0:                                          entry P:0 S:0
+			return
+
+		func (arg0 t.T2) f(x *int):
+		0:                                          entry P:0 S:0
+			t0 = local t.T2 ()                      *t.T2
+			*t0 = arg0
+			t1 = &t0.T1 [#0]                        *t.T1
+			t2 = *t1                                t.T1
+			t3 = (t.T1).f(t2, x)                    ()
+			return
+
+		func g(t2 *T2, x *int):
+		0:                                          entry P:0 S:0
+			t0 = &t2.T1 [#0]                        *T1
+			t1 = *t0                                T1
+			t2 = (T1).f(t1, x)                      ()
+			return
+	*/
+	state, err := runCode(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// T1.f.x and g.x are unified due to calling f().
+	// There are two separate f.arg0s w.r.t. T1.f and T2.f respectively.
+	want := "{*g.t2}: [T1->g.t0], {f.arg0}: [], {f.arg0}: [], {f.t0}: [], " +
+		"{f.t1}: [], {f.t2}: [], {f.x,g.x}: [], {f.x}: [], {g.t0}: --> g.t1," +
+		" {g.t1}: [], {g.t2}: --> *g.t2"
 	if got := state.String(); got != want {
 		t.Errorf("got: %s\n want: %s", got, want)
 	}

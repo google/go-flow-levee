@@ -76,7 +76,7 @@ func (g Global) Value() ssa.Value {
 }
 
 func (g Global) String() string {
-	return g.global.String()
+	return g.global.Name()
 }
 
 type SyntheticKind int
@@ -117,7 +117,6 @@ func (s Synthetic) String() string {
 // (2) or one with a name but not linked to any IR element (irField = nil).
 type Field struct {
 	Name string
-	//lint:ignore U1000 ignore dead code for now
 	irField *types.Var
 }
 
@@ -126,7 +125,6 @@ type Field struct {
 // T is a struct type. The contents of the array/slice, namely x[i], is
 // over-approximated as the heap partition pointed-to by a pseudo-field named
 // anyIndexField.
-//lint:ignore U1000 ignore dead code for now
 var anyIndexField Field = Field{Name: "AnyField"}
 
 // A pseudo-field to denote the direct points-to relation. For example, r1 = &r0
@@ -174,7 +172,6 @@ func MakeSynthetic(kind SyntheticKind, ref Reference) Synthetic {
 // values. It is used for identifying copy-by-reference objects. For example, it
 // returns false for any integer type, and returns true for pointer type and
 // struct type.
-//lint:ignore U1000 ignore dead code for now
 func typeMayShareObject(tp types.Type) bool {
 	switch tp := tp.(type) {
 	case *types.Pointer,

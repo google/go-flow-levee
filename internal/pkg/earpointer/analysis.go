@@ -42,9 +42,9 @@ var Analyzer = &analysis.Analyzer{
 	Requires:   []*analysis.Analyzer{buildssa.Analyzer},
 }
 
-// visitor processes the instructions in a function and perform unifications
+// visitor traverse the instructions in a function and perform unifications
 // for all reachable contexts for that function. Both the intra-procedural
-// instructions and inter-procedural instructions (i.e. CallInstruction) are processed.
+// instructions and inter-procedural instructions are handled.
 type visitor struct {
 	state    *state     // mutable state
 	contexts []*Context // for context sensitive analysis
@@ -83,6 +83,8 @@ func (vis *visitor) initReferences(ssainput *buildssa.SSA) {
 					vis.initFunction(mv)
 				}
 			}
+		case *ssa.NamedConst:
+			// Global constants are not within the scope of the pointer analysis.
 		}
 	}
 }
@@ -99,10 +101,13 @@ func (vis *visitor) initFunction(fn *ssa.Function) {
 			state.Insert(MakeLocal(&emptyContext, fv))
 		}
 	}
-	// Usual tuple-type registers are skipped since they will be processed by subsequent Extract instructions,
-	// but function return is a special case where the return tuple is needed.
+	// Usual tuple-type registers are skipped since they will be processed
+	// by subsequent Extract instructions, but function return is a special
+	// case where the return tuple is needed.
 	returnTuple := func(v ssa.Value) bool {
 		if _, ok := v.(ssa.CallInstruction); ok {
+			// In SSA, a call's return is always of a tuple type.
+			// If the call has no return, then the tuple is empty.
 			if tuple, ok := v.Type().(*types.Tuple); ok {
 				return tuple.Len() > 1
 			}
@@ -345,24 +350,28 @@ func (vis *visitor) visitSelect(s *ssa.Select) {
 }
 
 func (vis *visitor) visitCall(call *ssa.CallCommon, instr ssa.Instruction) {
-	if builtin, ok := call.Value.(*ssa.Builtin); ok { // special handling of builtin functions
-		vis.processBuiltinCall(builtin, instr)
+	if builtin, ok := call.Value.(*ssa.Builtin); ok {
+		// special handling of builtin functions
+		vis.visitBuiltin(builtin, instr)
 		return
 	}
 
 	// Collect unification constraints
-	paramCstrs, retCstrs := vis.collectCalleeConstraints(call, call.StaticCallee(), instr)
+	// Here only static calls are supported.
+	// A future extension is to use a more advanced call graph.
+	paramCstrs, retCstrs :=
+		vis.collectCalleeConstraints(call, call.StaticCallee(), instr)
 	// Unify caller arguments and callee parameters with suitable context.
 	for arg, params := range paramCstrs {
 		for _, param := range params {
-			// The copy-by-value semantics is implemented by the SSA call. For
-			// example:
+			// The copy-by-value semantics is implemented by the SSA call.
+			// For example:
 			//   type S struct { ... }
 			//   var v S
 			//   g(v)
 			//   func g(a S) { ... }
-			// SSA creates a copy of v and passes it to g. Hence we directly unify
-			// this copy and g's argument "a".
+			// SSA creates a copy of v and passes it to g. Hence we directly
+			// unify this copy and g's argument "a".
 			if mayShareObject(arg) {
 				vis.unifyLocals(arg, param)
 			}
@@ -376,9 +385,10 @@ func (vis *visitor) visitCall(call *ssa.CallCommon, instr ssa.Instruction) {
 					vis.unifyLocals(callerRet, calleeRet[0])
 				}
 			} else { // tuple case
-				// For call "return_r = f(...)", if the callee returns a tuple <r0, r1, ...>,
-				// then the i^{th} element in the tuple is connected to the caller's return_r
-				// by making "return_r[i] = r{i}".
+				// For call "return_r = f(...)", if the callee returns a tuple
+				// <r0, r1, ...>, then the i^{th} element in the tuple is
+				// connected to the caller's return_r by making
+				// "return_r[i] = r{i}".
 				for k := 0; k < len(calleeRet); k++ {
 					retV := calleeRet[k]
 					if !mayShareObject(retV) {
@@ -393,28 +403,29 @@ func (vis *visitor) visitCall(call *ssa.CallCommon, instr ssa.Instruction) {
 	}
 }
 
-// Process calls to builtin functions; return true if the callee is a builtin
-// function.
-// Builtin functions: https://golang.org/pkg/builtin/
-func (vis *visitor) processBuiltinCall(builtin *ssa.Builtin, instr ssa.Instruction) {
-	if builtin.Name() == "append" { // func append(slice []Type, elems ...Type) []Type
+// Handle calls to builtin functions: https://golang.org/pkg/builtin/.
+func (vis *visitor) visitBuiltin(builtin *ssa.Builtin, instr ssa.Instruction) {
+	switch builtin.Name() {
+	case "append": // func append(slice []Type, elems ...Type) []Type
 		// Propagage the arguments to the return value.
 		if dst, ok := instr.(ssa.Value); ok {
 			ops := instr.Operands(nil)
+			// ops[0] is the "append" function itself.
 			for i := 1; i < len(ops); i++ {
-				arg := *ops[i]
-				if mayShareObject(arg) {
-					vis.unifyLocals(dst, arg)
-				}
+				// Unify-by-reference the dst and the op for all contexts.
+				vis.unifyLocals(dst, *ops[i])
 			}
 		}
-	} else if builtin.Name() == "copy" { // "func copy(dst, src []Type) int"
-		// Propagage the source to the destination through unify-by-value.
-		ops := instr.Operands(nil)
-		dst, src := *ops[1], *ops[2]
-		if mayShareObject(src) {
-			for _, context := range vis.contexts {
-				vis.unifyByValue(MakeLocal(context, dst), MakeLocal(context, src))
+	case "copy": // "func copy(dst, src []Type) int"
+		{
+			// Propagage the source to the destination through unify-by-value.
+			ops := instr.Operands(nil)
+			// ops[0] is the "copy" function itself.
+			dst, src := *ops[1], *ops[2]
+			if mayShareObject(src) {
+				for _, c := range vis.contexts {
+					vis.unifyByValue(MakeLocal(c, dst), MakeLocal(c, src))
+				}
 			}
 		}
 	}
@@ -423,24 +434,22 @@ func (vis *visitor) processBuiltinCall(builtin *ssa.Builtin, instr ssa.Instructi
 // Collect unification constraints corresponding to a call.
 // This generates constraints for unifying parameters, free variables, and return values.
 func (vis *visitor) collectCalleeConstraints(common *ssa.CallCommon, fn *ssa.Function, instr ssa.Instruction) (map[ssa.Value][]ssa.Value, map[ssa.Value][][]ssa.Value) {
-	if fn == nil || len(fn.Blocks) == 0 { // undefined functions
+	// Handle undefined/unknown functions.
+	if fn == nil || len(fn.Blocks) == 0 || len(fn.Params) != len(common.Args) {
 		return nil, nil
 	}
 
 	paramCstrs := make(map[ssa.Value][]ssa.Value)
-	// Add caller_reg -> {callee_reg} constraints for parameters which are references.
-	// For example, for g(a, b) and func g(x, y), <a, g.x> and <b, g.y> into the constraints.
-	l1, l2 := len(common.Args), len(fn.Params)
-	if l2 < l1 {
-		l1 = l2
-	}
-	// Disable the unification of receivers here to avoid too many FPs. This may lead to
-	// under-approximation and FNs of the checkers.
+	// Add caller_reg -> {callee_reg} constraints for parameters.
+	// For example, for g(a, b) and func g(x, y), add <a, g.x> and
+	// <b, g.y> into the constraints.
+	// Disable the unification of receivers here to avoid too many FPs.
+	// This may lead to under-approximation and FNs of the checkers.
 	start := 0
 	if fn.Signature.Recv() != nil {
 		start = 1
 	}
-	for i := start; i < l1; i++ {
+	for i := start; i < len(common.Args); i++ {
 		arg, param := common.Args[i], fn.Params[i]
 		if mayShareObject(arg) && typeMayShareObject(param.Type()) {
 			paramCstrs[arg] = append(paramCstrs[arg], param)
@@ -457,13 +466,14 @@ func (vis *visitor) collectCalleeConstraints(common *ssa.CallCommon, fn *ssa.Fun
 		}
 	}
 
-	// Skip generating constraint if the return variable doesn't exist or it is not a reference/object.
+	// Skip generating constraint if the return variable doesn't exist.
 	callerRet, ok := instr.(ssa.Value)
 	if !ok {
 		return paramCstrs, nil
 	}
 	// Collect unification constraint for return registers.
-	// For example, for t0 = g(a), where g returns tuple (a,b), add <t0, (a,b)> into the constraints.
+	// For example, for t0 = g(a), where g returns tuple (a,b),
+	// add <t0, (a,b)> into the constraints.
 	retCstrs := make(map[ssa.Value][][]ssa.Value)
 	for _, blk := range fn.Blocks {
 		if ret, ok := blk.Instrs[len(blk.Instrs)-1].(*ssa.Return); ok {
