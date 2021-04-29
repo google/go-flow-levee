@@ -22,13 +22,12 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/tools/go/types/typeutil"
-
 	"github.com/google/go-flow-levee/internal/pkg/config"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
+	"golang.org/x/tools/go/types/typeutil"
 )
 
 // Analyzer traverses the packages and constructs an EAR partitions
@@ -434,8 +433,13 @@ func (vis *visitor) visitBuiltin(builtin *ssa.Builtin, instr ssa.Instruction) {
 // Collect unification constraints corresponding to a call.
 // This generates constraints for unifying parameters, free variables, and return values.
 func (vis *visitor) collectCalleeConstraints(common *ssa.CallCommon, fn *ssa.Function, instr ssa.Instruction) (map[ssa.Value][]ssa.Value, map[ssa.Value][][]ssa.Value) {
-	// Handle undefined/unknown functions.
-	if fn == nil || len(fn.Blocks) == 0 || len(fn.Params) != len(common.Args) {
+	// Handle undefined/unlinked functions.
+	if fn == nil || len(fn.Blocks) == 0 {
+		return nil, nil
+	}
+	// TODO: in some rare cases, SSA may generate an imported function with no arguments while this function actually
+	//  takes arguments. Skip such functions here.
+	if len(fn.Params) != len(common.Args) {
 		return nil, nil
 	}
 
@@ -443,8 +447,13 @@ func (vis *visitor) collectCalleeConstraints(common *ssa.CallCommon, fn *ssa.Fun
 	// Add caller_reg -> {callee_reg} constraints for parameters.
 	// For example, for g(a, b) and func g(x, y), add <a, g.x> and
 	// <b, g.y> into the constraints.
-	// Disable the unification of receivers here to avoid too many FPs.
-	// This may lead to under-approximation and FNs of the checkers.
+	//
+	// Unifying the receivers may cause too many FPs.
+	// For example, func (t T) f() { ... }; o1.f() and o2.f(), the unification
+	// results in {o1, o2, t}, while o1 and o2 should not be unified.
+	// So the receiver unification is disabled here, which may lead to under-approximation
+	// and FNs of the checkers.
+	// TODO: support context-sensitivity to mitigate this issue.
 	start := 0
 	if fn.Signature.Recv() != nil {
 		start = 1

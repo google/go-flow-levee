@@ -891,8 +891,9 @@ func TestVariadicCall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{f.a,f.t4,g.t1}: [], {f.b}: [], {f.t0,f.t3,g.ks}: " +
-		"[0->g.t0, 1->f.t2], {f.t1,g.t0}: --> g.t1, {f.t2}: --> f.b"
+	want := "{f.a,f.t4,g.t1}: [], {f.b}: [], " +
+		"{f.t0,f.t3,g.ks}: [0->g.t0, 1->f.t2], " +
+		"{f.t1,g.t0}: --> g.t1, {f.t2}: --> f.b"
 	if got := state.String(); got != want {
 		t.Errorf("got: %s\n want: %s", got, want)
 	}
