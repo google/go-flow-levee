@@ -16,6 +16,8 @@ package earpointer_test
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/google/go-flow-levee/internal/pkg/earpointer"
@@ -47,6 +49,16 @@ func runCode(code string) (*earpointer.Partitions, error) {
 	return partitions.(*earpointer.Partitions), nil
 }
 
+// Concatenates the "members -> fields" map items into a string.
+func partitionItemsToString(m map[string]string) string {
+	var pstrs []string
+	for k, v := range m {
+		pstrs = append(pstrs, k+": "+v)
+	}
+	sort.Strings(pstrs)
+	return strings.Join(pstrs, ", ")
+}
+
 func TestFieldAddr(t *testing.T) {
 	code := `package p
 	type T struct { x *int; y *int }
@@ -65,9 +77,15 @@ func TestFieldAddr(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{*f.a}: [x->f.t0], {f.a}: --> *f.a, {f.b}: [], {f.t0}: --> f.b"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := map[string]string{
+		"{f.a}":  "--> *f.a",
+		"{*f.a}": "[x->f.t0]",
+		"{f.t0}": "--> f.b",
+		"{f.b}":  "[]",
+	}
+	wantstr := partitionItemsToString(want)
+	if got := state.String(); got != wantstr {
+		t.Errorf("got: %s\n want: %s", got, wantstr)
 	}
 }
 
@@ -92,9 +110,15 @@ func TestFieldAddr2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{*f.a}: [x->f.t1], {f.a}: --> *f.a, {f.b,f.c}: [], {f.t0,f.t1}: --> f.c"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := map[string]string{
+		"{f.a}":       "--> *f.a",
+		"{*f.a}":      "[x->f.t1]",
+		"{f.t0,f.t1}": "--> f.c",
+		"{f.b,f.c}":   "[]",
+	}
+	wantstr := partitionItemsToString(want)
+	if got := state.String(); got != wantstr {
+		t.Errorf("got: %s\n want: %s", got, wantstr)
 	}
 }
 
@@ -120,9 +144,17 @@ func TestField(t *testing.T) {
 		t.Fatal(err)
 	}
 	// t2's field x points to t3
-	want := "{*f.t0}: [x->f.t1], {f.a}: [], {f.t0}: --> *f.t0, {f.t1}: --> f.a, {f.t2[.],f.t3}: --> f.a, {f.t2}: [x->f.t3]"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := map[string]string{
+		"{f.t0}":         "--> *f.t0",
+		"{*f.t0}":        "[x->f.t1]",
+		"{f.t1}":         "--> f.a",
+		"{f.a}":          "[]",
+		"{f.t2}":         "[x->f.t3]",
+		"{f.t2[.],f.t3}": "--> f.a",
+	}
+	wantstr := partitionItemsToString(want)
+	if got := state.String(); got != wantstr {
+		t.Errorf("got: %s\n want: %s", got, wantstr)
 	}
 }
 
@@ -149,9 +181,18 @@ func TestEmbeddedField(t *testing.T) {
 	}
 	// t3 is not unified with t2.t since they are structs.
 	// f.t2 has a field t pointing to a synthetic reference t2[.].
-	want := "{*f.t0}: [t->f.t1], {f.i}: [], {f.t0}: --> *f.t0, {f.t1}: [], {f.t2[.]}: [], {f.t2}: [t->f.t2[.]], {f.t3}: []"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := map[string]string{
+		"{f.i}":     "[]",
+		"{f.t0}":    "--> *f.t0",
+		"{*f.t0}":   "[t->f.t1]",
+		"{f.t1}":    "[]",
+		"{f.t2}":    "[t->f.t2[.]]",
+		"{f.t2[.]}": "[]",
+		"{f.t3}":    "[]",
+	}
+	wantstr := partitionItemsToString(want)
+	if got := state.String(); got != wantstr {
+		t.Errorf("got: %s\n want: %s", got, wantstr)
 	}
 }
 
@@ -188,12 +229,36 @@ func TestStructCopy(t *testing.T) { // mainly for coverage test
 		t.Fatal(err)
 	}
 	// TODO: there is a non-determinism (f.t3 --> f.i or f.j) that depends on the order of the unification.
-	want1 := "{f.i,f.j}: [], {f.t0}: --> f.v1, {f.t1}: --> f.v2, {f.t2}: --> f.i, {f.t3}: --> f.i, {f.t4}: --> f.i, {f.t5[.]}: --> f.i, " +
-		"{f.t5}: [x->f.t5[.], y->f.t5[.]], {f.v1}: [x->f.t2, y->f.t3], {f.v2[.]}: --> f.i, {f.v2}: [x->f.t4, y->f.v2[.]]"
-	want2 := "{f.i,f.j}: [], {f.t0}: --> f.v1, {f.t1}: --> f.v2, {f.t2}: --> f.j, {f.t3}: --> f.j, {f.t4}: --> f.j, {f.t5[.]}: --> f.j, " +
-		"{f.t5}: [x->f.t5[.], y->f.t5[.]], {f.v1}: [x->f.t2, y->f.t3], {f.v2[.]}: --> f.j, {f.v2}: [x->f.t4, y->f.v2[.]]"
-	if got := state.String(); got != want1 && got != want2 {
-		t.Errorf("got: %s\n want: %s or %s", got, want1, want2)
+	want1 := map[string]string{
+		"{f.i,f.j}": "[]",
+		"{f.t0}":    "--> f.v1",
+		"{f.t1}":    "--> f.v2",
+		"{f.t2}":    "--> f.i",
+		"{f.t3}":    "--> f.i",
+		"{f.t4}":    "--> f.i",
+		"{f.t5}":    "[x->f.t5[.], y->f.t5[.]]",
+		"{f.t5[.]}": "--> f.i",
+		"{f.v1}":    "[x->f.t2, y->f.t3]",
+		"{f.v2}":    "[x->f.t4, y->f.v2[.]]",
+		"{f.v2[.]}": "--> f.i",
+	}
+	wantstr1 := partitionItemsToString(want1)
+	want2 := map[string]string{
+		"{f.i,f.j}": "[]",
+		"{f.t0}":    "--> f.v1",
+		"{f.t1}":    "--> f.v2",
+		"{f.t2}":    "--> f.j",
+		"{f.t3}":    "--> f.j",
+		"{f.t4}":    "--> f.j",
+		"{f.t5}":    "[x->f.t5[.], y->f.t5[.]]",
+		"{f.t5[.]}": "--> f.j",
+		"{f.v1}":    "[x->f.t2, y->f.t3]",
+		"{f.v2}":    "[x->f.t4, y->f.v2[.]]",
+		"{f.v2[.]}": "--> f.j",
+	}
+	wantstr2 := partitionItemsToString(want2)
+	if got := state.String(); got != wantstr1 && got != wantstr2 {
+		t.Errorf("got: %s\n want: %s\n or\n %s", got, wantstr1, wantstr2)
 	}
 }
 
@@ -226,10 +291,22 @@ func TestEmbeddedFieldClone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{f.i}: [], {f.t0}: --> f.i, {f.t1}: --> f.v1, {f.t2}: --> f.v2, {f.t3}: --> f.t4, {f.t4}: [], " +
-		"{f.t5[.]}: [], {f.t5}: [x->f.t5[.]], {f.v1[.]}: [], {f.v1}: [x->f.v1[.]], {f.v2}: [x->f.t3]"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := map[string]string{
+		"{f.i}":     "[]",
+		"{f.t0}":    "--> f.i",
+		"{f.t1}":    "--> f.v1",
+		"{f.t2}":    "--> f.v2",
+		"{f.t3}":    "--> f.t4",
+		"{f.t4}":    "[]",
+		"{f.t5}":    "[x->f.t5[.]]",
+		"{f.t5[.]}": "[]",
+		"{f.v1}":    "[x->f.v1[.]]",
+		"{f.v1[.]}": "[]",
+		"{f.v2}":    "[x->f.t3]",
+	}
+	wantstr := partitionItemsToString(want)
+	if got := state.String(); got != wantstr {
+		t.Errorf("got: %s\n want: %s", got, wantstr)
 	}
 }
 
@@ -252,9 +329,16 @@ func TestIndexAddr(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{f.a}: [1->f.t0], {f.b}: [AnyField->f.t1], {f.t0}: --> f.t2, {f.t1}: --> f.t2, {f.t2}: []"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := map[string]string{
+		"{f.a}":  "[1->f.t0]",
+		"{f.b}":  "[AnyField->f.t1]",
+		"{f.t0}": "--> f.t2",
+		"{f.t1}": "--> f.t2",
+		"{f.t2}": "[]",
+	}
+	wantstr := partitionItemsToString(want)
+	if got := state.String(); got != wantstr {
+		t.Errorf("got: %s\n want: %s", got, wantstr)
 	}
 }
 
@@ -279,9 +363,16 @@ func TestIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	// t2's field 0 points to t3
-	want := "{f.a}: [], {f.t0}: --> f.t2, {f.t1}: --> f.a, {f.t2}: [0->f.t3], {f.t3}: []"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := map[string]string{
+		"{f.a}":  "[]",
+		"{f.t0}": "--> f.t2",
+		"{f.t1}": "--> f.a",
+		"{f.t2}": "[0->f.t3]",
+		"{f.t3}": "[]",
+	}
+	wantstr := partitionItemsToString(want)
+	if got := state.String(); got != wantstr {
+		t.Errorf("got: %s\n want: %s", got, wantstr)
 	}
 }
 
@@ -348,10 +439,20 @@ func TestStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want :=
-		`{*f.a}: [x->f.t0, y->f.t2], {f.a}: --> *f.a, {f.b}: [10->f.t3], {f.t0}: --> f.t1, {f.t1}: [], {f.t2}: --> f.t4, {f.t3}: --> f.t4, {f.t4}: [], {z}: --> f.t1`
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := map[string]string{
+		"{f.a}":  "--> *f.a",
+		"{*f.a}": "[x->f.t0, y->f.t2]",
+		"{f.b}":  "[10->f.t3]",
+		"{f.t0}": "--> f.t1",
+		"{f.t1}": "[]",
+		"{f.t2}": "--> f.t4",
+		"{f.t3}": "--> f.t4",
+		"{f.t4}": "[]",
+		"{z}":    "--> f.t1",
+	}
+	wantstr := partitionItemsToString(want)
+	if got := state.String(); got != wantstr {
+		t.Errorf("got: %s\n want: %s", got, wantstr)
 	}
 }
 
@@ -376,9 +477,15 @@ func TestDereference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{f.t0,f.t1}: [], {f.y}: --> f.t1, {f.z}: --> f.t1, {x}: --> f.t1`
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := map[string]string{
+		"{f.t0,f.t1}": "[]",
+		"{f.y}":       "--> f.t1",
+		"{f.z}":       "--> f.t1",
+		"{x}":         "--> f.t1",
+	}
+	wantstr := partitionItemsToString(want)
+	if got := state.String(); got != wantstr {
+		t.Errorf("got: %s\n want: %s", got, wantstr)
 	}
 }
 
@@ -406,9 +513,15 @@ func TestMapAccess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{f.m}: [0->f.t0, 1->f.t2, AnyField->f.t2], {f.t0}: [], {f.t1,f.t2}: [], {t}: --> f.t0"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := map[string]string{
+		"{f.m}":       "[0->f.t0, 1->f.t2, AnyField->f.t2]",
+		"{f.t1,f.t2}": "[]",
+		"{t}":         "--> f.t0",
+		"{f.t0}":      "[]",
+	}
+	wantstr := partitionItemsToString(want)
+	if got := state.String(); got != wantstr {
+		t.Errorf("got: %s\n want: %s", got, wantstr)
 	}
 }
 
@@ -433,9 +546,14 @@ func TestLookUp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{f.a}: [10->f.t1], {f.t1}: --> f.t3, {f.t3}: []"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := map[string]string{
+		"{f.a}":  "[10->f.t1]",
+		"{f.t1}": "--> f.t3",
+		"{f.t3}": "[]",
+	}
+	wantstr := partitionItemsToString(want)
+	if got := state.String(); got != wantstr {
+		t.Errorf("got: %s\n want: %s", got, wantstr)
 	}
 }
 
@@ -506,9 +624,14 @@ func TestChangeInterfaceOrType(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{f.a,f.t3}: [], {f.t0}: --> f.t1, {f.t1,f.t2}: []"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := map[string]string{
+		"{f.a,f.t3}":  "[]",
+		"{f.t0}":      "--> f.t1",
+		"{f.t1,f.t2}": "[]",
+	}
+	wantstr := partitionItemsToString(want)
+	if got := state.String(); got != wantstr {
+		t.Errorf("got: %s\n want: %s", got, wantstr)
 	}
 }
 
@@ -709,10 +832,16 @@ func TestCallWithTupleReturn(t *testing.T) {
 	// f.t1 and g.a are unified due to the return of this call.
 	// Here (f.t1, f.t2) == f.t0 == (g.a, g.t0).
 	// Note that g.t0 and f.t2 are not unified because they are structs.
-	want := "{f.a,f.t1,g.a}: [], {f.t0}: [0->f.t1], {f.t2}: [], {g.t0}: [], " +
-		"{x}: --> g.t0"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := map[string]string{
+		"{f.t0}":         "[0->f.t1]",
+		"{f.a,f.t1,g.a}": "[]",
+		"{f.t2}":         "[]",
+		"{x}":            "--> g.t0",
+		"{g.t0}":         "[]",
+	}
+	wantstr := partitionItemsToString(want)
+	if got := state.String(); got != wantstr {
+		t.Errorf("got: %s\n want: %s", got, wantstr)
 	}
 }
 
@@ -745,10 +874,15 @@ func TestClosureCall(t *testing.T) {
 	}
 	// Free variable f$1.i is unified with f.t0 due to argument passing,
 	// and with f.t4 due to the return of the closure function.
-	want := "{f$1.i,f.t0,f.t4}: [], {f$1.j,f.t1,f.t5}: [], {f.t2}: [], " +
-		"{f.t3}: [0->f.t4, 1->f.t5]"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := map[string]string{
+		"{f$1.i,f.t0,f.t4}": "[]",
+		"{f$1.j,f.t1,f.t5}": "[]",
+		"{f.t2}":            "[]",
+		"{f.t3}":            "[0->f.t4, 1->f.t5]",
+	}
+	wantstr := partitionItemsToString(want)
+	if got := state.String(); got != wantstr {
+		t.Errorf("got: %s\n want: %s", got, wantstr)
 	}
 }
 
@@ -756,10 +890,10 @@ func TestMethod(t *testing.T) {
 	code := `package p
 	type A struct {}
 	func (a A) g(x *int) *int {
-  		return x
+ 		return x
 	}
 	func f(x *int, a *A) *int {
-  		return a.g(x)
+ 		return a.g(x)
 	}
 	`
 	/*
@@ -781,10 +915,16 @@ func TestMethod(t *testing.T) {
 	}
 	// f.t1, f.x and g.x are unified due to calling g().
 	// Note g.a is a struct receiver that won't be unified.
-	want := "{f.a}: --> f.t0, {f.t0}: [], {f.t1,f.x,g.x}: [], {g.a}: [], " +
-		"{g.t0}: []"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := map[string]string{
+		"{f.a}":            "--> f.t0",
+		"{f.t0}":           "[]",
+		"{A:g.x,f.t1,f.x}": "[]",
+		"{A:g.a}":          "[]",
+		"{A:g.t0}":         "[]",
+	}
+	wantstr := partitionItemsToString(want)
+	if got := state.String(); got != wantstr {
+		t.Errorf("got: %s\n want: %s", got, wantstr)
 	}
 }
 
@@ -792,10 +932,10 @@ func TestGoDefer(t *testing.T) {
 	code := `package p
 	func g(i *int) {
 		go func() {
- 			print(*i)
+			print(*i)
 		}()
 		defer func(k *int) {
- 			print(*k)
+			print(*k)
 		}(i)
 	}
 	`
@@ -819,10 +959,15 @@ func TestGoDefer(t *testing.T) {
 	}
 	// Free variable g$1.i is unified with g.t0 due to closure binding;
 	// Arguments g$2.k and g.i are unified due to the defer call.
-	want := "{g$1.i,g.t0}: --> g.t2, {g$1.t0}: [], {g$2.k,g.i,g.t2}: [], " +
-		"{g.t1}: []"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := map[string]string{
+		"{g$1.i,g.t0}":     "--> g.t2",
+		"{g$1.t0}":         "[]",
+		"{g$2.k,g.i,g.t2}": "[]",
+		"{g.t1}":           "[]",
+	}
+	wantstr := partitionItemsToString(want)
+	if got := state.String(); got != wantstr {
+		t.Errorf("got: %s\n want: %s", got, wantstr)
 	}
 }
 
@@ -853,20 +998,25 @@ func TestCallBuiltin(t *testing.T) {
 	// f.s and f.d1 are separate due to the "copy".
 	// f.d1 contains a field pointing at f.x due to the "copy".
 	// f.s, f.t2 and f.r3 ("d2") are unified due to the "append".
-	want := "{f.d1[.],f.t1}: --> f.x, {f.d1}: [0->f.t1], " +
-		"{f.s,f.t0,f.t2,f.t3}: [0->f.t1], {f.x}: []"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := map[string]string{
+		"{f.d1[.],f.t1}":       "--> f.x",
+		"{f.d1}":               "[0->f.t1]",
+		"{f.s,f.t0,f.t2,f.t3}": "[0->f.t1]",
+		"{f.x}":                "[]",
+	}
+	wantstr := partitionItemsToString(want)
+	if got := state.String(); got != wantstr {
+		t.Errorf("got: %s\n want: %s", got, wantstr)
 	}
 }
 
 func TestVariadicCall(t *testing.T) {
 	code := `package p
 	func g(ks ...*int) *int {
- 		return ks[0]
+		return ks[0]
 	}
 	func f(a *int, b *int) *int {
- 		return g(a, b)
+		return g(a, b)
 	}
 	`
 	/*
@@ -891,11 +1041,16 @@ func TestVariadicCall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{f.a,f.t4,g.t1}: [], {f.b}: [], " +
-		"{f.t0,f.t3,g.ks}: [0->g.t0, 1->f.t2], " +
-		"{f.t1,g.t0}: --> g.t1, {f.t2}: --> f.b"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := map[string]string{
+		"{f.a,f.t4,g.t1}":  "[]",
+		"{f.b}":            "[]",
+		"{f.t0,f.t3,g.ks}": "[0->g.t0, 1->f.t2]",
+		"{f.t1,g.t0}":      "--> g.t1",
+		"{f.t2}":           "--> f.b",
+	}
+	wantstr := partitionItemsToString(want)
+	if got := state.String(); got != wantstr {
+		t.Errorf("got: %s\n want: %s", got, wantstr)
 	}
 }
 
@@ -938,10 +1093,21 @@ func TestMethodInvoke(t *testing.T) {
 	}
 	// T1.f.x and g.x are unified due to calling f().
 	// There are two separate f.arg0s w.r.t. T1.f and T2.f respectively.
-	want := "{*g.t2}: [T1->g.t0], {f.arg0}: [], {f.arg0}: [], {f.t0}: [], " +
-		"{f.t1}: [], {f.t2}: [], {f.x,g.x}: [], {f.x}: [], {g.t0}: --> g.t1," +
-		" {g.t1}: [], {g.t2}: --> *g.t2"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := map[string]string{
+		"{T1:f.arg0}":  "[]",
+		"{T1:f.x,g.x}": "[]",
+		"{T2:f.arg0}":  "[]",
+		"{T2:f.t0}":    "[]",
+		"{T2:f.t1}":    "[]",
+		"{T2:f.t2}":    "[]",
+		"{T2:f.x}":     "[]",
+		"{g.t0}":       "--> g.t1",
+		"{g.t1}":       "[]",
+		"{g.t2}":       "--> *g.t2",
+		"{*g.t2}":      "[T1->g.t0]",
+	}
+	wantstr := partitionItemsToString(want)
+	if got := state.String(); got != wantstr {
+		t.Errorf("\n  got: %s\n want: %s", got, wantstr)
 	}
 }

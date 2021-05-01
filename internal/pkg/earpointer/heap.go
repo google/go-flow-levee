@@ -55,8 +55,14 @@ func (l Local) Value() ssa.Value {
 
 func (l Local) String() string {
 	reg := l.reg
-	if p := reg.Parent(); p != nil {
-		return l.context.String() + p.Name() + "." + reg.Name()
+	if f := reg.Parent(); f != nil {
+		fstr := f.Name()
+		if recv := f.Signature.Recv(); recv != nil {
+			if named, ok := recv.Type().(*types.Named); ok {
+				fstr = named.Obj().Name() + ":" + fstr
+			}
+		}
+		return l.context.String() + fstr + "." + reg.Name()
 	}
 	return l.context.String() + reg.Name()
 }
