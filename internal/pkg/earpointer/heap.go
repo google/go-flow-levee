@@ -56,13 +56,13 @@ func (l Local) Value() ssa.Value {
 func (l Local) String() string {
 	reg := l.reg
 	if f := reg.Parent(); f != nil {
-		fstr := f.Name()
 		if recv := f.Signature.Recv(); recv != nil {
 			if named, ok := recv.Type().(*types.Named); ok {
-				fstr = named.Obj().Name() + ":" + fstr
+				return fmt.Sprintf("%s%s:%s.%s",
+					l.context, named.Obj().Name(), f.Name(), reg.Name())
 			}
 		}
-		return l.context.String() + fstr + "." + reg.Name()
+		return fmt.Sprintf("%s%s.%s", l.context, f.Name(), reg.Name())
 	}
 	return l.context.String() + reg.Name()
 }

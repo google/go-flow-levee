@@ -52,8 +52,11 @@ type visitor struct {
 func run(pass *analysis.Pass) (interface{}, error) {
 	ssainput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	vis := visitor{state: NewState(), contexts: []*Context{&emptyContext}}
-	vis.initReferences(ssainput)
-	for _, fn := range ssainput.SrcFuncs {
+	// Analyze all the functions and methods in the package,
+	// not just those in ssainput.ScrFuncs.
+	fns := make(map[*ssa.Function]bool) // storing all the functions and methods
+	vis.initReferences(ssainput, fns)
+	for fn := range fns {
 		for _, blk := range fn.Blocks {
 			for _, i := range blk.Instrs {
 				vis.visitInstruction(i)
@@ -64,7 +67,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 }
 
 // Insert into the state all the local references and global references.
-func (vis *visitor) initReferences(ssainput *buildssa.SSA) {
+// Argument "fns" stores the functions and methods found during this process.
+func (vis *visitor) initReferences(ssainput *buildssa.SSA, fns map[*ssa.Function]bool) {
 	state := vis.state
 	prog := ssainput.Pkg.Prog
 	for _, member := range ssainput.Pkg.Members {
@@ -75,11 +79,11 @@ func (vis *visitor) initReferences(ssainput *buildssa.SSA) {
 				state.Insert(MakeGlobal(m))
 			}
 		case *ssa.Function:
-			vis.initFunction(m)
+			vis.initFunction(m, fns)
 		case *ssa.Type:
 			for _, meth := range typeutil.IntuitiveMethodSet(m.Type(), &prog.MethodSets) {
 				if mv := prog.MethodValue(meth); mv != nil {
-					vis.initFunction(mv)
+					vis.initFunction(mv, fns)
 				}
 			}
 		case *ssa.NamedConst:
@@ -88,7 +92,8 @@ func (vis *visitor) initReferences(ssainput *buildssa.SSA) {
 	}
 }
 
-func (vis *visitor) initFunction(fn *ssa.Function) {
+func (vis *visitor) initFunction(fn *ssa.Function, fns map[*ssa.Function]bool) {
+	fns[fn] = true
 	state := vis.state
 	for _, param := range fn.Params {
 		if typeMayShareObject(param.Type()) {
@@ -124,7 +129,7 @@ func (vis *visitor) initFunction(fn *ssa.Function) {
 	}
 	// Recursively process the embedded functions
 	for _, anon := range fn.AnonFuncs {
-		vis.initFunction(anon)
+		vis.initFunction(anon, fns)
 	}
 }
 
@@ -358,8 +363,11 @@ func (vis *visitor) visitCall(call *ssa.CallCommon, instr ssa.Instruction) {
 	// Collect unification constraints
 	// Here only static calls are supported.
 	// A future extension is to use a more advanced call graph.
-	paramCstrs, retCstrs :=
-		vis.collectCalleeConstraints(call, call.StaticCallee(), instr)
+	fn := call.StaticCallee()
+	if fn == nil {
+		return
+	}
+	paramCstrs, retCstrs := vis.collectCalleeConstraints(call, fn, instr)
 	// Unify caller arguments and callee parameters with suitable context.
 	for arg, params := range paramCstrs {
 		for _, param := range params {
