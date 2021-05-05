@@ -16,8 +16,11 @@ package earpointer_test
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-flow-levee/internal/pkg/earpointer"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
@@ -47,6 +50,16 @@ func runCode(code string) (*earpointer.Partitions, error) {
 	return partitions.(*earpointer.Partitions), nil
 }
 
+// Concatenates the "members -> fields" map items into a string.
+func concat(m map[string]string) string {
+	var pstrs []string
+	for k, v := range m {
+		pstrs = append(pstrs, k+": "+v)
+	}
+	sort.Strings(pstrs)
+	return strings.Join(pstrs, ", ")
+}
+
 func TestFieldAddr(t *testing.T) {
 	code := `package p
 	type T struct { x *int; y *int }
@@ -65,9 +78,14 @@ func TestFieldAddr(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{*f.a}: [x->f.t0], {f.a}: --> *f.a, {f.b}: [], {f.t0}: --> f.b"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := concat(map[string]string{
+		"{f.a}":  "--> *f.a",
+		"{*f.a}": "[x->f.t0]",
+		"{f.t0}": "--> f.b",
+		"{f.b}":  "[]",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
 	}
 }
 
@@ -92,9 +110,14 @@ func TestFieldAddr2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{*f.a}: [x->f.t1], {f.a}: --> *f.a, {f.b,f.c}: [], {f.t0,f.t1}: --> f.c"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := concat(map[string]string{
+		"{f.a}":       "--> *f.a",
+		"{*f.a}":      "[x->f.t1]",
+		"{f.t0,f.t1}": "--> f.c",
+		"{f.b,f.c}":   "[]",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
 	}
 }
 
@@ -120,9 +143,16 @@ func TestField(t *testing.T) {
 		t.Fatal(err)
 	}
 	// t2's field x points to t3
-	want := "{*f.t0}: [x->f.t1], {f.a}: [], {f.t0}: --> *f.t0, {f.t1}: --> f.a, {f.t2[.],f.t3}: --> f.a, {f.t2}: [x->f.t3]"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := concat(map[string]string{
+		"{f.t0}":         "--> *f.t0",
+		"{*f.t0}":        "[x->f.t1]",
+		"{f.t1}":         "--> f.a",
+		"{f.a}":          "[]",
+		"{f.t2}":         "[x->f.t3]",
+		"{f.t2[.],f.t3}": "--> f.a",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
 	}
 }
 
@@ -149,9 +179,17 @@ func TestEmbeddedField(t *testing.T) {
 	}
 	// t3 is not unified with t2.t since they are structs.
 	// f.t2 has a field t pointing to a synthetic reference t2[.].
-	want := "{*f.t0}: [t->f.t1], {f.i}: [], {f.t0}: --> *f.t0, {f.t1}: [], {f.t2[.]}: [], {f.t2}: [t->f.t2[.]], {f.t3}: []"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := concat(map[string]string{
+		"{f.i}":     "[]",
+		"{f.t0}":    "--> *f.t0",
+		"{*f.t0}":   "[t->f.t1]",
+		"{f.t1}":    "[]",
+		"{f.t2}":    "[t->f.t2[.]]",
+		"{f.t2[.]}": "[]",
+		"{f.t3}":    "[]",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
 	}
 }
 
@@ -188,18 +226,40 @@ func TestStructCopy(t *testing.T) { // mainly for coverage test
 		t.Fatal(err)
 	}
 	// TODO: there is a non-determinism (f.t3 --> f.i or f.j) that depends on the order of the unification.
-	want1 := "{f.i,f.j}: [], {f.t0}: --> f.v1, {f.t1}: --> f.v2, {f.t2}: --> f.i, {f.t3}: --> f.i, {f.t4}: --> f.i, {f.t5[.]}: --> f.i, " +
-		"{f.t5}: [x->f.t5[.], y->f.t5[.]], {f.v1}: [x->f.t2, y->f.t3], {f.v2[.]}: --> f.i, {f.v2}: [x->f.t4, y->f.v2[.]]"
-	want2 := "{f.i,f.j}: [], {f.t0}: --> f.v1, {f.t1}: --> f.v2, {f.t2}: --> f.j, {f.t3}: --> f.j, {f.t4}: --> f.j, {f.t5[.]}: --> f.j, " +
-		"{f.t5}: [x->f.t5[.], y->f.t5[.]], {f.v1}: [x->f.t2, y->f.t3], {f.v2[.]}: --> f.j, {f.v2}: [x->f.t4, y->f.v2[.]]"
+	want1 := concat(map[string]string{
+		"{f.i,f.j}": "[]",
+		"{f.t0}":    "--> f.v1",
+		"{f.t1}":    "--> f.v2",
+		"{f.t2}":    "--> f.i",
+		"{f.t3}":    "--> f.i",
+		"{f.t4}":    "--> f.i",
+		"{f.t5}":    "[x->f.t5[.], y->f.t5[.]]",
+		"{f.t5[.]}": "--> f.i",
+		"{f.v1}":    "[x->f.t2, y->f.t3]",
+		"{f.v2}":    "[x->f.t4, y->f.v2[.]]",
+		"{f.v2[.]}": "--> f.i",
+	})
+	want2 := concat(map[string]string{
+		"{f.i,f.j}": "[]",
+		"{f.t0}":    "--> f.v1",
+		"{f.t1}":    "--> f.v2",
+		"{f.t2}":    "--> f.j",
+		"{f.t3}":    "--> f.j",
+		"{f.t4}":    "--> f.j",
+		"{f.t5}":    "[x->f.t5[.], y->f.t5[.]]",
+		"{f.t5[.]}": "--> f.j",
+		"{f.v1}":    "[x->f.t2, y->f.t3]",
+		"{f.v2}":    "[x->f.t4, y->f.v2[.]]",
+		"{f.v2[.]}": "--> f.j",
+	})
 	if got := state.String(); got != want1 && got != want2 {
-		t.Errorf("got: %s\n want: %s or %s", got, want1, want2)
+		t.Errorf("got: %s\n want: %s\n or\n %s", got, want1, want2)
 	}
 }
 
 func TestEmbeddedFieldClone(t *testing.T) {
 	code := `package p
-  	type T1 struct { x *int}
+	type T1 struct { x *int}
 	type T2 struct { x T1 }
 	func f(i T1, v1, v2 T2) {
 		v2.x = i
@@ -226,10 +286,21 @@ func TestEmbeddedFieldClone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{f.i}: [], {f.t0}: --> f.i, {f.t1}: --> f.v1, {f.t2}: --> f.v2, {f.t3}: --> f.t4, {f.t4}: [], " +
-		"{f.t5[.]}: [], {f.t5}: [x->f.t5[.]], {f.v1[.]}: [], {f.v1}: [x->f.v1[.]], {f.v2}: [x->f.t3]"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := concat(map[string]string{
+		"{f.i}":     "[]",
+		"{f.t0}":    "--> f.i",
+		"{f.t1}":    "--> f.v1",
+		"{f.t2}":    "--> f.v2",
+		"{f.t3}":    "--> f.t4",
+		"{f.t4}":    "[]",
+		"{f.t5}":    "[x->f.t5[.]]",
+		"{f.t5[.]}": "[]",
+		"{f.v1}":    "[x->f.v1[.]]",
+		"{f.v1[.]}": "[]",
+		"{f.v2}":    "[x->f.t3]",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
 	}
 }
 
@@ -252,9 +323,15 @@ func TestIndexAddr(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{f.a}: [1->f.t0], {f.b}: [AnyField->f.t1], {f.t0}: --> f.t2, {f.t1}: --> f.t2, {f.t2}: []"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := concat(map[string]string{
+		"{f.a}":  "[1->f.t0]",
+		"{f.b}":  "[AnyField->f.t1]",
+		"{f.t0}": "--> f.t2",
+		"{f.t1}": "--> f.t2",
+		"{f.t2}": "[]",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
 	}
 }
 
@@ -279,9 +356,15 @@ func TestIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	// t2's field 0 points to t3
-	want := "{f.a}: [], {f.t0}: --> f.t2, {f.t1}: --> f.a, {f.t2}: [0->f.t3], {f.t3}: []"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := concat(map[string]string{
+		"{f.a}":  "[]",
+		"{f.t0}": "--> f.t2",
+		"{f.t1}": "--> f.a",
+		"{f.t2}": "[0->f.t3]",
+		"{f.t3}": "[]",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
 	}
 }
 
@@ -318,8 +401,8 @@ func TestPhi(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "{f.a,f.b,f.t1}: []"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
 	}
 }
 
@@ -348,10 +431,19 @@ func TestStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want :=
-		`{*f.a}: [x->f.t0, y->f.t2], {f.a}: --> *f.a, {f.b}: [10->f.t3], {f.t0}: --> f.t1, {f.t1}: [], {f.t2}: --> f.t4, {f.t3}: --> f.t4, {f.t4}: [], {t.z}: --> f.t1`
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := concat(map[string]string{
+		"{f.a}":  "--> *f.a",
+		"{*f.a}": "[x->f.t0, y->f.t2]",
+		"{f.b}":  "[10->f.t3]",
+		"{f.t0}": "--> f.t1",
+		"{f.t1}": "[]",
+		"{f.t2}": "--> f.t4",
+		"{f.t3}": "--> f.t4",
+		"{f.t4}": "[]",
+		"{z}":    "--> f.t1",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
 	}
 }
 
@@ -376,9 +468,14 @@ func TestDereference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{f.t0,f.t1}: [], {f.y}: --> f.t1, {f.z}: --> f.t1, {t.x}: --> f.t1`
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := concat(map[string]string{
+		"{f.t0,f.t1}": "[]",
+		"{f.y}":       "--> f.t1",
+		"{f.z}":       "--> f.t1",
+		"{x}":         "--> f.t1",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
 	}
 }
 
@@ -406,9 +503,14 @@ func TestMapAccess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{f.m}: [0->f.t0, 1->f.t2, AnyField->f.t2], {f.t0}: [], {f.t1,f.t2}: [], {t.t}: --> f.t0"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := concat(map[string]string{
+		"{f.m}":       "[0->f.t0, 1->f.t2, AnyField->f.t2]",
+		"{f.t1,f.t2}": "[]",
+		"{t}":         "--> f.t0",
+		"{f.t0}":      "[]",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
 	}
 }
 
@@ -433,9 +535,13 @@ func TestLookUp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{f.a}: [10->f.t1], {f.t1}: --> f.t3, {f.t3}: []"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := concat(map[string]string{
+		"{f.a}":  "[10->f.t1]",
+		"{f.t1}": "--> f.t3",
+		"{f.t3}": "[]",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
 	}
 }
 
@@ -450,8 +556,8 @@ func TestConvert(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "{f.a,f.t0}: []"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
 	}
 }
 
@@ -477,8 +583,8 @@ func TestTypeAssert(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "{f.a,f.t1,f.t3}: []"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
 	}
 }
 
@@ -506,16 +612,20 @@ func TestChangeInterfaceOrType(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{f.a,f.t3}: [], {f.t0}: --> f.t1, {f.t1,f.t2}: []"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	want := concat(map[string]string{
+		"{f.a,f.t3}":  "[]",
+		"{f.t0}":      "--> f.t1",
+		"{f.t1,f.t2}": "[]",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
 	}
 }
 
 func TestBinOp(t *testing.T) {
 	code := `package p
 	func f(a, b string) {
-	_ = a + b
+		_ = a + b
 	}
 	`
 	state, err := runCode(code)
@@ -523,18 +633,18 @@ func TestBinOp(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "{f.a,f.b,f.t0}: []"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
 	}
 }
 
 func TestRange(t *testing.T) {
 	code := `package p
 	func f(a map[string]*int) {
-	for i, v := range a {
-		_ = i
-		_ = v
-	}
+		for i, v := range a {
+			_ = i
+			_ = v
+		}
 	}
 	`
 	/*
@@ -558,16 +668,16 @@ func TestRange(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "{f.a}: [AnyField->f.t4], {f.t3}: [], {f.t4}: []"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
 	}
 }
 
 func TestChannel(t *testing.T) {
 	code := `package p
 	func f(ch chan string, z string) {
-	ch <- z   // Send v to channel ch.
-	_ = <-ch  // Receive from ch.
+		ch <- z   // Send v to channel ch.
+		_ = <-ch  // Receive from ch.
 	}
 	`
 	state, err := runCode(code)
@@ -575,8 +685,8 @@ func TestChannel(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "{f.ch}: [AnyField->f.t0], {f.t0,f.z}: []"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
 	}
 }
 
@@ -601,8 +711,8 @@ func TestSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "{f.s}: [], {f.t0,f.t1,f.t2}: --> f.s"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
 	}
 }
 
@@ -617,21 +727,14 @@ func TestMakeInterface(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "{f.s,f.t0}: []"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
 	}
 }
 
 func TestUnimplemented(t *testing.T) {
 	code := `package p
 	func f() {
-		defer func() {
-			print("defer")
-		}()
-		go func() {
-			print("go")
-		}()
-
 		c1 := make(chan string)
 		c2 := make(chan string)
 		select {
@@ -647,7 +750,379 @@ func TestUnimplemented(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "{f.t0}: [], {f.t1}: [], {f.t5}: [], {f.t9}: []"
-	if got := state.String(); got != want {
-		t.Errorf("got: %s\n want: %s", got, want)
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
+	}
+}
+
+func TestSimpleCall(t *testing.T) {
+	code := `package p
+	func f(x *int, y *int) *int {
+		return g(x, nil)
+	}
+	func g(a *int, b *int) *int {
+		return a
+	}
+	`
+	/*
+		func f(x *int, y *int) *int:
+		0:                                             entry P:0 S:0
+			t0 = g(x, nil:*int)                        *int
+			return t0
+
+		func g(a *int, b *int) *int:
+		0:                                             entry P:0 S:0
+			return a
+	*/
+	state, err := runCode(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// f.x and g.a are unified due to argument passing;
+	// f.t0 and g.a are unified due to g's return.
+	want := "{f.t0,f.x,g.a}: [], {f.y}: [], {g.b}: []"
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
+	}
+}
+
+func TestCallWithTupleReturn(t *testing.T) {
+	code := `package p
+	type T struct { }
+	var x T
+	func f(a *T) *T {
+		t0,_ := g(a)
+		return t0
+	}
+	func g(a *T) (*T,T) {
+		return a, x
+	}
+	`
+	/*
+		func f(a *T) *T:
+		0:                                               entry P:0 S:0
+			t0 = g(a)                                    (*T, T)
+			t1 = extract t0 #0                           *T
+			t2 = extract t0 #1                           T
+			return t1
+
+		func g(a *T) (*T, T):
+		0:                                               entry P:0 S:0
+			t0 = *x                                      T
+			return a, t0
+	*/
+	state, err := runCode(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// f.a and g.a are unified due to the call;
+	// f.t1 and g.a are unified due to the return of this call.
+	// Here (f.t1, f.t2) == f.t0 == (g.a, g.t0).
+	// Note that g.t0 and f.t2 are not unified because they are structs.
+	want := concat(map[string]string{
+		"{f.t0}":         "[0->f.t1]",
+		"{f.a,f.t1,g.a}": "[]",
+		"{f.t2}":         "[]",
+		"{x}":            "--> g.t0",
+		"{g.t0}":         "[]",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
+	}
+}
+
+func TestClosureCall(t *testing.T) {
+	code := `package p
+	func f(i, j int) {
+		g := func() (*int,*int, int) {
+			return &i, &j, 10
+		}
+		_,_,_ = g()
+	}
+	`
+	/*
+		func f(i int, j int):
+		0:                                               entry P:0 S:0
+			t0 = new int (i)                             *int
+			*t0 = i
+			t1 = new int (j)                             *int
+			*t1 = j
+			t2 = make closure f$1 [t0, t1]               func() (*int, *int)
+			t3 = t2()                                    (*int, *int)
+			t4 = extract t3 #0                           *int
+			t5 = extract t3 #1                           *int
+			t6 = extract t3 #2                           int
+			return
+	*/
+	state, err := runCode(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Free variable f$1.i is unified with f.t0 due to argument passing,
+	// and with f.t4 due to the return of the closure function.
+	want := concat(map[string]string{
+		"{f$1.i,f.t0,f.t4}": "[]",
+		"{f$1.j,f.t1,f.t5}": "[]",
+		"{f.t2}":            "[]",
+		"{f.t3}":            "[0->f.t4, 1->f.t5]",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
+	}
+}
+
+func TestRecursiveCall(t *testing.T) {
+	code := `package p
+	func f(i int, y *int) *int {
+		if i > 10 {
+			y = nil
+		}
+		return f(i-1, y)
+	}
+	`
+	/*
+		func f(i int, y *int) *int:
+		0:                                       entry P:0 S:2
+			t0 = i > 10:int                      bool
+			if t0 goto 1 else 2
+		1:                                       if.then P:1 S:1
+			jump 2
+		2:                                       if.done P:2 S:0
+			t1 = phi [0: y, 1: nil:*int] #y      *int
+			t2 = i - 1:int                       int
+			t3 = f(t2, t1)                       *int
+			return t3
+	*/
+	state, err := runCode(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "{f.t1,f.y}: [], {f.t3}: []"
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
+	}
+}
+
+func TestMethod(t *testing.T) {
+	code := `package p
+	type A struct {}
+	func (a A) g(x *int) *int {
+		return x
+	}
+	func f(x *int, a *A) *int {
+		return a.g(x)
+	}
+	`
+	/*
+		func (a A) g(x *int) *int:
+			0:                                          entry P:0 S:0
+				t0 = local A (a)                        *A
+				*t0 = a
+				return x
+		func (a *t.A) g(x *int) *int:
+		0:                                              entry P:0 S:0
+			t0 = ssa:wrapnilchk(a, "t.A":string, "g":string)
+			t1 = *t0                                    t.A
+			t2 = (t.A).g(t1, x)                         *int
+			return t2
+
+		func f(x *int, a *A) *int:
+			0:                                          entry P:0 S:0
+				t0 = *a                                 A
+				t1 = (A).g(t0, x)                       *int
+				return t1
+	*/
+	state, err := runCode(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// f.t1, f.x and g.x are unified due to calling g().
+	// Note g.a is a struct receiver that won't be unified.
+	want := concat(map[string]string{
+		"{f.a}":                           "--> f.t0",
+		"{f.t0}":                          "[]",
+		"{*A:g.t2,*A:g.x,A:g.x,f.t1,f.x}": "[]",
+		"{A:g.a}":                         "[]",
+		"{A:g.t0}":                        "--> A:g.a",
+		"{*A:g.a}":                        "[]",
+		"{*A:g.t0}":                       "--> *A:g.t1",
+		"{*A:g.t1}":                       "[]",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
+	}
+}
+
+func TestGoDefer(t *testing.T) {
+	code := `package p
+	func g(i *int) {
+		go func() {
+			print(*i)
+		}()
+		defer func(k *int) {
+			print(*k)
+		}(i)
+	}
+	`
+	/*
+		func g(i *int):
+		0:                                       entry P:0 S:0
+			t0 = new *int (i)                    **int
+			*t0 = i
+			t1 = make closure g$1 [t0]           func()
+			go t1()
+			t2 = *t0                             *int
+			defer g$2(t2)
+			rundefers
+			return
+		1:                                       recover P:0 S:0
+			return
+	*/
+	state, err := runCode(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Free variable g$1.i is unified with g.t0 due to closure binding;
+	// Arguments g$2.k and g.i are unified due to the defer call.
+	want := concat(map[string]string{
+		"{g$1.i,g.t0}":            "--> g$2.k",
+		"{g$1.t0,g$2.k,g.i,g.t2}": "[]",
+		"{g.t1}":                  "[]",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
+	}
+}
+
+func TestCallBuiltin(t *testing.T) {
+	code := `package p
+	func f(s []*int, x *int, d1 []*int) {
+		d2 := append(s, x)
+		copy(d1, s)
+		print(d1, d2)
+	}
+	`
+	/*
+		func f(s []*int, x *int, d1 []*int):
+		0:                                             entry P:0 S:0
+			t0 = new [1]*int (varargs)                 *[1]*int
+			t1 = &t0[0:int]                            **int
+			*t1 = x
+			t2 = slice t0[:]                           []*int
+			t3 = append(s, t2...)                      []*int
+			t4 = copy(d1, s)                           int
+			t5 = print(d1, t3)                         ()
+			return
+	*/
+	state, err := runCode(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// f.s and f.d1 are separate due to the "copy".
+	// f.d1 contains a field pointing at f.x due to the "copy".
+	// f.s, f.t2 and f.r3 ("d2") are unified due to the "append".
+	want := concat(map[string]string{
+		"{f.d1[.],f.t1}":       "--> f.x",
+		"{f.d1}":               "[0->f.t1]",
+		"{f.s,f.t0,f.t2,f.t3}": "[0->f.t1]",
+		"{f.x}":                "[]",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
+	}
+}
+
+func TestVariadicCall(t *testing.T) {
+	code := `package p
+	func g(ks ...*int) *int {
+		return ks[0]
+	}
+	func f(a *int, b *int) *int {
+		return g(a, b)
+	}
+	`
+	/*
+		func f(a *int, b *int) *int:
+		0:                                                     entry P:0 S:0
+			t0 = new [2]*int (varargs)                         *[2]*int
+			t1 = &t0[0:int]                                    **int
+			*t1 = a
+			t2 = &t0[1:int]                                    **int
+			*t2 = b
+			t3 = slice t0[:]                                   []*int
+			t4 = g(t3...)                                      *int
+			return t4
+
+		func g(ks ...*int) *int:
+		0:                                                     entry P:0 S:0
+			t0 = &ks[0:int]                                    **int
+			t1 = *t0                                           *int
+			return t1
+	*/
+	state, err := runCode(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := concat(map[string]string{
+		"{f.a,f.t4,g.t1}":  "[]",
+		"{f.b}":            "[]",
+		"{f.t0,f.t3,g.ks}": "[0->g.t0, 1->f.t2]",
+		"{f.t1,g.t0}":      "--> g.t1",
+		"{f.t2}":           "--> f.b",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
+	}
+}
+
+func TestMethodInvoke(t *testing.T) {
+	code := `package p
+	type T1 struct {}
+	func (*T1) f(x *int) {}
+
+	type T2 struct {
+		T1
+	}
+	func g(x2 *T2, x *int) {
+		x2.f(x)
+	}
+	`
+	/*
+		func (arg0 (T1) f(x *int):
+		0:                                          entry P:0 S:0
+				return
+
+		func (arg0 *t.T2) f(x *int):
+		0:                                          entry P:0 S:0
+			t0 = &arg0.T1 [#0]                      *t.T1
+			t1 = (*t.T1).f(t0, x)                   ()
+			return
+
+		func g(x2 *T2, x *int):
+		0:                                      	entry P:0 S:0
+			t0 = &x2.T1 [#0]                        *T1
+			t1 = (*T1).f(t0, x)                     ()
+			return
+	*/
+	state, err := runCode(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// *T1.f.x and g.x are unified due to calling f().
+	// There are two separate f.arg0s w.r.t. T1.f and T2.f respectively.
+	// Note that in "**T2", the first "*" is the synthesized ValueOf operator,
+	// and "*T2" is the receiver type.
+	want := concat(map[string]string{
+		"{**T2:f.arg0}":         "[T1->*T2:f.t0]",
+		"{*T1:f.arg0}":          "[]",
+		"{*T1:f.x,*T2:f.x,g.x}": "[]",
+		"{*T2:f.arg0}":          "--> **T2:f.arg0",
+		"{*T2:f.t0}":            "[]",
+		"{g.t0}":                "[]",
+		"{g.x2}":                "--> *g.x2",
+		"{*g.x2}":               "[T1->g.t0]",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
 	}
 }

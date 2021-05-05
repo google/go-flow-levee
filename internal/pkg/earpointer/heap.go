@@ -54,9 +54,25 @@ func (l Local) Value() ssa.Value {
 }
 
 func (l Local) String() string {
+	// Customize the printing of a value of pointer receiver.
+	printReceiverType := func(t types.Type) string {
+		switch t := t.(type) {
+		case *types.Named:
+			return t.Obj().Name()
+		case *types.Pointer:
+			if et, ok := t.Elem().(*types.Named); ok {
+				return "*" + et.Obj().Name()
+			}
+		}
+		return ""
+	}
 	reg := l.reg
-	if p := reg.Parent(); p != nil {
-		return l.context.String() + p.Name() + "." + reg.Name()
+	if f := reg.Parent(); f != nil {
+		if recv := f.Signature.Recv(); recv != nil {
+			return fmt.Sprintf("%s%s:%s.%s",
+				l.context, printReceiverType(recv.Type()), f.Name(), reg.Name())
+		}
+		return fmt.Sprintf("%s%s.%s", l.context, f.Name(), reg.Name())
 	}
 	return l.context.String() + reg.Name()
 }
@@ -76,7 +92,7 @@ func (g Global) Value() ssa.Value {
 }
 
 func (g Global) String() string {
-	return g.global.String()
+	return g.global.Name()
 }
 
 type SyntheticKind int
@@ -116,8 +132,7 @@ func (s Synthetic) String() string {
 // Field can be (1) a struct field linked to an IR field (Var);
 // (2) or one with a name but not linked to any IR element (irField = nil).
 type Field struct {
-	Name string
-	//lint:ignore U1000 ignore dead code for now
+	Name    string
 	irField *types.Var
 }
 
@@ -126,7 +141,6 @@ type Field struct {
 // T is a struct type. The contents of the array/slice, namely x[i], is
 // over-approximated as the heap partition pointed-to by a pseudo-field named
 // anyIndexField.
-//lint:ignore U1000 ignore dead code for now
 var anyIndexField Field = Field{Name: "AnyField"}
 
 // A pseudo-field to denote the direct points-to relation. For example, r1 = &r0
@@ -174,7 +188,6 @@ func MakeSynthetic(kind SyntheticKind, ref Reference) Synthetic {
 // values. It is used for identifying copy-by-reference objects. For example, it
 // returns false for any integer type, and returns true for pointer type and
 // struct type.
-//lint:ignore U1000 ignore dead code for now
 func typeMayShareObject(tp types.Type) bool {
 	switch tp := tp.(type) {
 	case *types.Pointer,

@@ -77,13 +77,13 @@ func TestBasic(t *testing.T) {
 		state.Insert(r)
 	}
 
-	want := "{t.g1}: [], {t.g2}: [], {t.g3}: []"
+	want := "{g1}: [], {g2}: [], {g3}: []"
 	if got := state.String(); got != want {
 		t.Errorf("initial:\n got: %s\n want: %s", got, want)
 	}
 
 	state.Unify(refs["g1"], refs["g2"])
-	want = "{t.g1,t.g2}: [], {t.g3}: []"
+	want = "{g1,g2}: [], {g3}: []"
 	if got := state.String(); got != want {
 		t.Errorf("after unifying g1 and g2:\n got: %s\n want: %s", got, want)
 	}
@@ -106,10 +106,10 @@ func TestBasic(t *testing.T) {
 	}
 	mstrs := []string{members[0].String(), members[1].String()}
 	sort.Strings(mstrs)
-	if mstrs[0] != "t.g1" || mstrs[1] != "t.g2" {
-		t.Errorf("g1's partition should contain [t.g1, t.g2]")
+	if mstrs[0] != "g1" || mstrs[1] != "g2" {
+		t.Errorf("g1's partition should contain [g1, g2]")
 	}
-	want = "{t.g1,t.g2}: [], {t.g3}: []"
+	want = "{g1,g2}: [], {g3}: []"
 	if got := partitions.String(); got != want {
 		t.Errorf("after unifying g1 and g2:\n got: %s\n want: %s", got, want)
 	}
@@ -144,7 +144,7 @@ func TestGlobalField(t *testing.T) {
 
 	fm1 := state.PartitionFieldMap(refs["g1"])
 	fm1[earpointer.Field{Name: "x"}] = refs["g3"]
-	want := "{t.g1}: [x->t.g3], {t.g2}: [], {t.g3}: [], {t.g4}: []"
+	want := "{g1}: [x->g3], {g2}: [], {g3}: [], {g4}: []"
 	if got := state.String(); got != want {
 		t.Errorf("initial:\n got: %s\n want: %s", got, want)
 	}
@@ -155,14 +155,14 @@ func TestGlobalField(t *testing.T) {
 	fm4 := state.PartitionFieldMap(refs["g4"])
 	fm4[earpointer.Field{Name: "y"}] = refs["g2"]
 	state.Unify(refs["g3"], refs["g4"])
-	want = "{t.g1,t.g2}: [x->t.g3], {t.g3,t.g4}: [y->t.g2]"
+	want = "{g1,g2}: [x->g3], {g3,g4}: [y->g2]"
 	if got := state.String(); got != want {
 		t.Errorf("after unifying g3 and g4:\n got: %s\n want: %s", got, want)
 	}
 
 	// Test the Partitions.
 	partitions := state.ToPartitions()
-	want = "{t.g1,t.g2}: [x->t.g4], {t.g3,t.g4}: [y->t.g2]"
+	want = "{g1,g2}: [x->g4], {g3,g4}: [y->g2]"
 	if got := partitions.String(); got != want {
 		t.Errorf("partitions:\n got: %s\n want: %s", got, want)
 	}
@@ -239,7 +239,7 @@ func TestSyntheticReference(t *testing.T) {
 	if i1 != i2 {
 		t.Errorf("[%s] != [%s]", i1, i2)
 	}
-	want := "*t.g1"
+	want := "*g1"
 	if got := i1.String(); got != want {
 		t.Errorf("String():\n got: %s\n want: %s", got, want)
 	}
@@ -248,7 +248,7 @@ func TestSyntheticReference(t *testing.T) {
 	if i1 == i3 {
 		t.Errorf("[%s] == [%s]", i1, i3)
 	}
-	want = "t.g1[.]"
+	want = "g1[.]"
 	if got := i3.String(); got != want {
 		t.Errorf("String():\n got: %s\n want: %s", got, want)
 	}
