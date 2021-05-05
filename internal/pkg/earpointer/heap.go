@@ -54,13 +54,23 @@ func (l Local) Value() ssa.Value {
 }
 
 func (l Local) String() string {
+	// Customize the printing of a value of pointer receiver.
+	printReceiverType := func(t types.Type) string {
+		switch t := t.(type) {
+		case *types.Named:
+			return t.Obj().Name()
+		case *types.Pointer:
+			if et, ok := t.Elem().(*types.Named); ok {
+				return "*" + et.Obj().Name()
+			}
+		}
+		return ""
+	}
 	reg := l.reg
 	if f := reg.Parent(); f != nil {
 		if recv := f.Signature.Recv(); recv != nil {
-			if named, ok := recv.Type().(*types.Named); ok {
-				return fmt.Sprintf("%s%s:%s.%s",
-					l.context, named.Obj().Name(), f.Name(), reg.Name())
-			}
+			return fmt.Sprintf("%s%s:%s.%s",
+				l.context, printReceiverType(recv.Type()), f.Name(), reg.Name())
 		}
 		return fmt.Sprintf("%s%s.%s", l.context, f.Name(), reg.Name())
 	}

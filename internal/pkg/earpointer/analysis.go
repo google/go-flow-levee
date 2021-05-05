@@ -22,12 +22,13 @@ import (
 	"strconv"
 	"strings"
 
+	"golang.org/x/tools/go/ssa/ssautil"
+
 	"github.com/google/go-flow-levee/internal/pkg/config"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
-	"golang.org/x/tools/go/types/typeutil"
 )
 
 // Analyzer traverses the packages and constructs an EAR partitions
@@ -52,10 +53,13 @@ type visitor struct {
 func run(pass *analysis.Pass) (interface{}, error) {
 	ssainput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	vis := visitor{state: NewState(), contexts: []*Context{&emptyContext}}
+	vis.initGlobalReferences(ssainput)
 	// Analyze all the functions and methods in the package,
 	// not just those in ssainput.ScrFuncs.
-	fns := make(map[*ssa.Function]bool) // storing all the functions and methods
-	vis.initReferences(ssainput, fns)
+	fns := ssautil.AllFunctions(ssainput.Pkg.Prog)
+	for fn := range fns {
+		vis.initFunction(fn)
+	}
 	for fn := range fns {
 		for _, blk := range fn.Blocks {
 			for _, i := range blk.Instrs {
@@ -66,34 +70,23 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return vis.state.ToPartitions(), nil
 }
 
-// Insert into the state all the local references and global references.
-// Argument "fns" stores the functions and methods found during this process.
-func (vis *visitor) initReferences(ssainput *buildssa.SSA, fns map[*ssa.Function]bool) {
+// Insert into the state all the global references.
+func (vis *visitor) initGlobalReferences(ssainput *buildssa.SSA) {
 	state := vis.state
-	prog := ssainput.Pkg.Prog
 	for _, member := range ssainput.Pkg.Members {
-		switch m := member.(type) {
-		case *ssa.Global:
-			if typeMayShareObject(m.Type()) &&
-				!strings.HasPrefix(m.Name(), "init$") { // skip some synthetic variables
-				state.Insert(MakeGlobal(m))
+		if g, ok := member.(*ssa.Global); ok {
+			if typeMayShareObject(g.Type()) &&
+				// skip some synthetic variables
+				!strings.HasPrefix(g.Name(), "init$") {
+				state.Insert(MakeGlobal(g))
 			}
-		case *ssa.Function:
-			vis.initFunction(m, fns)
-		case *ssa.Type:
-			for _, meth := range typeutil.IntuitiveMethodSet(m.Type(), &prog.MethodSets) {
-				if mv := prog.MethodValue(meth); mv != nil {
-					vis.initFunction(mv, fns)
-				}
-			}
-		case *ssa.NamedConst:
-			// Global constants are not within the scope of the pointer analysis.
 		}
+		// Global constants are not within the scope of the pointer analysis.
 	}
 }
 
-func (vis *visitor) initFunction(fn *ssa.Function, fns map[*ssa.Function]bool) {
-	fns[fn] = true
+// Insert into the state all the local references.
+func (vis *visitor) initFunction(fn *ssa.Function) {
 	state := vis.state
 	for _, param := range fn.Params {
 		if typeMayShareObject(param.Type()) {
@@ -129,7 +122,7 @@ func (vis *visitor) initFunction(fn *ssa.Function, fns map[*ssa.Function]bool) {
 	}
 	// Recursively process the embedded functions
 	for _, anon := range fn.AnonFuncs {
-		vis.initFunction(anon, fns)
+		vis.initFunction(anon)
 	}
 }
 

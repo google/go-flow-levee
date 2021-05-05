@@ -915,16 +915,22 @@ func TestMethod(t *testing.T) {
 	`
 	/*
 		func (a A) g(x *int) *int:
-		0:                                          entry P:0 S:0
-			t0 = local A (a)                        *A
-			*t0 = a
-			return x
+			0:                                          entry P:0 S:0
+				t0 = local A (a)                        *A
+				*t0 = a
+				return x
+		func (a *t.A) g(x *int) *int:
+		0:                                              entry P:0 S:0
+			t0 = ssa:wrapnilchk(a, "t.A":string, "g":string)
+			t1 = *t0                                    t.A
+			t2 = (t.A).g(t1, x)                         *int
+			return t2
 
 		func f(x *int, a *A) *int:
-		0:                                          entry P:0 S:0
-			t0 = *a                                 A
-			t1 = (A).g(t0, x)                       *int
-			return t1
+			0:                                          entry P:0 S:0
+				t0 = *a                                 A
+				t1 = (A).g(t0, x)                       *int
+				return t1
 	*/
 	state, err := runCode(code)
 	if err != nil {
@@ -933,11 +939,14 @@ func TestMethod(t *testing.T) {
 	// f.t1, f.x and g.x are unified due to calling g().
 	// Note g.a is a struct receiver that won't be unified.
 	want := concat(map[string]string{
-		"{f.a}":            "--> f.t0",
-		"{A:g.x,f.t1,f.x}": "[]",
-		"{A:g.a}":          "[]",
-		"{f.t0}":           "[]",
-		"{A:g.t0}":         "--> A:g.a",
+		"{f.a}":                           "--> f.t0",
+		"{f.t0}":                          "[]",
+		"{*A:g.t2,*A:g.x,A:g.x,f.t1,f.x}": "[]",
+		"{A:g.a}":                         "[]",
+		"{A:g.t0}":                        "--> A:g.a",
+		"{*A:g.a}":                        "[]",
+		"{*A:g.t0}":                       "--> *A:g.t1",
+		"{*A:g.t1}":                       "[]",
 	})
 	if diff := cmp.Diff(want, state.String()); diff != "" {
 		t.Errorf("diff (-want +got):\n%s", diff)
@@ -1069,7 +1078,7 @@ func TestVariadicCall(t *testing.T) {
 func TestMethodInvoke(t *testing.T) {
 	code := `package p
 	type T1 struct {}
-	func (T1) f(x *int) {}
+	func (*T1) f(x *int) {}
 
 	type T2 struct {
 		T1
@@ -1079,43 +1088,39 @@ func TestMethodInvoke(t *testing.T) {
 	}
 	`
 	/*
-		func (arg0 T1) f(x *int):
+		func (arg0 (T1) f(x *int):
 		0:                                          entry P:0 S:0
-			return
+				return
 
-		func (arg0 t.T2) f(x *int):
+		func (arg0 *t.T2) f(x *int):
 		0:                                          entry P:0 S:0
-			t0 = local t.T2 ()                      *t.T2
-			*t0 = arg0
-			t1 = &t0.T1 [#0]                        *t.T1
-			t2 = *t1                                t.T1
-			t3 = (t.T1).f(t2, x)                    ()
+			t0 = &arg0.T1 [#0]                      *t.T1
+			t1 = (*t.T1).f(t0, x)                   ()
 			return
 
 		func g(x2 *T2, x *int):
-		0:                                          entry P:0 S:0
+		0:                                      	entry P:0 S:0
 			t0 = &x2.T1 [#0]                        *T1
-			t1 = *t0                                T1
-			t2 = (T1).f(t1, x)                      ()
+			t1 = (*T1).f(t0, x)                     ()
 			return
 	*/
 	state, err := runCode(code)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// T1.f.x and g.x are unified due to calling f().
+	// *T1.f.x and g.x are unified due to calling f().
 	// There are two separate f.arg0s w.r.t. T1.f and T2.f respectively.
+	// Note that in "**T2", the first "*" is the synthesized ValueOf operator,
+	// and "*T2" is the receiver type.
 	want := concat(map[string]string{
-		"{T1:f.arg0}":         "[]",
-		"{T1:f.x,T2:f.x,g.x}": "[]",
-		"{T2:f.arg0}":         "[T1->T2:f.t1]",
-		"{T2:f.t0}":           "--> T2:f.arg0",
-		"{T2:f.t1}":           "--> T2:f.t2",
-		"{T2:f.t2}":           "[]",
-		"{g.t0}":              "--> g.t1",
-		"{g.t1}":              "[]",
-		"{g.x2}":              "--> *g.x2",
-		"{*g.x2}":             "[T1->g.t0]",
+		"{**T2:f.arg0}":         "[T1->*T2:f.t0]",
+		"{*T1:f.arg0}":          "[]",
+		"{*T1:f.x,*T2:f.x,g.x}": "[]",
+		"{*T2:f.arg0}":          "--> **T2:f.arg0",
+		"{*T2:f.t0}":            "[]",
+		"{g.t0}":                "[]",
+		"{g.x2}":                "--> *g.x2",
+		"{*g.x2}":               "[T1->g.t0]",
 	})
 	if diff := cmp.Diff(want, state.String()); diff != "" {
 		t.Errorf("diff (-want +got):\n%s", diff)
