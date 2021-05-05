@@ -22,14 +22,24 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/tools/go/ssa/ssautil"
-
 	"github.com/google/go-flow-levee/internal/pkg/config"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
+	"golang.org/x/tools/go/callgraph"
+	"golang.org/x/tools/go/callgraph/static"
 	"golang.org/x/tools/go/ssa"
+	"golang.org/x/tools/go/ssa/ssautil"
 )
+
+var (
+	contextK = 0 // the number of call sites in each context
+)
+
+func init() {
+	Analyzer.Flags.IntVar(&contextK, "contextK", 0,
+		`the K value (default=0) in context sensitivity. Currently only K=0 or K=1 are supported`)
+}
 
 // Analyzer traverses the packages and constructs an EAR partitions
 // unifying all the IR elements in these packages.
@@ -46,17 +56,30 @@ var Analyzer = &analysis.Analyzer{
 // for all reachable contexts for that function. Both the intra-procedural
 // instructions and inter-procedural instructions are handled.
 type visitor struct {
-	state    *state     // mutable state
-	contexts []*Context // for context sensitive analysis
+	state    *state                              // mutable state
+	contexts map[*ssa.Function][]*Context        // for context sensitive analysis
+	callees  map[*ssa.CallCommon][]*ssa.Function // callee functions at each callsite
+	contextK int
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	ssainput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
-	vis := visitor{state: NewState(), contexts: []*Context{&emptyContext}}
-	vis.initGlobalReferences(ssainput)
+	p := analyze(ssainput.Pkg)
+	return p, nil
+}
+
+// Analyzes an SSA program and build the partition information.
+func analyze(pkg *ssa.Package) *Partitions {
+	prog := pkg.Prog
+	// Use the call graph to initialize the contexts.
+	// TODO: the call graph can be CHA, VTA, etc.
+	cg := static.CallGraph(prog)
+	vis := visitor{state: NewState(), callees: mapCallees(cg), contextK: contextK}
+	vis.initContexts(cg)
+	vis.initGlobalReferences(pkg)
 	// Analyze all the functions and methods in the package,
 	// not just those in ssainput.ScrFuncs.
-	fns := ssautil.AllFunctions(ssainput.Pkg.Prog)
+	fns := ssautil.AllFunctions(prog)
 	for fn := range fns {
 		vis.initFunction(fn)
 	}
@@ -67,13 +90,46 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 	}
-	return vis.state.ToPartitions(), nil
+	return vis.state.ToPartitions()
+}
+
+// Builds the calling context set for each function.
+func (vis *visitor) initContexts(cg *callgraph.Graph) {
+	vis.contexts = make(map[*ssa.Function][]*Context)
+	for fn, node := range cg.Nodes {
+		if fn == nil {
+			continue
+		}
+		// For a function, create a context for each call site.
+		vis.contexts[fn] = collectContext(node, vis.contextK)
+	}
+}
+
+// Collect the contexts from the node backward up to k edges.
+func collectContext(node *callgraph.Node, k int) []*Context {
+	// This implementation can be optimized in two ways:
+	// (1) Reuse the k-1, k-2, ... contexts when calculating k so as to
+	//     avoid duplicate computations.
+	// (2) Make the contexts share memory since they may overlap a lot.
+	// However, in practice, we may use only k=0 or k=1 so the performance
+	// and memory consumption issue is not a concern.
+	if k <= 0 || len(node.In) == 0 {
+		return []*Context{&emptyContext}
+	}
+	var kContexts []*Context
+	for _, in := range node.In {
+		for _, prev := range collectContext(in.Caller, k-1) {
+			cur := append(*prev, in.Site)
+			kContexts = append(kContexts, &cur)
+		}
+	}
+	return kContexts
 }
 
 // Insert into the state all the global references.
-func (vis *visitor) initGlobalReferences(ssainput *buildssa.SSA) {
+func (vis *visitor) initGlobalReferences(pkg *ssa.Package) {
 	state := vis.state
-	for _, member := range ssainput.Pkg.Members {
+	for _, member := range pkg.Members {
 		if g, ok := member.(*ssa.Global); ok {
 			if typeMayShareObject(g.Type()) &&
 				// skip some synthetic variables
@@ -90,12 +146,16 @@ func (vis *visitor) initFunction(fn *ssa.Function) {
 	state := vis.state
 	for _, param := range fn.Params {
 		if typeMayShareObject(param.Type()) {
-			state.Insert(MakeLocal(&emptyContext, param))
+			for _, c := range vis.getContexts(param) {
+				state.Insert(MakeLocal(c, param))
+			}
 		}
 	}
 	for _, fv := range fn.FreeVars {
 		if typeMayShareObject(fv.Type()) {
-			state.Insert(MakeLocal(&emptyContext, fv))
+			for _, c := range vis.getContexts(fv) {
+				state.Insert(MakeLocal(c, fv))
+			}
 		}
 	}
 	// Usual tuple-type registers are skipped since they will be processed
@@ -115,7 +175,9 @@ func (vis *visitor) initFunction(fn *ssa.Function) {
 		for _, instr := range blk.Instrs {
 			if v, ok := instr.(ssa.Value); ok {
 				if returnTuple(v) || typeMayShareObject(v.Type()) {
-					state.Insert(MakeLocal(&emptyContext, v))
+					for _, c := range vis.getContexts(v) {
+						state.Insert(MakeLocal(c, v))
+					}
 				}
 			}
 		}
@@ -202,7 +264,7 @@ func (vis *visitor) visitFieldAddr(addr *ssa.FieldAddr) {
 	// "t1 = t0.x" is implemented by t0[x -> t1] through address unification.
 	obj := addr.X
 	field := makeField(obj.Type(), addr.Field)
-	for _, c := range vis.contexts {
+	for _, c := range vis.getContexts(addr) {
 		vis.unifyFieldAddress(c, obj, field, addr)
 	}
 }
@@ -346,45 +408,74 @@ func (vis *visitor) visitSelect(s *ssa.Select) {
 	// TODO: to be implemented.
 }
 
-func (vis *visitor) visitCall(call *ssa.CallCommon, instr ssa.Instruction) {
+func (vis *visitor) visitCall(call *ssa.CallCommon, callsite ssa.Instruction) {
 	if builtin, ok := call.Value.(*ssa.Builtin); ok {
 		// special handling of builtin functions
-		vis.visitBuiltin(builtin, instr)
+		vis.visitBuiltin(builtin, callsite)
 		return
 	}
 
 	// Collect unification constraints
-	// Here only static calls are supported.
-	// A future extension is to use a more advanced call graph.
-	fn := call.StaticCallee()
-	if fn == nil {
-		return
-	}
-	paramCstrs, retCstrs := vis.collectCalleeConstraints(call, fn, instr)
-	// Unify caller arguments and callee parameters with suitable context.
-	for arg, params := range paramCstrs {
-		for _, param := range params {
-			// The copy-by-value semantics is implemented by the SSA call.
-			// For example:
-			//   type S struct { ... }
-			//   var v S
-			//   g(v)
-			//   func g(a S) { ... }
-			// SSA creates a copy of v and passes it to g. Hence we directly
-			// unify this copy and g's argument "a".
-			if mayShareObject(arg) {
-				vis.unifyLocals(arg, param)
+	// Here only static calls are supported;
+	// an extension is to use a more advanced call graph.
+	for _, fn := range vis.callees[call] {
+		if fn == nil {
+			continue
+		}
+		paramCstrs, retCstrs := vis.collectCalleeConstraints(call, fn, callsite)
+		state := vis.state
+		// Unify the argument in the caller with the parameter in the callee.
+		contextSensitiveUnify := func(arg ssa.Value, param ssa.Value) {
+			// The caller may have multiple contexts,
+			// perform the unification for each context.
+			for _, c := range vis.getContexts(arg) {
+				// For each context of the callee, match it with the caller context
+				// plus the call site. Unify the caller' arg and the callee's param
+				// for each matched context.
+				// For example, assume K=1,
+				//   func f(x, y *T) {
+				//       g(x)
+				//       g(y)
+				//   }
+				//   func g(a *T) {}
+				// g() is called at contexts [g(x)] and [g(y)], so g.a is unified
+				// with f.x and f.y w.r.t. these contexts, resulting in two
+				// partitions {[g(x)]g.a, f,x} and {[g(y)]g.a, f,y}.
+				argCxt := append(*c, callsite)
+				argRef := MakeReference(c, arg)
+				for _, paramCxt := range vis.getContexts(param) {
+					if vis.contextKEqual(argCxt, *paramCxt) {
+						state.Unify(argRef, MakeReference(paramCxt, param))
+					}
+				}
 			}
 		}
-	}
-	// Handle return value unification.
-	for callerRet, rets := range retCstrs {
-		for _, calleeRet := range rets {
-			if len(calleeRet) == 1 { // non-tuple case
-				if mayShareObject(calleeRet[0]) {
-					vis.unifyLocals(callerRet, calleeRet[0])
+		// Unify caller arguments and callee parameters with suitable context.
+		for arg, params := range paramCstrs {
+			for _, param := range params {
+				// The copy-by-value semantics is implemented by the SSA call.
+				// For example:
+				//   type S struct { ... }
+				//   var v S
+				//   g(v)
+				//   func g(a S) { ... }
+				// SSA creates a copy of v and passes it to g. Hence we directly
+				// unify this copy and g's argument "a".
+				if mayShareObject(arg) {
+					contextSensitiveUnify(arg, param)
 				}
-			} else { // tuple case
+			}
+		}
+		// Handle return value unification.
+		for callerRet, rets := range retCstrs {
+			for _, calleeRet := range rets {
+				if len(calleeRet) == 1 { // non-tuple case
+					if mayShareObject(calleeRet[0]) {
+						contextSensitiveUnify(callerRet, calleeRet[0])
+					}
+					continue
+				}
+				// tuple case
 				// For call "return_r = f(...)", if the callee returns a tuple
 				// <r0, r1, ...>, then the i^{th} element in the tuple is
 				// connected to the caller's return_r by making
@@ -396,7 +487,15 @@ func (vis *visitor) visitCall(call *ssa.CallCommon, instr ssa.Instruction) {
 					}
 					// Implement "return_r[i] = r{i}".
 					field := Field{Name: strconv.Itoa(k)}
-					vis.processHeapAccess(retV, callerRet, field)
+					// unify instance field
+					for _, c := range vis.getContexts(callerRet) {
+						callerCxt := append(*c, callsite)
+						for _, calleeCxt := range vis.getContexts(retV) {
+							if vis.contextKEqual(callerCxt, *calleeCxt) {
+								vis.unifyField(c, callerRet, field, retV)
+							}
+						}
+					}
 				}
 			}
 		}
@@ -423,7 +522,7 @@ func (vis *visitor) visitBuiltin(builtin *ssa.Builtin, instr ssa.Instruction) {
 			// ops[0] is the "copy" function itself.
 			dst, src := *ops[1], *ops[2]
 			if mayShareObject(src) {
-				for _, c := range vis.contexts {
+				for _, c := range vis.getContexts(dst) {
 					vis.unifyByValue(MakeLocal(c, dst), MakeLocal(c, src))
 				}
 			}
@@ -454,12 +553,8 @@ func (vis *visitor) collectCalleeConstraints(common *ssa.CallCommon, fn *ssa.Fun
 	// results in {o1, o2, t}, while o1 and o2 should not be unified.
 	// So the receiver unification is disabled here, which may lead to under-approximation
 	// and FNs of the checkers.
-	// TODO: support context-sensitivity to mitigate this issue.
-	start := 0
-	if fn.Signature.Recv() != nil {
-		start = 1
-	}
-	for i := start; i < len(common.Args); i++ {
+	// Support context-sensitivity to mitigate this issue.
+	for i := 0; i < len(common.Args); i++ {
 		arg, param := common.Args[i], fn.Params[i]
 		if mayShareObject(arg) && typeMayShareObject(param.Type()) {
 			paramCstrs[arg] = append(paramCstrs[arg], param)
@@ -516,7 +611,7 @@ func (vis *visitor) processHeapAccess(data ssa.Value, base ssa.Value, fd Field) 
 		return
 	}
 	// unify instance field
-	for _, context := range vis.contexts {
+	for _, context := range vis.getContexts(base) {
 		vis.unifyField(context, base, fd, data)
 	}
 }
@@ -527,7 +622,7 @@ func (vis *visitor) processAddressToValue(addr ssa.Value, value ssa.Value) {
 		return
 	}
 	state := vis.state
-	for _, context := range vis.contexts {
+	for _, context := range vis.getContexts(addr) {
 		caddr := state.Insert(MakeReference(context, addr))
 		cvalue := state.Insert(MakeReference(context, value))
 		fmap := state.PartitionFieldMap(state.representative(caddr))
@@ -544,14 +639,14 @@ func (vis *visitor) processAddressToValue(addr ssa.Value, value ssa.Value) {
 	}
 }
 
-// Unify local regs "v1" and "v2" in all contexts.
-func (vis *visitor) unifyLocals(v1 ssa.Value, v2 ssa.Value) {
-	if !mayShareObject(v1) || !mayShareObject(v2) {
+// Unify local regs "u" and "v" in all contexts.
+func (vis *visitor) unifyLocals(u ssa.Value, v ssa.Value) {
+	if !mayShareObject(u) || !mayShareObject(v) {
 		return
 	}
 	state := vis.state
-	for _, context := range vis.contexts {
-		state.Unify(MakeReference(context, v1), MakeReference(context, v2))
+	for _, context := range vis.getContexts(u) {
+		state.Unify(MakeReference(context, u), MakeReference(context, v))
 	}
 }
 
@@ -745,6 +840,53 @@ func (vis *visitor) unifyByValue(ref1 Reference, ref2 Reference) {
 	for addr1, addr2 := range toUnified {
 		vis.unifyFields(addr1, addr2, addressable)
 	}
+}
+
+// Return all the calling contexts of the function to which a value belongs.
+func (vis *visitor) getContexts(v ssa.Value) []*Context {
+	if fn := v.Parent(); fn != nil {
+		if ctxs, ok := vis.contexts[fn]; ok {
+			return ctxs
+		}
+	}
+	// Otherwise return an empty context, e.g. for a Global.
+	return []*Context{&emptyContext}
+}
+
+// Return whether the last K sites of two contexts are equal.
+func (vis *visitor) contextKEqual(c1 Context, c2 Context) bool {
+	l1, l2 := len(c1), len(c2)
+	for i := 0; i < vis.contextK; i++ {
+		if i >= l1 || i >= l2 { // no more to compare
+			return true
+		}
+		if (c1)[l1-i-1] != (c2)[l2-i-1] {
+			return false
+		}
+	}
+	// All the last K sites in the two contexts match.
+	return true
+}
+
+// Maps a callsite to the set of candidate callee functions.
+func mapCallees(cg *callgraph.Graph) map[*ssa.CallCommon][]*ssa.Function {
+	callees := make(map[*ssa.CallCommon][]*ssa.Function)
+	for f, node := range cg.Nodes {
+		if f == nil {
+			continue
+		}
+		for _, in := range node.In {
+			var common *ssa.CallCommon
+			switch site := in.Site.(type) {
+			case *ssa.Defer, *ssa.Go:
+				common = site.Common()
+			default:
+				common = site.Value().Common()
+			}
+			callees[common] = append(callees[common], in.Callee.Func)
+		}
+	}
+	return callees
 }
 
 // Return whether a type can use the unify-by-reference semantics. If not then
