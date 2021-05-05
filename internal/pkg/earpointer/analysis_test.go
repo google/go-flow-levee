@@ -20,6 +20,8 @@ import (
 	"strings"
 	"testing"
 
+	"strconv"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-flow-levee/internal/pkg/earpointer"
 	"golang.org/x/tools/go/analysis"
@@ -27,8 +29,8 @@ import (
 	"golang.org/x/tools/go/ssa"
 )
 
-// Compiles the code and then runs the EAR pointer analysis.
-func runCode(code string) (*earpointer.Partitions, error) {
+// Compiles the code and then runs the EAR pointer analysis with a specific context K.
+func runCodeWithContext(code string, contextK int) (*earpointer.Partitions, error) {
 	pkg, err := buildSSA(code)
 	if err != nil {
 		return nil, fmt.Errorf("compilation failed: %s :\n %s", err, code)
@@ -42,12 +44,18 @@ func runCode(code string) (*earpointer.Partitions, error) {
 	}
 	ssainput := buildssa.SSA{Pkg: pkg, SrcFuncs: srcFuncs}
 	pass := analysis.Pass{ResultOf: map[*analysis.Analyzer]interface{}{buildssa.Analyzer: &ssainput}}
+	earpointer.Analyzer.Flags.Set("contextK", strconv.Itoa(contextK))
 	// Run the analysis.
 	partitions, err := earpointer.Analyzer.Run(&pass)
 	if err != nil {
 		return nil, fmt.Errorf("analyzer run failed: %v", ssainput)
 	}
 	return partitions.(*earpointer.Partitions), nil
+}
+
+// A shortcut with context K=0.
+func runCode(code string) (*earpointer.Partitions, error) {
+	return runCodeWithContext(code, 0)
 }
 
 // Concatenates the "members -> fields" map items into a string.
@@ -939,14 +947,12 @@ func TestMethod(t *testing.T) {
 	// f.t1, f.x and g.x are unified due to calling g().
 	// Note g.a is a struct receiver that won't be unified.
 	want := concat(map[string]string{
-		"{f.a}":                           "--> f.t0",
-		"{f.t0}":                          "[]",
+		"{f.a}":                           "--> A:g.a",
 		"{*A:g.t2,*A:g.x,A:g.x,f.t1,f.x}": "[]",
-		"{A:g.a}":                         "[]",
-		"{A:g.t0}":                        "--> A:g.a",
 		"{*A:g.a}":                        "[]",
-		"{*A:g.t0}":                       "--> *A:g.t1",
-		"{*A:g.t1}":                       "[]",
+		"{A:g.t0}":                        "--> A:g.a",
+		"{*A:g.t0}":                       "--> A:g.a",
+		"{*A:g.t1,A:g.a,f.t0}":            "[]",
 	})
 	if diff := cmp.Diff(want, state.String()); diff != "" {
 		t.Errorf("diff (-want +got):\n%s", diff)
@@ -1113,15 +1119,132 @@ func TestMethodInvoke(t *testing.T) {
 	// Note that in "**T2", the first "*" is the synthesized ValueOf operator,
 	// and "*T2" is the receiver type.
 	want := concat(map[string]string{
-		"{**T2:f.arg0}":         "[T1->*T2:f.t0]",
-		"{*T1:f.arg0}":          "[]",
-		"{*T1:f.x,*T2:f.x,g.x}": "[]",
-		"{*T2:f.arg0}":          "--> **T2:f.arg0",
-		"{*T2:f.t0}":            "[]",
-		"{g.t0}":                "[]",
-		"{g.x2}":                "--> *g.x2",
-		"{*g.x2}":               "[T1->g.t0]",
+		"{**T2:f.arg0}":              "[T1->*T1:f.arg0]",
+		"{*T1:f.arg0,*T2:f.t0,g.t0}": "[]",
+		"{*T1:f.x,*T2:f.x,g.x}":      "[]",
+		"{*T2:f.arg0}":               "--> **T2:f.arg0",
+		"{*g.x2}":                    "[T1->*T1:f.arg0]",
+		"{g.x2}":                     "--> *g.x2",
 	})
+	if got := state.String(); got != want {
+		t.Errorf("\n  got: %s\n want: %s", got, want)
+	}
+}
+
+func TestMethodCallContextSensitive(t *testing.T) {
+	code := `package p
+	type A struct {}
+	func f(x *int) *int {
+		var a A
+		return a.g(x)
+	}
+	func (a *A) g(x *int) *int {
+		return x
+	}
+	`
+	/*
+		func f(x *int) *int:
+		0:                                               entry P:0 S:0
+			t0 = new A (a)                               *A
+			t1 = (*A).g(t0, x)                           *int
+			return t1
+	*/
+	state, err := runCodeWithContext(code, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := concat(map[string]string{
+		"{[(*A).g(t0, x)]*A:g.a,f.t0}":     "[]",
+		"{[(*A).g(t0, x)]*A:g.x,f.t1,f.x}": "[]",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
+	}
+}
+
+func TestCallContextSensitive(t *testing.T) {
+	code := `package p
+	func f(x, y *int, i int) *int {
+		if i > 0 {
+			return g(x)
+		}
+		return g(y)
+	}
+	func g(a *int) *int {
+		return a
+	}
+	`
+	/*
+		func f(x *int, y *int, i int) *int:
+		0:                                           entry P:0 S:2
+			t0 = i > 0:int                           bool
+			if t0 goto 1 else 2
+		1:                                           if.then P:1 S:0
+			t1 = g(x)                                *int
+			return t1
+		2:                                           if.done P:1 S:0
+			t2 = g(y)                                *int
+			return t2
+	*/
+	state, err := runCodeWithContext(code, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// g() in called at the call site "g(x, nil:*int)"
+	want := concat(map[string]string{
+		"{[g(x)]g.a,f.t1,f.x}": "[]",
+		"{[g(y)]g.a,f.t2,f.y}": "[]",
+	})
+	//	g() is called at two call sites.
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
+	}
+}
+
+func TestEmbeddedCallContextSensitive(t *testing.T) {
+	code := `package p
+	func f(x, y, z *int) *int {
+		g(x, y)
+		return g(y, z)
+	}
+	func g(x *int, y *int) *int {
+		h(x)
+		return h(y)
+	}
+	func h(a *int) *int {
+		return a
+	}
+	`
+	/*
+		func f(x *int, y *int, z *int) *int:
+		0:                                                entry P:0 S:0
+			t0 = g(x, y)                                  *int
+			t1 = g(y, z)                                  *int
+			return t1
+
+		func g(x *int, y *int) *int:
+		0:                                               entry P:0 S:0
+			t0 = h(x)                                    *int
+			t1 = h(y)                                    *int
+			return t1
+	*/
+	state, err := runCodeWithContext(code, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// There are 4 call sites: "h(x)", "h(y)", "g(x, y)", and "g(y, z)".
+	want := concat(map[string]string{
+		"{[g(x, y)]g.t0}":                 "[]",
+		"{[g(x, y)]g.t1,f.t0}":            "[]",
+		"{[g(x, y)]g.x,f.x}":              "[]",
+		"{[g(x, y)]g.y,[g(y, z)]g.x,f.y}": "[]",
+		"{[g(y, z)]g.t0}":                 "[]",
+		"{[g(y, z)]g.t1,f.t1}":            "[]",
+		"{[g(y, z)]g.y,f.z}":              "[]",
+		"{[h(x)]h.a}":                     "[]",
+		"{[h(y)]h.a}":                     "[]",
+	})
+	//	g() is called at two call sites.
 	if diff := cmp.Diff(want, state.String()); diff != "" {
 		t.Errorf("diff (-want +got):\n%s", diff)
 	}
