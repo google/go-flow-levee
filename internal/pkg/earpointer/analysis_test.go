@@ -1234,7 +1234,7 @@ func TestEmbeddedCallContextSensitive(t *testing.T) {
 		t.Errorf("diff (-want +got):\n%s", diff)
 	}
 
-	state, err = runCodeWithContext(code, 2)
+	state, _ = runCodeWithContext(code, 2)
 	// When K=2, g(x)'s calling h(a) is distinguished from g(y)'s calling h(a),
 	// i.e. h(a) is called in two different contexts: [g(x); h(a)] and [g(y); h(a)].
 	want = concat(map[string]string{
@@ -1288,7 +1288,7 @@ func TestCallReturnContextSensitive(t *testing.T) {
 		t.Errorf("diff (-want +got):\n%s", diff)
 	}
 
-	state, err = runCodeWithContext(code, 2)
+	state, _ = runCodeWithContext(code, 2)
 	// When K=2, less unifications are performed. Now the two calls to h(b) are separate.
 	want = concat(map[string]string{
 		"{[g(x); h(a)]h.b,[g(x)]g.a,[g(x)]g.t0,f.t0,f.x}": "[]",
