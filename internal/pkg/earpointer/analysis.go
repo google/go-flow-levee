@@ -111,8 +111,8 @@ func collectContext(node *callgraph.Node, k int) []*Context {
 	// (1) Reuse the k-1, k-2, ... contexts when calculating k so as to
 	//     avoid duplicate computations.
 	// (2) Make the contexts share memory since they may overlap a lot.
-	// However, in practice, we may use only k=0 or k=1 so the performance
-	// and memory consumption issue is not a concern.
+	// However, we may use only small k values so the performance
+	// and memory consumption issue is not a concern in practice.
 	if k <= 0 || len(node.In) == 0 {
 		return []*Context{&emptyContext}
 	}
@@ -132,7 +132,7 @@ func (vis *visitor) initGlobalReferences(pkg *ssa.Package) {
 	for _, member := range pkg.Members {
 		if g, ok := member.(*ssa.Global); ok {
 			if typeMayShareObject(g.Type()) &&
-				// skip some synthetic variables
+			// skip some synthetic variables
 				!strings.HasPrefix(g.Name(), "init$") {
 				state.Insert(MakeGlobal(g))
 			}
@@ -144,18 +144,20 @@ func (vis *visitor) initGlobalReferences(pkg *ssa.Package) {
 // Insert into the state all the local references.
 func (vis *visitor) initFunction(fn *ssa.Function) {
 	state := vis.state
+	// A function to insert a local into the state under all related contexts.
+	initLocal := func(v ssa.Value) {
+		for _, c := range vis.getContexts(v) {
+			state.Insert(MakeLocal(c, v))
+		}
+	}
 	for _, param := range fn.Params {
 		if typeMayShareObject(param.Type()) {
-			for _, c := range vis.getContexts(param) {
-				state.Insert(MakeLocal(c, param))
-			}
+			initLocal(param)
 		}
 	}
 	for _, fv := range fn.FreeVars {
 		if typeMayShareObject(fv.Type()) {
-			for _, c := range vis.getContexts(fv) {
-				state.Insert(MakeLocal(c, fv))
-			}
+			initLocal(fv)
 		}
 	}
 	// Usual tuple-type registers are skipped since they will be processed
@@ -175,9 +177,7 @@ func (vis *visitor) initFunction(fn *ssa.Function) {
 		for _, instr := range blk.Instrs {
 			if v, ok := instr.(ssa.Value); ok {
 				if returnTuple(v) || typeMayShareObject(v.Type()) {
-					for _, c := range vis.getContexts(v) {
-						state.Insert(MakeLocal(c, v))
-					}
+					initLocal(v)
 				}
 			}
 		}
@@ -415,41 +415,12 @@ func (vis *visitor) visitCall(call *ssa.CallCommon, callsite ssa.Instruction) {
 		return
 	}
 
-	// Collect unification constraints
-	// Here only static calls are supported;
-	// an extension is to use a more advanced call graph.
+	// Collect unification constraints using the call graph.
 	for _, fn := range vis.callees[call] {
 		if fn == nil {
 			continue
 		}
 		paramCstrs, retCstrs := vis.collectCalleeConstraints(call, fn, callsite)
-		state := vis.state
-		// Unify the argument in the caller with the parameter in the callee.
-		contextSensitiveUnify := func(arg ssa.Value, param ssa.Value) {
-			// The caller may have multiple contexts,
-			// perform the unification for each context.
-			for _, c := range vis.getContexts(arg) {
-				// For each context of the callee, match it with the caller context
-				// plus the call site. Unify the caller' arg and the callee's param
-				// for each matched context.
-				// For example, assume K=1,
-				//   func f(x, y *T) {
-				//       g(x)
-				//       g(y)
-				//   }
-				//   func g(a *T) {}
-				// g() is called at contexts [g(x)] and [g(y)], so g.a is unified
-				// with f.x and f.y w.r.t. these contexts, resulting in two
-				// partitions {[g(x)]g.a, f,x} and {[g(y)]g.a, f,y}.
-				argCxt := append(*c, callsite)
-				argRef := MakeReference(c, arg)
-				for _, paramCxt := range vis.getContexts(param) {
-					if vis.contextKEqual(argCxt, *paramCxt) {
-						state.Unify(argRef, MakeReference(paramCxt, param))
-					}
-				}
-			}
-		}
 		// Unify caller arguments and callee parameters with suitable context.
 		for arg, params := range paramCstrs {
 			for _, param := range params {
@@ -462,7 +433,7 @@ func (vis *visitor) visitCall(call *ssa.CallCommon, callsite ssa.Instruction) {
 				// SSA creates a copy of v and passes it to g. Hence we directly
 				// unify this copy and g's argument "a".
 				if mayShareObject(arg) {
-					contextSensitiveUnify(arg, param)
+					vis.unifyCallWithContexts(arg, param, callsite)
 				}
 			}
 		}
@@ -471,7 +442,7 @@ func (vis *visitor) visitCall(call *ssa.CallCommon, callsite ssa.Instruction) {
 			for _, calleeRet := range rets {
 				if len(calleeRet) == 1 { // non-tuple case
 					if mayShareObject(calleeRet[0]) {
-						contextSensitiveUnify(callerRet, calleeRet[0])
+						vis.unifyCallWithContexts(callerRet, calleeRet[0], callsite)
 					}
 					continue
 				}
@@ -497,6 +468,35 @@ func (vis *visitor) visitCall(call *ssa.CallCommon, callsite ssa.Instruction) {
 						}
 					}
 				}
+			}
+		}
+	}
+}
+
+// Unify the argument in the caller with the parameter in the callee under all contexts
+func (vis *visitor) unifyCallWithContexts(arg ssa.Value, param ssa.Value, callsite ssa.Instruction) {
+	state := vis.state
+	// The caller may have multiple contexts,
+	// perform the unification for each context.
+	for _, c := range vis.getContexts(arg) {
+		// For each context of the callee, match it with the caller context
+		// plus the call site. Unify the caller' arg and the callee's param
+		// for each matched context.
+		// For example, assume K=1,
+		//   func f(x, y *T) {
+		//       g(x)
+		//       g(y)
+		//   }
+		//   func g(a *T) {}
+		// g() is called at contexts [g(x)] and [g(y)], so g.a is unified
+		// with f.x and f.y w.r.t. these contexts, resulting in two
+		// partitions {[g(x)]g.a, f.x} and {[g(y)]g.a, f.y}.
+		argCxt := append(*c, callsite)
+		argRef := MakeReference(c, arg)
+		for _, paramCxt := range vis.getContexts(param) {
+			if vis.contextKEqual(argCxt, *paramCxt) {
+				state.Unify(argRef, MakeReference(paramCxt, param))
+				break
 			}
 		}
 	}
@@ -860,7 +860,7 @@ func (vis *visitor) contextKEqual(c1 Context, c2 Context) bool {
 		if i >= l1 || i >= l2 { // no more to compare
 			return true
 		}
-		if (c1)[l1-i-1] != (c2)[l2-i-1] {
+		if c1[l1-i-1] != c2[l2-i-1] {
 			return false
 		}
 	}
