@@ -132,7 +132,7 @@ func (vis *visitor) initGlobalReferences(pkg *ssa.Package) {
 	for _, member := range pkg.Members {
 		if g, ok := member.(*ssa.Global); ok {
 			if typeMayShareObject(g.Type()) &&
-			// skip some synthetic variables
+				// skip some synthetic variables
 				!strings.HasPrefix(g.Name(), "init$") {
 				state.Insert(MakeGlobal(g))
 			}
