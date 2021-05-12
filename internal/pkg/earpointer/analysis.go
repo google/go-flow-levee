@@ -38,7 +38,7 @@ var (
 
 func init() {
 	Analyzer.Flags.IntVar(&contextK, "contextK", 0,
-		`the K value (default=0) in context sensitivity. Currently only K=0 or K=1 are supported`)
+		`the K value (default=0) in context sensitivity.`)
 }
 
 // Analyzer traverses the packages and constructs an EAR partitions
@@ -57,8 +57,8 @@ var Analyzer = &analysis.Analyzer{
 // instructions and inter-procedural instructions are handled.
 type visitor struct {
 	state    *state                              // mutable state
-	contexts map[*ssa.Function][]*Context        // for context sensitive analysis
 	callees  map[*ssa.CallCommon][]*ssa.Function // callee functions at each callsite
+	contexts map[*ssa.Function][]*Context        // for context sensitive analysis
 	contextK int
 }
 
@@ -72,9 +72,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 func analyze(pkg *ssa.Package) *Partitions {
 	prog := pkg.Prog
 	// Use the call graph to initialize the contexts.
-	// TODO: the call graph can be CHA, VTA, etc.
+	// TODO: the call graph can be CHA, RTA, VTA, etc.
 	cg := static.CallGraph(prog)
-	vis := visitor{state: NewState(), callees: mapCallees(cg), contextK: contextK}
+	vis := visitor{state: NewState(), callees: mapCallees(cg)}
 	vis.initContexts(cg)
 	vis.initGlobalReferences(pkg)
 	// Analyze all the functions and methods in the package,
@@ -95,12 +95,13 @@ func analyze(pkg *ssa.Package) *Partitions {
 
 // Builds the calling context set for each function.
 func (vis *visitor) initContexts(cg *callgraph.Graph) {
+	vis.contextK = contextK
 	vis.contexts = make(map[*ssa.Function][]*Context)
 	for fn, node := range cg.Nodes {
 		if fn == nil {
 			continue
 		}
-		// For a function, create a context for each call site.
+		// Create the contexts for this function.
 		vis.contexts[fn] = collectContext(node, vis.contextK)
 	}
 }
@@ -421,7 +422,7 @@ func (vis *visitor) visitCall(call *ssa.CallCommon, callsite ssa.Instruction) {
 			continue
 		}
 		paramCstrs, retCstrs := vis.collectCalleeConstraints(call, fn, callsite)
-		// Unify caller arguments and callee parameters with suitable context.
+		// Unify caller arguments and callee parameters in matching contexts.
 		for arg, params := range paramCstrs {
 			for _, param := range params {
 				// The copy-by-value semantics is implemented by the SSA call.
@@ -441,8 +442,9 @@ func (vis *visitor) visitCall(call *ssa.CallCommon, callsite ssa.Instruction) {
 		for callerRet, rets := range retCstrs {
 			for _, calleeRet := range rets {
 				if len(calleeRet) == 1 { // non-tuple case
-					if mayShareObject(calleeRet[0]) {
-						vis.unifyCallWithContexts(callerRet, calleeRet[0], callsite)
+					param := calleeRet[0]
+					if mayShareObject(param) {
+						vis.unifyCallWithContexts(callerRet, param, callsite)
 					}
 					continue
 				}
@@ -476,7 +478,7 @@ func (vis *visitor) visitCall(call *ssa.CallCommon, callsite ssa.Instruction) {
 // Unify the argument in the caller with the parameter in the callee under all contexts
 func (vis *visitor) unifyCallWithContexts(arg ssa.Value, param ssa.Value, callsite ssa.Instruction) {
 	state := vis.state
-	// The caller may have multiple contexts,
+	// The caller may have multiple contexts;
 	// perform the unification for each context.
 	for _, c := range vis.getContexts(arg) {
 		// For each context of the callee, match it with the caller context
@@ -544,16 +546,9 @@ func (vis *visitor) collectCalleeConstraints(common *ssa.CallCommon, fn *ssa.Fun
 	}
 
 	paramCstrs := make(map[ssa.Value][]ssa.Value)
-	// Add caller_reg -> {callee_reg} constraints for parameters.
+	// Add caller_arg -> {callee_parameter} constraints for parameters.
 	// For example, for g(a, b) and func g(x, y), add <a, g.x> and
 	// <b, g.y> into the constraints.
-	//
-	// Unifying the receivers may cause too many FPs.
-	// For example, func (t T) f() { ... }; o1.f() and o2.f(), the unification
-	// results in {o1, o2, t}, while o1 and o2 should not be unified.
-	// So the receiver unification is disabled here, which may lead to under-approximation
-	// and FNs of the checkers.
-	// Support context-sensitivity to mitigate this issue.
 	for i := 0; i < len(common.Args); i++ {
 		arg, param := common.Args[i], fn.Params[i]
 		if mayShareObject(arg) && typeMayShareObject(param.Type()) {
