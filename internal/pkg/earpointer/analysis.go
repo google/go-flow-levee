@@ -876,13 +876,7 @@ func mapCallees(cg *callgraph.Graph) map[*ssa.CallCommon][]*ssa.Function {
 			continue
 		}
 		for _, in := range node.In {
-			var common *ssa.CallCommon
-			switch site := in.Site.(type) {
-			case *ssa.Defer, *ssa.Go:
-				common = site.Common()
-			default:
-				common = site.Value().Common()
-			}
+			common := in.Site.Common()
 			callees[common] = append(callees[common], in.Callee.Func)
 		}
 	}
