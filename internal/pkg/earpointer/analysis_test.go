@@ -17,6 +17,7 @@ package earpointer_test
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -27,8 +28,8 @@ import (
 	"golang.org/x/tools/go/ssa"
 )
 
-// Compiles the code and then runs the EAR pointer analysis.
-func runCode(code string) (*earpointer.Partitions, error) {
+// Compiles the code and then runs the EAR pointer analysis with a specific context K.
+func runCodeWithContext(code string, contextK int) (*earpointer.Partitions, error) {
 	pkg, err := buildSSA(code)
 	if err != nil {
 		return nil, fmt.Errorf("compilation failed: %s :\n %s", err, code)
@@ -42,12 +43,18 @@ func runCode(code string) (*earpointer.Partitions, error) {
 	}
 	ssainput := buildssa.SSA{Pkg: pkg, SrcFuncs: srcFuncs}
 	pass := analysis.Pass{ResultOf: map[*analysis.Analyzer]interface{}{buildssa.Analyzer: &ssainput}}
+	earpointer.Analyzer.Flags.Set("contextK", strconv.Itoa(contextK))
 	// Run the analysis.
 	partitions, err := earpointer.Analyzer.Run(&pass)
 	if err != nil {
 		return nil, fmt.Errorf("analyzer run failed: %v", ssainput)
 	}
 	return partitions.(*earpointer.Partitions), nil
+}
+
+// A shortcut with context K=0.
+func runCodeK0(code string) (*earpointer.Partitions, error) {
+	return runCodeWithContext(code, 0)
 }
 
 // Concatenates the "members -> fields" map items into a string.
@@ -74,7 +81,7 @@ func TestFieldAddr(t *testing.T) {
 		*t0 = b
 		return
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +113,7 @@ func TestFieldAddr2(t *testing.T) {
 			*t1 = c
 			return
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +145,7 @@ func TestField(t *testing.T) {
 			t3 = t2.x [#0]                  *int
 			return
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +180,7 @@ func TestEmbeddedField(t *testing.T) {
 			t3 = t2.t [#0]                  T1
 			return
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +228,7 @@ func TestStructCopy(t *testing.T) { // mainly for coverage test
 			*t1 = t5
 			return
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,7 +289,7 @@ func TestEmbeddedFieldClone(t *testing.T) {
 			*t1 = t5
 			return
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,7 +326,7 @@ func TestIndexAddr(t *testing.T) {
 			*t0 = t2
 			return
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -351,7 +358,7 @@ func TestIndex(t *testing.T) {
 			t3 = t2[0:int]                    *int
 			return
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -396,7 +403,7 @@ func TestPhi(t *testing.T) {
 			t2 = print(t1)                   ()
 		...
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -427,7 +434,7 @@ func TestStore(t *testing.T) {
 			*t2 = t4
 			return
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -464,7 +471,7 @@ func TestDereference(t *testing.T) {
 			*x = t1
 			return
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -499,7 +506,7 @@ func TestMapAccess(t *testing.T) {
 			t2 = m[i]             *T
 			return
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -531,7 +538,7 @@ func TestLookUp(t *testing.T) {
 			t3 = *t1                            *int
 			return
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -551,7 +558,7 @@ func TestConvert(t *testing.T) {
 		_ = (string)(a)
 	}
 	`
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -578,7 +585,7 @@ func TestTypeAssert(t *testing.T) {
 			t3 = typeassert a.(*int)          *int
 			return
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -608,7 +615,7 @@ func TestChangeInterfaceOrType(t *testing.T) {
 			t3 = changetype interface{} <- I (a)      interface{}
 			return t3
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -628,7 +635,7 @@ func TestBinOp(t *testing.T) {
 		_ = a + b
 	}
 	`
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -663,7 +670,7 @@ func TestRange(t *testing.T) {
 		3:                                   rangeiter.done P:1 S:0
 			return
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -680,7 +687,7 @@ func TestChannel(t *testing.T) {
 		_ = <-ch  // Receive from ch.
 	}
 	`
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -706,7 +713,7 @@ func TestSlice(t *testing.T) {
 			t2 = slice t1[2:int:]          []int
 			return
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -722,7 +729,7 @@ func TestMakeInterface(t *testing.T) {
 		return s
 	}
 	`
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -745,7 +752,7 @@ func TestUnimplemented(t *testing.T) {
 		panic("test")
 	}
 	`
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -774,7 +781,7 @@ func TestSimpleCall(t *testing.T) {
 		0:                                             entry P:0 S:0
 			return a
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -811,7 +818,7 @@ func TestCallWithTupleReturn(t *testing.T) {
 			t0 = *x                                      T
 			return a, t0
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -854,7 +861,7 @@ func TestClosureCall(t *testing.T) {
 			t6 = extract t3 #2                           int
 			return
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -893,7 +900,7 @@ func TestRecursiveCall(t *testing.T) {
 			t3 = f(t2, t1)                       *int
 			return t3
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -932,21 +939,19 @@ func TestMethod(t *testing.T) {
 				t1 = (A).g(t0, x)                       *int
 				return t1
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// f.t1, f.x and g.x are unified due to calling g().
 	// Note g.a is a struct receiver that won't be unified.
 	want := concat(map[string]string{
-		"{f.a}":                           "--> f.t0",
-		"{f.t0}":                          "[]",
+		"{f.a}":                           "--> A:g.a",
 		"{*A:g.t2,*A:g.x,A:g.x,f.t1,f.x}": "[]",
-		"{A:g.a}":                         "[]",
-		"{A:g.t0}":                        "--> A:g.a",
 		"{*A:g.a}":                        "[]",
-		"{*A:g.t0}":                       "--> *A:g.t1",
-		"{*A:g.t1}":                       "[]",
+		"{A:g.t0}":                        "--> A:g.a",
+		"{*A:g.t0}":                       "--> A:g.a",
+		"{*A:g.t1,A:g.a,f.t0}":            "[]",
 	})
 	if diff := cmp.Diff(want, state.String()); diff != "" {
 		t.Errorf("diff (-want +got):\n%s", diff)
@@ -978,7 +983,7 @@ func TestGoDefer(t *testing.T) {
 		1:                                       recover P:0 S:0
 			return
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1014,7 +1019,7 @@ func TestCallBuiltin(t *testing.T) {
 			t5 = print(d1, t3)                         ()
 			return
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1059,7 +1064,7 @@ func TestVariadicCall(t *testing.T) {
 			t1 = *t0                                           *int
 			return t1
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1104,7 +1109,7 @@ func TestMethodInvoke(t *testing.T) {
 			t1 = (*T1).f(t0, x)                     ()
 			return
 	*/
-	state, err := runCode(code)
+	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1113,14 +1118,182 @@ func TestMethodInvoke(t *testing.T) {
 	// Note that in "**T2", the first "*" is the synthesized ValueOf operator,
 	// and "*T2" is the receiver type.
 	want := concat(map[string]string{
-		"{**T2:f.arg0}":         "[T1->*T2:f.t0]",
-		"{*T1:f.arg0}":          "[]",
-		"{*T1:f.x,*T2:f.x,g.x}": "[]",
-		"{*T2:f.arg0}":          "--> **T2:f.arg0",
-		"{*T2:f.t0}":            "[]",
-		"{g.t0}":                "[]",
-		"{g.x2}":                "--> *g.x2",
-		"{*g.x2}":               "[T1->g.t0]",
+		"{**T2:f.arg0}":              "[T1->*T1:f.arg0]",
+		"{*T1:f.arg0,*T2:f.t0,g.t0}": "[]",
+		"{*T1:f.x,*T2:f.x,g.x}":      "[]",
+		"{*T2:f.arg0}":               "--> **T2:f.arg0",
+		"{*g.x2}":                    "[T1->*T1:f.arg0]",
+		"{g.x2}":                     "--> *g.x2",
+	})
+	if got := state.String(); got != want {
+		t.Errorf("\n  got: %s\n want: %s", got, want)
+	}
+}
+
+func TestMethodCallContextSensitive(t *testing.T) {
+	code := `package p
+	type A struct {}
+	func f(x *int) *int {
+		var a A
+		return a.g(x)
+	}
+	func (a *A) g(x *int) *int {
+		return x
+	}
+	`
+	/*
+		func f(x *int) *int:
+		0:                                               entry P:0 S:0
+			t0 = new A (a)                               *A
+			t1 = (*A).g(t0, x)                           *int
+			return t1
+	*/
+	state, err := runCodeWithContext(code, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := concat(map[string]string{
+		"{[(*A).g(t0, x)]*A:g.a,f.t0}":     "[]",
+		"{[(*A).g(t0, x)]*A:g.x,f.t1,f.x}": "[]",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
+	}
+}
+
+func TestCallContextSensitive(t *testing.T) {
+	code := `package p
+	func f(x, y *int, i int) *int {
+		if i > 0 {
+			return g(x)
+		}
+		return g(y)
+	}
+	func g(a *int) *int {
+		return a
+	}
+	`
+	/*
+		func f(x *int, y *int, i int) *int:
+		0:                                           entry P:0 S:2
+			t0 = i > 0:int                           bool
+			if t0 goto 1 else 2
+		1:                                           if.then P:1 S:0
+			t1 = g(x)                                *int
+			return t1
+		2:                                           if.done P:1 S:0
+			t2 = g(y)                                *int
+			return t2
+	*/
+	state, err := runCodeWithContext(code, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// g() is called at two call sites. f.x and f.y won't be unified.
+	want := concat(map[string]string{
+		"{[g(x)]g.a,f.t1,f.x}": "[]",
+		"{[g(y)]g.a,f.t2,f.y}": "[]",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
+	}
+}
+
+func TestEmbeddedCallContextSensitive(t *testing.T) {
+	code := `package p
+	func f(x, y *int) {
+		g(x)
+		g(y)
+	}
+	func g(a *int) {
+		h(a)
+	}
+	func h(b *int) { }
+	`
+	/*
+		func f(x *int, y *int):
+		0:                                           entry P:0 S:0
+			t0 = g(x)                                ()
+			t1 = g(y)                                ()
+			return
+
+		func g(a *int):
+		0:                                           entry P:0 S:0
+			t0 = h(a)                                ()
+			return
+	*/
+	state, err := runCodeWithContext(code, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// When K=1, h.b will be unified with g.a regardless of the context of g.a.
+	want := concat(map[string]string{
+		"{[g(x)]g.a,[g(y)]g.a,[h(a)]h.b,f.x,f.y}": "[]",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
+	}
+
+	state, _ = runCodeWithContext(code, 2)
+	// When K=2, g(x)'s calling h(a) is distinguished from g(y)'s calling h(a),
+	// i.e. h(a) is called in two different contexts: [g(x); h(a)] and [g(y); h(a)].
+	want = concat(map[string]string{
+		"{[g(x); h(a)]h.b,[g(x)]g.a,f.x}": "[]",
+		"{[g(y); h(a)]h.b,[g(y)]g.a,f.y}": "[]",
+	})
+	//	g() is called at two call sites.
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
+	}
+}
+
+func TestCallReturnContextSensitive(t *testing.T) {
+	code := `package p
+	func f(x, y, z *int) *int {
+		g(x)
+		h(y)
+		return g(z)
+	}
+	func g(a *int) *int {
+		return h(a)
+	}
+	func h(b *int) *int {
+		return b
+	}
+	`
+	/*
+		func f(x *int, y *int, z *int) *int:
+		0:                                                                entry P:0 S:0
+			t0 = g(x)                                                          *int
+			t1 = h(y)                                                          *int
+			t2 = g(z)                                                          *int
+			return t2
+
+		func g(a *int) *int:
+		0:                                                                entry P:0 S:0
+			t0 = h(a)                                                          *int
+			return t0
+	*/
+	state, err := runCodeWithContext(code, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// When K=1, h.b will be unified with g.a regardless of the context of g.a,
+	// which also resulting in the unfications of f.x, f.y and f.z.
+	want := concat(map[string]string{
+		"{[g(x)]g.a,[g(x)]g.t0,[g(z)]g.a,[g(z)]g.t0,[h(a)]h.b,f.t0,f.t2,f.x,f.z}": "[]",
+		"{[h(y)]h.b,f.t1,f.y}": "[]",
+	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
+	}
+
+	state, _ = runCodeWithContext(code, 2)
+	// When K=2, less unifications are performed. Now the two calls to h(b) are separate.
+	want = concat(map[string]string{
+		"{[g(x); h(a)]h.b,[g(x)]g.a,[g(x)]g.t0,f.t0,f.x}": "[]",
+		"{[g(z); h(a)]h.b,[g(z)]g.a,[g(z)]g.t0,f.t2,f.z}": "[]",
+		"{[h(y)]h.b,f.t1,f.y}":                            "[]",
 	})
 	if diff := cmp.Diff(want, state.String()); diff != "" {
 		t.Errorf("diff (-want +got):\n%s", diff)
