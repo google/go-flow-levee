@@ -29,6 +29,9 @@ func TestLevee(t *testing.T) {
 	if err := Analyzer.Flags.Set("config", dataDir+"/test-config.yaml"); err != nil {
 		t.Error(err)
 	}
+	if err := Analyzer.Flags.Set("useEAR", "false"); err != nil {
+		t.Error(err)
+	}
 	if *debugging {
 		Analyzer.Requires = append(Analyzer.Requires, debug.Analyzer)
 	}

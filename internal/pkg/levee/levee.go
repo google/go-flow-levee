@@ -19,8 +19,9 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
-	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"strings"
+
+	"golang.org/x/tools/go/analysis/passes/buildssa"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/earpointer"
@@ -62,7 +63,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if p == nil {
 			return nil, fmt.Errorf("no valid EAR partitions")
 		}
-		return runEAR(pass, p)  // Use the EAR-pointer based taint analysis
+		return runEAR(pass, p) // Use the EAR-pointer based taint analysis
 	} else {
 		return runPropagation(pass) // Use the propagation based taint analysis
 	}
@@ -229,6 +230,5 @@ func report(conf *config.Config, pass *analysis.Pass, source *source.Source, sin
 	if conf.ReportMessage != "" {
 		fmt.Fprintf(&b, "\n %v", conf.ReportMessage)
 	}
-	b.WriteString("\n")
 	pass.Reportf(sink.Pos(), b.String())
 }

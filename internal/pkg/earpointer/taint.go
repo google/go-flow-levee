@@ -85,14 +85,14 @@ func GetSrcRefs(src *source.Source, state *Partitions, isTaintField func(named *
 							if fd.Name == f.Name() {
 								refs[fref] = true
 								// Mark all the subfields to be tainted.
-								getFieldReferences(fref, refs, state, callees)
+								getFieldReferences(fref, refs, state, callees, make(ReferenceSet))
 								hasTaintField = true
 							}
 						}
 					}
 				}
 				if !hasTaintField {
-					getFieldReferences(ref, refs, state, callees)
+					getFieldReferences(ref, refs, state, callees, make(ReferenceSet))
 				}
 			}
 		case *types.Pointer:
@@ -128,7 +128,8 @@ func GetSrcRefs(src *source.Source, state *Partitions, isTaintField func(named *
 
 // Obtains all the field references and their aliases for "ref".
 // For example, return {t0, t5, t1, t3, t4} for "{t0,t5}: [0:int->t1, 1:int->t3], {t3} --> t4".
-func getFieldReferences(ref Reference, result ReferenceSet, state *Partitions, callees map[*ssa.Function]bool) {
+func getFieldReferences(ref Reference, result ReferenceSet, state *Partitions, callees map[*ssa.Function]bool, visited ReferenceSet) {
+	visited[ref] = true
 	for _, m := range state.PartitionMembers(ref) {
 		if isWithinFunctions(m, callees) {
 			result[m] = true
@@ -137,8 +138,8 @@ func getFieldReferences(ref Reference, result ReferenceSet, state *Partitions, c
 	rep := state.Representative(ref)
 	result[rep] = true
 	for _, r := range state.PartitionFieldMap(rep) {
-		if _, ok := result[r]; !ok {
-			getFieldReferences(r, result, state, callees)
+		if _, ok := visited[r]; !ok {
+			getFieldReferences(r, result, state, callees, visited)
 		}
 	}
 }
@@ -150,7 +151,7 @@ func IsEARTainted(sink ssa.Instruction, srcRefs ReferenceSet, state *Partitions,
 			v := *op
 			if isLocal(v) || isGlobal(v) {
 				ref := MakeLocalWithEmptyContext(v)
-				getFieldReferences(ref, sinks, state, callees)
+				getFieldReferences(ref, sinks, state, callees, make(ReferenceSet))
 		}
 	}
 
