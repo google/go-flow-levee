@@ -81,7 +81,7 @@ func GetSrcRefs(src *source.Source, state *Partitions, isTaintField func(named *
 				for i := 0; i < tt.NumFields(); i++ {
 					f := tt.Field(i)
 					if isTaintField(tp, i) {
-						for fd, fref := range state.PartitionFieldMap(ref) {
+						for fd, fref := range state.PartitionFieldMap(state.Representative(ref)) {
 							if fd.Name == f.Name() {
 								refs[fref] = true
 								// Mark all the subfields to be tainted.
