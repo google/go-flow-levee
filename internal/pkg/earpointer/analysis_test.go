@@ -1080,14 +1080,23 @@ func TestVariadicCall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := concat(map[string]string{
+	// Handle the non-determinism when choosing the representative during unifying.
+	want1 := concat(map[string]string{
 		"{f.a,f.b,f.t4,g.t1}": "[]",
 		"{*f.t0,*g.ks}":       "[0->g.t0, 1->g.t0, AnyField->g.t0]",
 		"{f.t0,f.t3,g.ks}":    "--> *f.t0",
 		"{f.t1,f.t2,g.t0}":    "--> f.t4",
 	})
-	if diff := cmp.Diff(want, state.String()); diff != "" {
-		t.Errorf("diff (-want +got):\n%s", diff)
+	want2 := concat(map[string]string{
+		"{f.a,f.b,f.t4,g.t1}": "[]",
+		"{*f.t0,*g.ks}":       "[0->g.t0, 1->g.t0, AnyField->g.t0]",
+		"{f.t0,f.t3,g.ks}":    "--> *g.ks",
+		"{f.t1,f.t2,g.t0}":    "--> f.t4",
+	})
+	diff1 := cmp.Diff(want1, state.String())
+	diff2 := cmp.Diff(want2, state.String())
+	if diff1 != "" && diff2 != "" {
+		t.Errorf("diff (-want +got):\n%s", diff1+diff2)
 	}
 }
 
