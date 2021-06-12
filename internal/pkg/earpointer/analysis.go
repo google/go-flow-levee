@@ -64,22 +64,25 @@ type visitor struct {
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	ssainput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
-	p := analyze(ssainput.Pkg)
+	p := Analyze(ssainput)
 	return p, nil
 }
 
 // Analyzes an SSA program and build the partition information.
-func analyze(pkg *ssa.Package) *Partitions {
-	prog := pkg.Prog
+func Analyze(ssainput *buildssa.SSA) *Partitions {
+	prog := ssainput.Pkg.Prog
 	// Use the call graph to initialize the contexts.
 	// TODO: the call graph can be CHA, RTA, VTA, etc.
 	cg := static.CallGraph(prog)
 	vis := visitor{state: NewState(), callees: mapCallees(cg)}
 	vis.initContexts(cg)
-	vis.initGlobalReferences(pkg)
+	vis.initGlobalReferences(ssainput.Pkg)
 	// Analyze all the functions and methods in the package,
 	// not just those in ssainput.ScrFuncs.
 	fns := ssautil.AllFunctions(prog)
+	for _, fn := range ssainput.SrcFuncs {
+		fns[fn] = true
+	}
 	for fn := range fns {
 		vis.initFunction(fn)
 	}
@@ -227,6 +230,8 @@ func (vis *visitor) visitInstruction(instr ssa.Instruction) {
 		vis.visitSlice(i)
 	case *ssa.MakeInterface:
 		vis.visitMakeInterface(i)
+	case *ssa.MakeClosure:
+		vis.visitMakeClosure(i)
 	case *ssa.Select:
 		vis.visitSelect(i)
 
@@ -235,7 +240,6 @@ func (vis *visitor) visitInstruction(instr ssa.Instruction) {
 
 	case *ssa.Alloc,
 		*ssa.MakeChan,
-		*ssa.MakeClosure,
 		*ssa.MakeMap,
 		*ssa.MakeSlice:
 		// Local variables are created in the beginning of the pass by initReferences().
@@ -271,15 +275,40 @@ func (vis *visitor) visitFieldAddr(addr *ssa.FieldAddr) {
 }
 
 func (vis *visitor) visitField(field *ssa.Field) {
-	// "t1 = t0.x" is implemented by t0[x -> t1].
+	// "t1 = t0.x" is implemented by t0[x -> addr], addr --> t1,
+	// where addr is the reference to the field address.
 	obj := field.X
 	fd := makeField(obj.Type(), field.Field)
-	vis.processHeapAccess(field, obj, *fd)
+	state := vis.state
+	for _, c := range vis.getContexts(field) {
+		objv := MakeReference(c, obj)
+		fmap := state.PartitionFieldMap(state.representative(objv))
+		fref := MakeReference(c, field)
+		// If obj's partition already has a mapping for this field, unify fref
+		// with the suitable partition. Otherwise set fref as the ref.
+		if v, ok := fmap[*fd]; ok {
+			// Implement "fmap[fd -> addr], addr --> fref".
+			state.Unify(vis.getPointee(v), fref)
+		} else {
+			fmap[*fd] = fref // over-approximation
+		}
+	}
 }
 
 func (vis *visitor) visitIndexAddr(addr *ssa.IndexAddr) {
 	// "t2 = &t1[t0]" is handled through address unification.
-	vis.processIndex(addr, addr.X, addr.Index)
+	obj := addr.X
+	if c, ok := addr.Index.(*ssa.Const); ok {
+		field := Field{Name: c.Value.String()}
+		for _, c := range vis.getContexts(addr) {
+			vis.unifyFieldAddress(c, obj, &field, addr)
+		}
+	}
+	// Also update the AnyField information.
+	// Note that base[c -> data] implies base[AnyField -> data]
+	for _, c := range vis.getContexts(addr) {
+		vis.unifyFieldAddress(c, obj, &anyIndexField, addr)
+	}
 }
 
 func (vis *visitor) visitIndex(index *ssa.Index) {
@@ -347,10 +376,22 @@ func (vis *visitor) visitUnOp(op *ssa.UnOp) {
 func (vis *visitor) visitBinOp(op *ssa.BinOp) {
 	// Numeric binop will be skipped.
 	// The only binop that matters now is "+" that concatenates strings.
-	if op.Op == token.ADD {
-		if tp, ok := op.X.Type().(*types.Basic); ok && tp.Kind() == types.String {
-			vis.unifyLocals(op, op.X)
-			vis.unifyLocals(op, op.Y)
+	if op.Op != token.ADD {
+		return
+	}
+	// for r0 = r1 + r2, unifying r0, r1 and r2 may cause too many
+	// over-approximations. Here fields are introduced to make:
+	//     {r0}[0->r1, 1->r2]
+	// which avoids unifying r1 and r2.
+	if tp, ok := op.X.Type().(*types.Basic); ok && tp.Kind() == types.String {
+		// unify instance field
+		for _, c := range vis.getContexts(op) {
+			if mayShareObject(op.X) {
+				vis.unifyField(c, op, Field{Name: "0"}, op.X)
+			}
+			if mayShareObject(op.Y) {
+				vis.unifyField(c, op, Field{Name: "1"}, op.Y)
+			}
 		}
 	}
 }
@@ -387,6 +428,13 @@ func (vis *visitor) visitExtract(extract *ssa.Extract) {
 		if base.CommaOk && extract.Index == 0 {
 			vis.processIndex(extract, base.X, base.Index)
 		}
+	case *ssa.UnOp:
+		if base.Op == token.ARROW && base.CommaOk && extract.Index == 0 { // channel read
+			// Use array read to simulate channel read.
+			vis.processHeapAccess(extract, base.X, anyIndexField)
+		}
+	case *ssa.Select:
+		// TODO: to be implemented
 	default: // Other cases: model "r1 = extract r0 #n" as "r0["n"] = r1".
 		field := Field{Name: strconv.Itoa(extract.Index)}
 		vis.processHeapAccess(extract, base, field)
@@ -399,6 +447,18 @@ func (vis *visitor) visitSlice(slice *ssa.Slice) {
 
 func (vis *visitor) visitMakeInterface(makeInterface *ssa.MakeInterface) {
 	vis.unifyLocals(makeInterface, makeInterface.X)
+}
+
+func (vis *visitor) visitMakeClosure(closure *ssa.MakeClosure) {
+	if fn, ok := closure.Fn.(*ssa.Function); ok {
+		// For a closure, add for free variable bindings.
+		for i, bind := range closure.Bindings {
+			if mayShareObject(bind) {
+				fv := fn.FreeVars[i]
+				vis.unifyLocals(fv, bind)
+			}
+		}
+	}
 }
 
 func (vis *visitor) visitSend(send *ssa.Send) {
@@ -415,12 +475,16 @@ func (vis *visitor) visitCall(call *ssa.CallCommon, callsite ssa.Instruction) {
 		vis.visitBuiltin(builtin, callsite)
 		return
 	}
-
 	// Collect unification constraints using the call graph.
 	for _, fn := range vis.callees[call] {
 		if fn == nil {
 			continue
 		}
+		if vis.visitKnownFunction(fn, callsite) {
+			// special handling of some known functions
+			continue
+		}
+
 		paramCstrs, retCstrs := vis.collectCalleeConstraints(call, fn, callsite)
 		// Unify caller arguments and callee parameters in matching contexts.
 		for arg, params := range paramCstrs {
@@ -506,12 +570,13 @@ func (vis *visitor) unifyCallWithContexts(arg ssa.Value, param ssa.Value, callsi
 
 // Handle calls to builtin functions: https://golang.org/pkg/builtin/.
 func (vis *visitor) visitBuiltin(builtin *ssa.Builtin, instr ssa.Instruction) {
+	// TODO: support more library functions (https://github.com/google/go-flow-levee/issues/312)
 	switch builtin.Name() {
 	case "append": // func append(slice []Type, elems ...Type) []Type
 		// Propagage the arguments to the return value.
 		if dst, ok := instr.(ssa.Value); ok {
 			ops := instr.Operands(nil)
-			// ops[0] is the "append" function itself.
+			// ops[0] is the function itself.
 			for i := 1; i < len(ops); i++ {
 				// Unify-by-reference the dst and the op for all contexts.
 				vis.unifyLocals(dst, *ops[i])
@@ -521,15 +586,50 @@ func (vis *visitor) visitBuiltin(builtin *ssa.Builtin, instr ssa.Instruction) {
 		{
 			// Propagage the source to the destination through unify-by-value.
 			ops := instr.Operands(nil)
-			// ops[0] is the "copy" function itself.
+			// ops[0] is the function itself.
 			dst, src := *ops[1], *ops[2]
-			if mayShareObject(src) {
+			if mayShareObject(dst) && mayShareObject(src) {
 				for _, c := range vis.getContexts(dst) {
 					vis.unifyByValue(MakeLocal(c, dst), MakeLocal(c, src))
 				}
 			}
 		}
 	}
+}
+
+// Handle some known functions, e.g. in package "fmt".
+func (vis *visitor) visitKnownFunction(fn *ssa.Function, instr ssa.Instruction) bool {
+	// Add an operand reference to a field of the "dst", i.e. dst[index -> op].
+	addField := func(dst ssa.Value, op ssa.Value, index int) {
+		fd := Field{Name: strconv.Itoa(index)}
+		if mayShareObject(op) {
+			for _, c := range vis.getContexts(dst) {
+				vis.unifyField(c, dst, fd, op)
+			}
+		}
+	}
+	fname := fn.Name()
+	if strings.HasPrefix(fname, "Sprint") || strings.HasPrefix(fname, "Errorf") {
+		// Propagage the arguments to the return value using fields.
+		if dst, ok := instr.(ssa.Value); ok {
+			ops := instr.Operands(nil)
+			// ops[0] is the "append" function itself.
+			for i := 1; i < len(ops); i++ {
+				addField(dst, *ops[i], i)
+			}
+		}
+		return true
+	} else if strings.HasPrefix(fname, "Fprint") {
+		// Propagage the arguments to the first argument using fields.
+		ops := instr.Operands(nil)
+		first := *ops[1]
+		// ops[0] is the "append" function itself.
+		for i := 2; i < len(ops); i++ {
+			addField(first, *ops[i], i)
+		}
+		return true
+	}
+	return false
 }
 
 // Collect unification constraints corresponding to a call.
@@ -592,10 +692,12 @@ func (vis *visitor) processIndex(data ssa.Value, base ssa.Value, index ssa.Value
 	var field Field
 	if c, ok := index.(*ssa.Const); ok {
 		field = Field{Name: c.Value.String()}
+		vis.processHeapAccess(data, base, field)
+		// base[c -> data] implies base[AnyField -> data]
+		vis.processHeapAccess(data, base, anyIndexField)
 	} else {
-		field = anyIndexField
+		vis.processHeapAccess(data, base, anyIndexField)
 	}
-	vis.processHeapAccess(data, base, field)
 }
 
 // Process a load/store from data_reg to (base, index), where base can be a register
@@ -626,7 +728,8 @@ func (vis *visitor) processAddressToValue(addr ssa.Value, value ssa.Value) {
 			if isUnifyByReference(value.Type()) { // unify-by-reference
 				state.Unify(v, cvalue)
 			} else {
-				vis.unifyByValue(v, cvalue)
+				// TODO: handle the unify-by-value semantics
+				state.Unify(v, cvalue)
 			}
 		} else {
 			fmap[directPointToField] = cvalue
@@ -661,23 +764,19 @@ func (vis *visitor) unifyField(context *Context, obj ssa.Value, fd Field, target
 	tr := state.Insert(MakeReference(context, target))
 	// Add mapping from field to target. If obj's partition already has a mapping for
 	// this field, unify target with the suitable partition,
-	if isUnifyByReference(tr.Type()) { // unify the two references
-		// Add or unify the field.
-		if v, ok := fmap[fd]; ok {
-			state.Unify(v, tr)
-		} else {
-			fmap[fd] = tr
-		}
-	} else { // unify by value
-		if v, ok := fmap[fd]; ok {
-			vis.unifyByValue(v, tr)
-		}
+	// TODO: handle the unify-by-value semantics.
+	// unify the two references
+	// Add or unify the field.
+	if v, ok := fmap[fd]; ok {
+		state.Unify(v, tr)
+	} else {
+		fmap[fd] = tr
 	}
 }
 
 // Unify "&obj.field" and "target" in "context".
 // For example, for "t1 = &t0.x", after the unification, t0 has a field x pointing to t1.
-func (vis *visitor) unifyFieldAddress(context *Context, obj ssa.Value, field *Field, target *ssa.FieldAddr) {
+func (vis *visitor) unifyFieldAddress(context *Context, obj ssa.Value, field *Field, target ssa.Value) {
 	// This generates the unification constraint &obj.field = target
 	state := vis.state
 	objv := vis.getPointee(MakeReference(context, obj))
@@ -940,5 +1039,5 @@ func makeField(tp types.Type, index int) *Field {
 		fvar := stp.Field(index)
 		return &Field{Name: fvar.Name(), irField: fvar}
 	}
-	return &Field{Name: fmt.Sprintf("%d", index)}
+	return &Field{Name: strconv.Itoa(index)}
 }
