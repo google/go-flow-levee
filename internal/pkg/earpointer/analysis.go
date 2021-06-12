@@ -592,6 +592,7 @@ func (vis *visitor) unifyCallWithContexts(arg ssa.Value, param ssa.Value, callsi
 
 // Handle calls to builtin functions: https://golang.org/pkg/builtin/.
 func (vis *visitor) visitBuiltin(builtin *ssa.Builtin, instr ssa.Instruction) {
+	// TODO: support more library functions (https://github.com/google/go-flow-levee/issues/312)
 	switch builtin.Name() {
 	case "append": // func append(slice []Type, elems ...Type) []Type
 		// Propagage the arguments to the return value.
