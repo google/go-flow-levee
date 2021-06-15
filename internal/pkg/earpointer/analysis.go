@@ -622,7 +622,7 @@ func (vis *visitor) visitBuiltin(builtin *ssa.Builtin, instr ssa.Instruction) {
 
 // Handle some known functions, e.g. in package "fmt".
 func (vis *visitor) visitKnownFunction(fn *ssa.Function, instr ssa.Instruction) bool {
-	// TODO(#312)
+	// TODO(#312): Handle standard library functions.
 	// Add an operand reference to a field of the "dst", i.e. dst[index -> op].
 	addField := func(dst ssa.Value, op ssa.Value, index int) {
 		fd := Field{Name: strconv.Itoa(index)}
@@ -754,7 +754,7 @@ func (vis *visitor) processAddressToValue(addr ssa.Value, value ssa.Value) {
 			if isUnifyByReference(value.Type()) { // unify-by-reference
 				state.Unify(v, cvalue)
 			} else {
-				// TODO: handle the unify-by-value semantics
+				// TODO(#314): handle the unify-by-value semantics
 				state.Unify(v, cvalue)
 			}
 		} else {
@@ -790,7 +790,7 @@ func (vis *visitor) unifyField(context *Context, obj ssa.Value, fd Field, target
 	tr := state.Insert(MakeReference(context, target))
 	// Add mapping from field to target. If obj's partition already has a mapping for
 	// this field, unify target with the suitable partition,
-	// TODO: handle the unify-by-value semantics.
+	// TODO(#314): handle the unify-by-value semantics.
 	// unify the two references
 	// Add or unify the field.
 	if v, ok := fmap[fd]; ok {
@@ -943,7 +943,7 @@ func (vis *visitor) unifyByValue(ref1 Reference, ref2 Reference) {
 			fmap1[k] = addr1
 		}
 		toUnified[addr1] = addr2
-		// TODO: Recursively call "UnifyByValue" here.
+		// TODO(#314): Recursively call "UnifyByValue" here.
 	}
 	// "Copy" the remaining fields in ref1 to ref2. Only copy unify-by-reference
 	// field values.
