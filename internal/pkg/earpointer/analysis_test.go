@@ -612,7 +612,7 @@ func TestBinOp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{f.a}: [], {f.b}: [], {f.t0}: [0->f.a, 1->f.b]"
+	want := "{f.a}: [], {f.b}: [], {f.t0}: [left->f.a, right->f.b]"
 	if diff := cmp.Diff(want, state.String()); diff != "" {
 		t.Errorf("diff (-want +got):\n%s", diff)
 	}
@@ -665,6 +665,58 @@ func TestChannel(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "{f.ch}: [AnyField->f.t0], {f.t0,f.z}: []"
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
+	}
+}
+
+func TestSelect(t *testing.T) {
+	code := `package p
+	func f(c1, c2 chan string, m1, m2 string) {
+		select {
+        case c1 <- m1:
+			//
+        case m := <- c2:
+			print(m)
+        case c1 <- m2:
+			//
+        }
+	}
+	`
+	/*
+		func f(c1 chan string, c2 chan string, m1 string, m2 string):
+		0:                                                                entry P:0 S:2
+			t0 = select blocking [c1<-m1, <-c2, c1<-m2] (index int, ok bool, string, string)
+			t1 = extract t0 #0                                                  int
+			t2 = t1 == 0:int                                                   bool
+			if t2 goto 1 else 2
+		1:                                               select.done P:4 S:0
+			return
+		2:                                               select.next P:1 S:2
+			t3 = t1 == 1:int                                            bool
+			if t3 goto 3 else 4
+		3:                                               select.body P:1 S:1
+			t4 = extract t0 #2                                        string
+			t5 = print(t4)                                                ()
+			jump 1
+		4:                                               select.next P:1 S:2
+			t6 = t1 == 2:int                                            bool
+			if t6 goto 1 else 5
+		5:                                               select.next P:1 S:2
+			t7 = make interface{} <- string ("blocking select m...":string) interface{}
+			panic t7
+	*/
+	state, err := runCodeK0(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := concat(map[string]string{
+		"{f.c1}":      "[AnyField->f.m2]",
+		"{f.c2}":      "[]",
+		"{f.m1,f.m2}": "[]",
+		"{f.t7}":      "[]",
+		"{f.t4}":      "[]",
+	})
 	if diff := cmp.Diff(want, state.String()); diff != "" {
 		t.Errorf("diff (-want +got):\n%s", diff)
 	}
@@ -1016,13 +1068,13 @@ func TestKnownCall(t *testing.T) {
 		"fmt"
 		"os"
 	)
-	func f(s []*int, x string) {
+	func f(x string) {
 		_ = fmt.Sprintf(x)
 		fmt.Fprintf(os.Stderr, x)
 	}
 	`
 	/*
-		func f(s []*int, x string):
+		func f(x string):
 		0:                                                   entry P:0 S:0
 			t0 = fmt.Sprintf(x, nil:[]interface{}...)        string
 			t1 = *os.Stderr                                  *os.File
@@ -1041,7 +1093,7 @@ func TestKnownCall(t *testing.T) {
 		"{f.t0}":      "[1->f.x]",
 		"{f.t1,f.t2}": "[2->f.x]",
 		"{f.t3}":      "[]",
-		"{f.s}":       "[]",
+		"{f.x}":       "[]",
 	})
 	// Exclude the references in packages "fmt" and "os".
 	if !strings.Contains(state.String(), want) {
@@ -1081,16 +1133,17 @@ func TestVariadicCall(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Handle the non-determinism when choosing the representative during unifying.
+	// The representative of {*f.t0,*g.ks} may be *f.t0 or *g.ks.
 	want1 := concat(map[string]string{
 		"{f.a,f.b,f.t4,g.t1}": "[]",
 		"{*f.t0,*g.ks}":       "[0->g.t0, 1->g.t0, AnyField->g.t0]",
-		"{f.t0,f.t3,g.ks}":    "--> *f.t0",
+		"{f.t0,f.t3,g.ks}":    "--> *f.t0", // non-determinism
 		"{f.t1,f.t2,g.t0}":    "--> f.t4",
 	})
 	want2 := concat(map[string]string{
 		"{f.a,f.b,f.t4,g.t1}": "[]",
 		"{*f.t0,*g.ks}":       "[0->g.t0, 1->g.t0, AnyField->g.t0]",
-		"{f.t0,f.t3,g.ks}":    "--> *g.ks",
+		"{f.t0,f.t3,g.ks}":    "--> *g.ks", // non-determinism
 		"{f.t1,f.t2,g.t0}":    "--> f.t4",
 	})
 	diff1 := cmp.Diff(want1, state.String())

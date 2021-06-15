@@ -78,7 +78,7 @@ func Analyze(ssainput *buildssa.SSA) *Partitions {
 	vis.initContexts(cg)
 	vis.initGlobalReferences(ssainput.Pkg)
 	// Analyze all the functions and methods in the package,
-	// not just those in ssainput.ScrFuncs.
+	// not just those in ssainput.SrcFuncs.
 	fns := ssautil.AllFunctions(prog)
 	for _, fn := range ssainput.SrcFuncs {
 		fns[fn] = true
@@ -281,14 +281,14 @@ func (vis *visitor) visitField(field *ssa.Field) {
 	fd := makeField(obj.Type(), field.Field)
 	state := vis.state
 	for _, c := range vis.getContexts(field) {
-		objv := MakeReference(c, obj)
-		fmap := state.PartitionFieldMap(state.representative(objv))
+		objRef := MakeReference(c, obj)
+		fmap := state.PartitionFieldMap(state.representative(objRef))
 		fref := MakeReference(c, field)
 		// If obj's partition already has a mapping for this field, unify fref
 		// with the suitable partition. Otherwise set fref as the ref.
-		if v, ok := fmap[*fd]; ok {
+		if oldRef, ok := fmap[*fd]; ok {
 			// Implement "fmap[fd -> addr], addr --> fref".
-			state.Unify(vis.getPointee(v), fref)
+			state.Unify(vis.getPointee(oldRef), fref)
 		} else {
 			fmap[*fd] = fref // over-approximation
 		}
@@ -300,8 +300,8 @@ func (vis *visitor) visitIndexAddr(addr *ssa.IndexAddr) {
 	obj := addr.X
 	if c, ok := addr.Index.(*ssa.Const); ok {
 		field := Field{Name: c.Value.String()}
-		for _, c := range vis.getContexts(addr) {
-			vis.unifyFieldAddress(c, obj, &field, addr)
+		for _, cxt := range vis.getContexts(addr) {
+			vis.unifyFieldAddress(cxt, obj, &field, addr)
 		}
 	}
 	// Also update the AnyField information.
@@ -387,10 +387,10 @@ func (vis *visitor) visitBinOp(op *ssa.BinOp) {
 		// unify instance field
 		for _, c := range vis.getContexts(op) {
 			if mayShareObject(op.X) {
-				vis.unifyField(c, op, Field{Name: "0"}, op.X)
+				vis.unifyField(c, op, Field{Name: "left"}, op.X)
 			}
 			if mayShareObject(op.Y) {
-				vis.unifyField(c, op, Field{Name: "1"}, op.Y)
+				vis.unifyField(c, op, Field{Name: "right"}, op.Y)
 			}
 		}
 	}
@@ -429,12 +429,32 @@ func (vis *visitor) visitExtract(extract *ssa.Extract) {
 			vis.processIndex(extract, base.X, base.Index)
 		}
 	case *ssa.UnOp:
+		// Handle the channel read case with comma.
+		// Other UnOp cases are handled within "visitUnOp()".
+		// t1 = <-t0,ok
+		// t2 = extract t1 0
 		if base.Op == token.ARROW && base.CommaOk && extract.Index == 0 { // channel read
 			// Use array read to simulate channel read.
 			vis.processHeapAccess(extract, base.X, anyIndexField)
 		}
 	case *ssa.Select:
-		// TODO: to be implemented
+		// t1 = select blocking [c1<-t0, <-c2]  // (index int, recvOk bool, r_0 T_0, ... r_n-1 T_n-1)
+		// t2 = extract t1 #n
+		if extract.Index > 1 {
+			k := -1 // for locating the (extract.Index-2)^{th} receive
+			sts := base.States
+			for i := 0; i < len(sts); i++ {
+				if sts[i].Dir == types.RecvOnly {
+					if k++; k == extract.Index-2 {
+						// Propagate the (extract.Index-2)^{th} receive value to the LHS.
+						if val := sts[i].Send; val != nil {
+							vis.unifyLocals(extract, val)
+						}
+						break
+					}
+				}
+			}
+		}
 	default: // Other cases: model "r1 = extract r0 #n" as "r0["n"] = r1".
 		field := Field{Name: strconv.Itoa(extract.Index)}
 		vis.processHeapAccess(extract, base, field)
@@ -466,7 +486,11 @@ func (vis *visitor) visitSend(send *ssa.Send) {
 }
 
 func (vis *visitor) visitSelect(s *ssa.Select) {
-	// TODO: to be implemented.
+	for _, st := range s.States {
+		if st.Send != nil {
+			vis.processHeapAccess(st.Send, st.Chan, anyIndexField)
+		}
+	}
 }
 
 func (vis *visitor) visitCall(call *ssa.CallCommon, callsite ssa.Instruction) {
@@ -570,7 +594,6 @@ func (vis *visitor) unifyCallWithContexts(arg ssa.Value, param ssa.Value, callsi
 
 // Handle calls to builtin functions: https://golang.org/pkg/builtin/.
 func (vis *visitor) visitBuiltin(builtin *ssa.Builtin, instr ssa.Instruction) {
-	// TODO: support more library functions (https://github.com/google/go-flow-levee/issues/312)
 	switch builtin.Name() {
 	case "append": // func append(slice []Type, elems ...Type) []Type
 		// Propagage the arguments to the return value.
@@ -599,6 +622,7 @@ func (vis *visitor) visitBuiltin(builtin *ssa.Builtin, instr ssa.Instruction) {
 
 // Handle some known functions, e.g. in package "fmt".
 func (vis *visitor) visitKnownFunction(fn *ssa.Function, instr ssa.Instruction) bool {
+	// TODO(#312)
 	// Add an operand reference to a field of the "dst", i.e. dst[index -> op].
 	addField := func(dst ssa.Value, op ssa.Value, index int) {
 		fd := Field{Name: strconv.Itoa(index)}
@@ -609,27 +633,29 @@ func (vis *visitor) visitKnownFunction(fn *ssa.Function, instr ssa.Instruction) 
 		}
 	}
 	fname := fn.Name()
-	if strings.HasPrefix(fname, "Sprint") || strings.HasPrefix(fname, "Errorf") {
-		// Propagage the arguments to the return value using fields.
+	switch {
+	case strings.HasPrefix(fname, "Sprint"), strings.HasPrefix(fname, "Errorf"):
+		// Propagate the arguments to the return value using fields.
 		if dst, ok := instr.(ssa.Value); ok {
 			ops := instr.Operands(nil)
-			// ops[0] is the "append" function itself.
+			// ops[0] is the function itself.
 			for i := 1; i < len(ops); i++ {
 				addField(dst, *ops[i], i)
 			}
 		}
 		return true
-	} else if strings.HasPrefix(fname, "Fprint") {
-		// Propagage the arguments to the first argument using fields.
+	case strings.HasPrefix(fname, "Fprint"):
+		// Propagate the arguments to the first argument using fields.
 		ops := instr.Operands(nil)
-		first := *ops[1]
-		// ops[0] is the "append" function itself.
+		// ops[0] is the function itself.
+		first := *ops[1] // the io stream
 		for i := 2; i < len(ops); i++ {
 			addField(first, *ops[i], i)
 		}
 		return true
+	default:
+		return false
 	}
-	return false
 }
 
 // Collect unification constraints corresponding to a call.
