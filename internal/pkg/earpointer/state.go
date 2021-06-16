@@ -85,8 +85,10 @@ func (state *state) representatives() ReferenceSet {
 // ("ref" must belong to this state).
 func (state *state) representative(ref Reference) Reference {
 	failureCallback := func(ref Reference) Reference {
-		log.Fatalf("representative: Reference [%s] not found in state", ref)
-		return nil
+		// Some global variables has no declarations in the SSA;
+		// Insert their references dynamically.
+		state.Insert(ref)
+		return ref
 	}
 	return state.lookupPartitionRep(ref, failureCallback)
 }
@@ -169,7 +171,10 @@ func (state *state) unifyReps(ref1 Reference, ref2 Reference) {
 	pinfo1 := state.partitionInfo(prep1)
 	pinfo2 := state.partitionInfo(prep2)
 	// swap so that "ref1" is always the smaller partition
-	if pinfo1.numMembers > pinfo2.numMembers {
+	// if their sizes are the same, use source position information to
+	// make the choice deterministic.
+	n1, n2 := pinfo1.numMembers, pinfo2.numMembers
+	if n1 > n2 || (n1 == n2 && prep1.Value().Pos() > prep2.Value().Pos()) {
 		prep1, prep2 = prep2, prep1
 		pinfo1, pinfo2 = pinfo2, pinfo1
 	}
@@ -308,10 +313,27 @@ func (state *state) ToPartitions() *Partitions {
 // After this call, internal data structures are optimized for lookups only,
 // and no mutations should be made.
 func (p *Partitions) finalize() {
-	// Construct the map from field references to their parents.
-	p.constructFieldParentMap()
-
-	// Construct the members. members maps partitions representatives to the
+	// (1) Construct a new parent map that maps a reference to its representative
+	//     so as to accelerate representative lookup.
+	// For example, supposed the old parent map contains r1->r2, r2->r3,
+	// r3->r4(representative), then the new parent map contains r1->r4.
+	// "r4" can be returned immediately without chasing the union-find relation
+	// in the old map.
+	optParents := make(parentMap) // optimized parents
+	for ref, parent := range p.parents {
+		if ref == parent {
+			optParents[ref] = ref
+		} else {
+			rep := parent
+			for up := p.parents[rep]; up != rep; {
+				rep = up
+			}
+			// Otherwise, get ref's partition representative and update members.
+			optParents[ref] = rep
+		}
+	}
+	p.parents = optParents
+	// (2) Construct the members. members maps partitions representatives to the
 	// members (references) of partitions.
 	for ref, parent := range p.parents {
 		if ref == parent {
@@ -324,16 +346,18 @@ func (p *Partitions) finalize() {
 			p.members[rep] = append(p.members[rep], ref)
 		}
 	}
-	// Normalize fieldRefs table in a way that it only contains partition
+	// (3) Normalize fieldRefs table in a way that it only contains partition
 	// representatives.
 	for _, pinfo := range p.partitions {
 		for fd, entry := range pinfo.fieldRefs {
 			pinfo.fieldRefs[fd] = p.Representative(entry)
 		}
 	}
+	// (4) Construct the map from field references to their parents.
+	p.constructFieldParentMap()
 }
 
-// Has returns true if "ref" is a reference present in the state.
+// Has returns true if "ref" is a reference present in the partitions.
 func (p *Partitions) Has(ref Reference) bool {
 	_, ok := p.parents[ref]
 	return ok
@@ -358,7 +382,7 @@ func (p *Partitions) Representatives() ReferenceSet {
 }
 
 // Representative gets the partition representative of reference "ref"
-// ("ref" must belong to this state).
+// ("ref" must belong to this partitions).
 func (p *Partitions) Representative(ref Reference) Reference {
 	return p.parents[ref]
 }
@@ -378,8 +402,8 @@ func (p *Partitions) String() string {
 }
 
 // FieldParents returns the parents of a field reference. Return nil if ref has no parent.
-// For example, return o for r if "o[x -> r]" is in state. This shall be
-// called only after the state has been finalized.
+// For example, return o for r if "o[x -> r]" is in partitions. This shall be
+// called only after the partitions have been finalized.
 func (p *Partitions) FieldParents(ref Reference) []Reference {
 	return p.revFields[ref]
 }
@@ -416,7 +440,7 @@ func (p *Partitions) MembersForRep(rep Reference) []Reference {
 }
 
 // PartitionMembers gets the list of members in the partition to which "ref" belongs.
-// Precondition: "ref" must be a reference present in the state.
+// Precondition: "ref" must be a reference present in the partitions.
 func (p *Partitions) PartitionMembers(ref Reference) []Reference {
 	return p.MembersForRep(p.Representative(ref))
 }
