@@ -56,7 +56,7 @@ var Analyzer = &analysis.Analyzer{
 // for all reachable contexts for that function. Both the intra-procedural
 // instructions and inter-procedural instructions are handled.
 type visitor struct {
-	state    *state                              // mutable partitions
+	state    *state                              // mutable state
 	callees  map[*ssa.CallCommon][]*ssa.Function // callee functions at each callsite
 	contexts map[*ssa.Function][]*Context        // for context sensitive analysis
 	contextK int
@@ -134,7 +134,7 @@ func collectContext(node *callgraph.Node, k int) []*Context {
 	return kContexts
 }
 
-// Insert into the partitions all the global references.
+// Insert into the state all the global references.
 func (vis *visitor) initGlobalReferences(pkg *ssa.Package) {
 	state := vis.state
 	for _, member := range pkg.Members {
@@ -149,10 +149,10 @@ func (vis *visitor) initGlobalReferences(pkg *ssa.Package) {
 	}
 }
 
-// Insert into the partitions all the local references.
+// Insert into the state all the local references.
 func (vis *visitor) initFunction(fn *ssa.Function) {
 	state := vis.state
-	// A function to insert a local into the partitions under all related contexts.
+	// A function to insert a local into the state under all related contexts.
 	initLocal := func(v ssa.Value) {
 		for _, c := range vis.getContexts(v) {
 			state.Insert(MakeLocal(c, v))

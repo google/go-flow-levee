@@ -41,7 +41,7 @@ type partitionInfo struct {
 // partitionInfoMap maps a reference to its partition.
 type partitionInfoMap map[Reference]partitionInfo
 
-// partitions is Equivalent Abstract references (EAR) partitions, which maintains
+// state is Equivalent Abstract references (EAR) state, which maintains
 // an abstract heap information. It contains data structures that
 // may be mutated during heap construction.
 type state struct {
@@ -52,7 +52,7 @@ type state struct {
 	parents parentMap
 }
 
-// NewState creates an empty abstract partitions.
+// NewState creates an empty abstract state.
 func NewState() *state {
 	return &state{
 		partitions: make(partitionInfoMap),
@@ -82,7 +82,7 @@ func (state *state) representatives() ReferenceSet {
 }
 
 // representative gets the partition representative of reference "ref"
-// ("ref" must belong to this partitions).
+// ("ref" must belong to this state).
 func (state *state) representative(ref Reference) Reference {
 	failureCallback := func(ref Reference) Reference {
 		// Some global variables has no declarations in the SSA;
@@ -137,9 +137,9 @@ func (fmap FieldMap) String() string {
 	return "[" + strings.Join(fstrs, ", ") + "]"
 }
 
-// Various partitions mutation operation
+// Various state mutation operation
 
-// Insert inserts reference "ref" to the partitions and returns the current
+// Insert inserts reference "ref" to the state and returns the current
 // partition representative of "ref".
 func (state *state) Insert(ref Reference) Reference {
 	// Lookup failure will create new entry in the parent table.
@@ -179,7 +179,7 @@ func (state *state) unifyReps(ref1 Reference, ref2 Reference) {
 		pinfo1, pinfo2 = pinfo2, pinfo1
 	}
 
-	// Create partitions by having "prep1" point to "prep2" as parent and
+	// Create state by having "prep1" point to "prep2" as parent and
 	// by erasing "prep1" as a partition rep. We then call MergeFieldMap()
 	// to merge field maps (which can trigger further unification). This process
 	// will converge since the number of partitions is guaranteed to decrease at
@@ -210,9 +210,9 @@ func (state *state) lookupPartitionRep(ref Reference, onfailure func(abs Referen
 		return rep
 	}
 	// Else recurse. We use crashing callback here, because when recursing
-	// we expect the recursion argument to be always in the abstract partitions.
+	// we expect the recursion argument to be always in the abstract state.
 	failureCallback := func(ref Reference) Reference {
-		log.Printf("lookupPartitionRep: Reference [%s] not found in partitions", ref)
+		log.Printf("lookupPartitionRep: Reference [%s] not found in state", ref)
 		return nil
 	}
 	prep := state.lookupPartitionRep(rep, failureCallback)
@@ -274,7 +274,7 @@ func (state *state) valueReferenceOrNil(addr Reference) Reference {
 // no more mutation operations will be performed. Its internal data structures are
 // optimized for lookups only.
 type Partitions struct {
-	// Inherit "parents" and "partitions" from partitions.
+	// Inherit "parents" and "partitions" from state.
 
 	// Map from a ref to its parent abstract ref.
 	parents parentMap
