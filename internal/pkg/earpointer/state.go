@@ -357,7 +357,7 @@ func (p *Partitions) finalize() {
 	p.constructFieldParentMap()
 }
 
-// Has returns true if "ref" is a reference present in the state.
+// Has returns true if "ref" is a reference present in the partitions.
 func (p *Partitions) Has(ref Reference) bool {
 	_, ok := p.parents[ref]
 	return ok
@@ -382,7 +382,7 @@ func (p *Partitions) Representatives() ReferenceSet {
 }
 
 // Representative gets the partition representative of reference "ref"
-// ("ref" must belong to this state).
+// ("ref" must belong to this partitions).
 func (p *Partitions) Representative(ref Reference) Reference {
 	return p.parents[ref]
 }
@@ -402,8 +402,8 @@ func (p *Partitions) String() string {
 }
 
 // FieldParents returns the parents of a field reference. Return nil if ref has no parent.
-// For example, return o for r if "o[x -> r]" is in state. This shall be
-// called only after the state has been finalized.
+// For example, return o for r if "o[x -> r]" is in partitions. This shall be
+// called only after the partitions have been finalized.
 func (p *Partitions) FieldParents(ref Reference) []Reference {
 	return p.revFields[ref]
 }
@@ -440,7 +440,7 @@ func (p *Partitions) MembersForRep(rep Reference) []Reference {
 }
 
 // PartitionMembers gets the list of members in the partition to which "ref" belongs.
-// Precondition: "ref" must be a reference present in the state.
+// Precondition: "ref" must be a reference present in the partitions.
 func (p *Partitions) PartitionMembers(ref Reference) []Reference {
 	return p.MembersForRep(p.Representative(ref))
 }

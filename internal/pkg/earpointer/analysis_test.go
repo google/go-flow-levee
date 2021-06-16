@@ -712,7 +712,7 @@ func TestSelect(t *testing.T) {
 	}
 	want := concat(map[string]string{
 		"{f.c1}":      "[AnyField->f.m2]",
-		"{f.c2}":      "[]",
+		"{f.c2}":      "[AnyField->f.t4]",
 		"{f.m1,f.m2}": "[]",
 		"{f.t7}":      "[]",
 		"{f.t4}":      "[]",

@@ -440,18 +440,16 @@ func (vis *visitor) visitExtract(extract *ssa.Extract) {
 	case *ssa.Select:
 		// t1 = select blocking [c1<-t0, <-c2]  // (index int, recvOk bool, r_0 T_0, ... r_n-1 T_n-1)
 		// t2 = extract t1 #n
-		if extract.Index > 1 {
-			k := -1 // for locating the (extract.Index-2)^{th} receive
-			sts := base.States
-			for i := 0; i < len(sts); i++ {
-				if sts[i].Dir == types.RecvOnly {
-					if k++; k == extract.Index-2 {
-						// Propagate the (extract.Index-2)^{th} receive value to the LHS.
-						if val := sts[i].Send; val != nil {
-							vis.unifyLocals(extract, val)
-						}
-						break
-					}
+		if extract.Index <= 1 {
+			break
+		}
+		k := -1 // for locating the (extract.Index-2)^{th} receive
+		for _, st := range base.States {
+			if st.Dir == types.RecvOnly {
+				if k++; k == extract.Index-2 && mayShareObject(st.Chan) {
+					// Extract the receive value from the channel.
+					vis.processHeapAccess(extract, st.Chan, anyIndexField)
+					break
 				}
 			}
 		}
