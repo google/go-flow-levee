@@ -1107,44 +1107,53 @@ func TestVariadicCall(t *testing.T) {
 		return ks[0]
 	}
 	func f(a *int, b *int) *int {
+		g(a)
 		return g(a, b)
 	}
 	`
 	/*
 		func f(a *int, b *int) *int:
 		0:                                                     entry P:0 S:0
-			t0 = new [2]*int (varargs)                         *[2]*int
-			t1 = &t0[0:int]                                    **int
+			t0 = new [1]*int (varargs)                              *[1]*int
+			t1 = &t0[0:int]                                                **int
 			*t1 = a
-			t2 = &t0[1:int]                                    **int
-			*t2 = b
-			t3 = slice t0[:]                                   []*int
-			t4 = g(t3...)                                      *int
-			return t4
+			t2 = slice t0[:]                                              []*int
+			t3 = g(t2...)                                                   *int
+			t4 = new [2]*int (varargs)                                  *[2]*int
+			t5 = &t4[0:int]                                                **int
+			*t5 = a
+			t6 = &t4[1:int]                                                **int
+			*t6 = b
+			t7 = slice t4[:]                                              []*int
+			t8 = g(t7...)                                                   *int
+			return t8
 
-		func g(ks ...*int) *int:
-		0:                                                     entry P:0 S:0
-			t0 = &ks[0:int]                                    **int
-			t1 = *t0                                           *int
-			return t1
+			func g(ks ...*int) *int:
+			0:                                                     entry P:0 S:0
+				t0 = &ks[0:int]                                    **int
+				t1 = *t0                                           *int
+				return t1
 	*/
 	state, err := runCodeK0(code)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Handle the non-determinism when choosing the representative during unifying.
-	// The representative of {*f.t0,*g.ks} may be *f.t0 or *g.ks.
+	// Handle the non-determinism due to the processing order of "f" and "g".
+	// Synthetic reference *g.ks may or may not be created: when "f" is
+	// processed first, "*g.ks" will not be created.
 	want1 := concat(map[string]string{
-		"{f.a,f.b,f.t4,g.t1}": "[]",
-		"{*f.t0,*g.ks}":       "[0->g.t0, 1->g.t0, AnyField->g.t0]",
-		"{f.t0,f.t3,g.ks}":    "--> *f.t0", // non-determinism
-		"{f.t1,f.t2,g.t0}":    "--> f.t4",
+		"{f.a,f.b,f.t3,f.t8,g.t1}": "[]",
+		// non-determinism: synthetic *g.ks is not created.
+		"{*f.t0,*f.t4}":              "[0->g.t0, 1->g.t0, AnyField->g.t0]",
+		"{f.t0,f.t2,f.t4,f.t7,g.ks}": "--> *f.t4", // non-determinism
+		"{f.t1,f.t5,f.t6,g.t0}":      "--> f.t8",
 	})
 	want2 := concat(map[string]string{
-		"{f.a,f.b,f.t4,g.t1}": "[]",
-		"{*f.t0,*g.ks}":       "[0->g.t0, 1->g.t0, AnyField->g.t0]",
-		"{f.t0,f.t3,g.ks}":    "--> *g.ks", // non-determinism
-		"{f.t1,f.t2,g.t0}":    "--> f.t4",
+		"{f.a,f.b,f.t3,f.t8,g.t1}": "[]",
+		// non-determinism: synthetic *g.ks is created.
+		"{*f.t0,*f.t4,*g.ks}":        "[0->g.t0, 1->g.t0, AnyField->g.t0]",
+		"{f.t0,f.t2,f.t4,f.t7,g.ks}": "--> *f.t4",
+		"{f.t1,f.t5,f.t6,g.t0}":      "--> f.t8",
 	})
 	diff1 := cmp.Diff(want1, state.String())
 	diff2 := cmp.Diff(want2, state.String())
