@@ -21,10 +21,16 @@ import (
 	"golang.org/x/tools/go/ssa"
 )
 
+type heapTraversalState struct {
+	partitions *Partitions
+	callees    map[*ssa.Function]bool
+	visited    ReferenceSet
+}
+
 // For a function, transitively get the functions called within this function.
 // Argument "depth" controls the depth of the call chain.
 // For example, return {g1,g2,g3} for "func f(){ g1(); g2() }, func g1(){ g3() }".
-func GetCalleeFunctions(fn *ssa.Function, result map[*ssa.Function]bool, depth int) {
+func getCalleeFunctions(fn *ssa.Function, result map[*ssa.Function]bool, depth uint) {
 	if depth <= 0 {
 		return
 	}
@@ -33,11 +39,10 @@ func GetCalleeFunctions(fn *ssa.Function, result map[*ssa.Function]bool, depth i
 			switch v := instr.(type) {
 			case *ssa.Call:
 				// TODO: the call graph can be CHA, RTA, VTA, etc.
-				if callee := v.Call.StaticCallee(); callee != nil &&
-					len(callee.Blocks) > 0 {
+				if callee := v.Call.StaticCallee(); callee != nil && len(callee.Blocks) > 0 {
 					if _, ok := result[callee]; !ok {
 						result[callee] = true
-						GetCalleeFunctions(callee, result, depth-1)
+						getCalleeFunctions(callee, result, depth-1)
 					}
 				}
 			}
@@ -45,113 +50,129 @@ func GetCalleeFunctions(fn *ssa.Function, result map[*ssa.Function]bool, depth i
 	}
 }
 
+func GetCalleeFunctions(fn *ssa.Function, depth uint) map[*ssa.Function]bool {
+	result := make(map[*ssa.Function]bool)
+	result[fn] = true
+	getCalleeFunctions(fn, result, depth)
+	return result
+}
+
 func isWithinFunctions(ref Reference, callees map[*ssa.Function]bool) bool {
-	fn := ref.Value().Parent()
-	if fn != nil {
+	if fn := ref.Value().Parent(); fn != nil {
 		_, ok := callees[fn]
 		return ok
 	}
+	// Globals and Builtins have no parents.
 	return true
 }
 
-// Obtain the references associated with taint sources, with field sensitivity.
-// When a struct object contains taint fields, these fields and all their
-// subfields are included in taint sources, but the struct object itself is
-// not a taint source. However, if this object has no fields, then this object
-// is considered as a taint source.
-//
-// For example, consider object of type "struct {x: *T, y *T}" where x is a
-// taint field, and this object's heap is "{t0,t1}: [x:int->t2, y:int->t3],
-// {t2, t4} --> t5", then {t2, t4, t5} are taint sources.
-func GetSrcRefs(src *source.Source, state *Partitions, isTaintField func(named *types.Named, index int) bool,
-	callees map[*ssa.Function]bool) ReferenceSet {
-	refs := make(ReferenceSet)
+// Obtain the references associated with a taint source, with field sensitivity.
+// Consider only the references located with the "callees".
+func GetSrcRefs(src *source.Source, isTaintField func(named *types.Named, index int) bool,
+	state *Partitions, callees map[*ssa.Function]bool) ReferenceSet {
+
 	val, ok := src.Node.(ssa.Value)
 	if !ok {
 		return nil
 	}
 	rep := state.Representative(MakeLocalWithEmptyContext(val))
-	var getStructFieldRefs func(ref Reference, tp types.Type)
-	getStructFieldRefs = func(ref Reference, tp types.Type) {
-		switch tp := tp.(type) {
-		case *types.Named:
-			if tt, ok := tp.Underlying().(*types.Struct); ok {
-				// Look for the taint fields.
-				hasTaintField := false
-				for i := 0; i < tt.NumFields(); i++ {
-					f := tt.Field(i)
-					if isTaintField(tp, i) {
-						for fd, fref := range state.PartitionFieldMap(state.Representative(ref)) {
-							if fd.Name == f.Name() {
-								refs[fref] = true
-								// Mark all the subfields to be tainted.
-								getFieldReferences(fref, refs, state, callees, make(ReferenceSet))
-								hasTaintField = true
-							}
+	refs := make(ReferenceSet)
+	tState := &heapTraversalState{partitions: state, callees: callees, visited: make(ReferenceSet)}
+	getStructFieldRefs(rep, val.Type(), refs, isTaintField, tState)
+	return refs
+}
+
+// Obtain the references associated with a taint source, with field sensitivity.
+// When a struct object contains taint fields, only these fields and all their
+// subfields are included in taint sources, and the struct object itself is
+// a taint source. Other fields will not be tainted.
+//
+// For example, consider object of type "struct {x: *T, y *T}" where x is a
+// taint field, and this object's heap is "{t0,t1}: [x->t2, y->t3],
+// {t2,t4} --> t5, {t3} --> t6", then {t0,t1,t2,t4,t5} are taint sources.
+func getStructFieldRefs(rep Reference, tp types.Type, refs ReferenceSet,
+	isTaintField func(named *types.Named, index int) bool, tState *heapTraversalState) {
+
+	state := tState.partitions
+	switch tp := tp.(type) {
+	case *types.Named:
+		if tt, ok := tp.Underlying().(*types.Struct); ok {
+			refs[rep] = true // the current struct object is tainted
+			// Look for the taint fields.
+			for i := 0; i < tt.NumFields(); i++ {
+				f := tt.Field(i)
+				if isTaintField(tp, i) {
+					for fd, fref := range state.PartitionFieldMap(rep) {
+						if fd.Name == f.Name() {
+							refs[fref] = true
+							// Mark all the subfields to be tainted.
+							getFieldReferences(fref, refs, tState)
 						}
 					}
 				}
-				if !hasTaintField {
-					getFieldReferences(ref, refs, state, callees, make(ReferenceSet))
-				}
+				// Skip the non-taint fields.
 			}
-		case *types.Pointer:
-			if r := state.PartitionFieldMap(rep)[directPointToField]; r != nil {
-				getStructFieldRefs(r, tp.Elem())
-			} else {
-				getStructFieldRefs(rep, tp.Elem())
-			}
-		case *types.Array:
-			for _, r := range state.PartitionFieldMap(rep) {
-				getStructFieldRefs(r, tp.Elem())
-			}
-		case *types.Slice:
-			for _, r := range state.PartitionFieldMap(rep) {
-				getStructFieldRefs(r, tp.Elem())
-			}
-		case *types.Chan:
-			for _, r := range state.PartitionFieldMap(rep) {
-				getStructFieldRefs(r, tp.Elem())
-			}
-		case *types.Map:
-			for _, r := range state.PartitionFieldMap(rep) {
-				getStructFieldRefs(r, tp.Elem())
-			}
-		case *types.Basic, *types.Tuple, *types.Interface, *types.Signature:
-			// These types do not currently represent possible source types
+		} else {
+			getStructFieldRefs(rep, tp.Underlying(), refs, isTaintField, tState)
 		}
+	case *types.Pointer:
+		if r := state.PartitionFieldMap(rep)[directPointToField]; r != nil {
+			getStructFieldRefs(r, tp.Elem(), refs, isTaintField, tState)
+		} else {
+			getStructFieldRefs(rep, tp.Elem(), refs, isTaintField, tState)
+		}
+	case *types.Array:
+		refs[rep] = true
+		for _, r := range state.PartitionFieldMap(rep) {
+			getStructFieldRefs(r, tp.Elem(), refs, isTaintField, tState)
+		}
+	case *types.Slice:
+		refs[rep] = true
+		for _, r := range state.PartitionFieldMap(rep) {
+			getStructFieldRefs(r, tp.Elem(), refs, isTaintField, tState)
+		}
+	case *types.Chan:
+		refs[rep] = true
+		for _, r := range state.PartitionFieldMap(rep) {
+			getStructFieldRefs(r, tp.Elem(), refs, isTaintField, tState)
+		}
+	case *types.Map:
+		refs[rep] = true
+		for _, r := range state.PartitionFieldMap(rep) {
+			getStructFieldRefs(r, tp.Elem(), refs, isTaintField, tState)
+		}
+	case *types.Basic, *types.Tuple, *types.Interface, *types.Signature:
+		// These types do not currently represent possible source types
 	}
-
-	getStructFieldRefs(rep, val.Type())
-	return refs
 }
 
 // Obtains all the field references and their aliases for "ref".
 // For example, return {t0, t5, t1, t3, t4} for "{t0,t5}: [0:int->t1, 1:int->t3], {t3} --> t4".
-func getFieldReferences(ref Reference, result ReferenceSet, state *Partitions, callees map[*ssa.Function]bool, visited ReferenceSet) {
-	visited[ref] = true
+func getFieldReferences(ref Reference, result ReferenceSet, traversalState *heapTraversalState) {
+	traversalState.visited[ref] = true
+	state := traversalState.partitions
 	for _, m := range state.PartitionMembers(ref) {
-		if isWithinFunctions(m, callees) {
+		if isWithinFunctions(m, traversalState.callees) {
 			result[m] = true
 		}
 	}
 	rep := state.Representative(ref)
-	result[rep] = true
 	for _, r := range state.PartitionFieldMap(rep) {
-		if _, ok := visited[r]; !ok {
-			getFieldReferences(r, result, state, callees, visited)
+		if _, ok := traversalState.visited[r]; !ok {
+			getFieldReferences(r, result, traversalState)
 		}
 	}
 }
 
 // Checks whether a taint sink can be reached by a taint source by examining the alias information.
 func IsEARTainted(sink ssa.Instruction, srcRefs ReferenceSet, state *Partitions, callees map[*ssa.Function]bool) bool {
+	traversalState := &heapTraversalState{partitions: state, callees: callees, visited: make(ReferenceSet)}
 	sinks := make(map[Reference]bool)
 	for _, op := range sink.Operands(nil) {
-			v := *op
-			if isLocal(v) || isGlobal(v) {
-				ref := MakeLocalWithEmptyContext(v)
-				getFieldReferences(ref, sinks, state, callees, make(ReferenceSet))
+		v := *op
+		if isLocal(v) || isGlobal(v) {
+			ref := MakeLocalWithEmptyContext(v)
+			getFieldReferences(ref, sinks, traversalState)
 		}
 	}
 

@@ -41,7 +41,7 @@ type partitionInfo struct {
 // partitionInfoMap maps a reference to its partition.
 type partitionInfoMap map[Reference]partitionInfo
 
-// state is Equivalent Abstract references (EAR) state, which maintains
+// partitions is Equivalent Abstract references (EAR) partitions, which maintains
 // an abstract heap information. It contains data structures that
 // may be mutated during heap construction.
 type state struct {
@@ -52,7 +52,7 @@ type state struct {
 	parents parentMap
 }
 
-// NewState creates an empty abstract state.
+// NewState creates an empty abstract partitions.
 func NewState() *state {
 	return &state{
 		partitions: make(partitionInfoMap),
@@ -82,7 +82,7 @@ func (state *state) representatives() ReferenceSet {
 }
 
 // representative gets the partition representative of reference "ref"
-// ("ref" must belong to this state).
+// ("ref" must belong to this partitions).
 func (state *state) representative(ref Reference) Reference {
 	failureCallback := func(ref Reference) Reference {
 		// Some global variables has no declarations in the SSA;
@@ -137,9 +137,9 @@ func (fmap FieldMap) String() string {
 	return "[" + strings.Join(fstrs, ", ") + "]"
 }
 
-// Various state mutation operation
+// Various partitions mutation operation
 
-// Insert inserts reference "ref" to the state and returns the current
+// Insert inserts reference "ref" to the partitions and returns the current
 // partition representative of "ref".
 func (state *state) Insert(ref Reference) Reference {
 	// Lookup failure will create new entry in the parent table.
@@ -179,7 +179,7 @@ func (state *state) unifyReps(ref1 Reference, ref2 Reference) {
 		pinfo1, pinfo2 = pinfo2, pinfo1
 	}
 
-	// Create state by having "prep1" point to "prep2" as parent and
+	// Create partitions by having "prep1" point to "prep2" as parent and
 	// by erasing "prep1" as a partition rep. We then call MergeFieldMap()
 	// to merge field maps (which can trigger further unification). This process
 	// will converge since the number of partitions is guaranteed to decrease at
@@ -210,9 +210,9 @@ func (state *state) lookupPartitionRep(ref Reference, onfailure func(abs Referen
 		return rep
 	}
 	// Else recurse. We use crashing callback here, because when recursing
-	// we expect the recursion argument to be always in the abstract state.
+	// we expect the recursion argument to be always in the abstract partitions.
 	failureCallback := func(ref Reference) Reference {
-		log.Printf("lookupPartitionRep: Reference [%s] not found in state", ref)
+		log.Printf("lookupPartitionRep: Reference [%s] not found in partitions", ref)
 		return nil
 	}
 	prep := state.lookupPartitionRep(rep, failureCallback)
@@ -270,11 +270,11 @@ func (state *state) valueReferenceOrNil(addr Reference) Reference {
 	return nil
 }
 
-// Partitions represents the state with the partitions fully constructed, after which
+// Partitions represents the partitions with the partitions fully constructed, after which
 // no more mutation operations will be performed. Its internal data structures are
 // optimized for lookups only.
 type Partitions struct {
-	// Inherit "parents" and "partitions" from state.
+	// Inherit "parents" and "partitions" from partitions.
 
 	// Map from a ref to its parent abstract ref.
 	parents parentMap
@@ -357,7 +357,7 @@ func (p *Partitions) finalize() {
 	p.constructFieldParentMap()
 }
 
-// Has returns true if "ref" is a reference present in the state.
+// Has returns true if "ref" is a reference present in the partitions.
 func (p *Partitions) Has(ref Reference) bool {
 	_, ok := p.parents[ref]
 	return ok
@@ -382,7 +382,7 @@ func (p *Partitions) Representatives() ReferenceSet {
 }
 
 // Representative gets the partition representative of reference "ref"
-// ("ref" must belong to this state).
+// ("ref" must belong to this partitions).
 func (p *Partitions) Representative(ref Reference) Reference {
 	return p.parents[ref]
 }
@@ -402,8 +402,8 @@ func (p *Partitions) String() string {
 }
 
 // FieldParents returns the parents of a field reference. Return nil if ref has no parent.
-// For example, return o for r if "o[x -> r]" is in state. This shall be
-// called only after the state has been finalized.
+// For example, return o for r if "o[x -> r]" is in partitions. This shall be
+// called only after the partitions has been finalized.
 func (p *Partitions) FieldParents(ref Reference) []Reference {
 	return p.revFields[ref]
 }
@@ -440,7 +440,7 @@ func (p *Partitions) MembersForRep(rep Reference) []Reference {
 }
 
 // PartitionMembers gets the list of members in the partition to which "ref" belongs.
-// Precondition: "ref" must be a reference present in the state.
+// Precondition: "ref" must be a reference present in the partitions.
 func (p *Partitions) PartitionMembers(ref Reference) []Reference {
 	return p.MembersForRep(p.Representative(ref))
 }

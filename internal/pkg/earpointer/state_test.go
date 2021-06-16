@@ -51,7 +51,7 @@ func buildSSA(src string) (*ssa.Package, error) {
 	return ssaPkg, nil
 }
 
-// Test basic state operations using single global variables.
+// Test basic partitions operations using single global variables.
 // No fields are involved.
 func TestBasic(t *testing.T) {
 	code := `package p
@@ -89,7 +89,7 @@ func TestBasic(t *testing.T) {
 	}
 
 	// Test the Partitions.
-	// The members information is built after the state is finalized.
+	// The members information is built after the partitions is finalized.
 	partitions := state.ToPartitions()
 	if !partitions.Has(refs["g1"]) {
 		t.Errorf("g1 should be in the partitions")
