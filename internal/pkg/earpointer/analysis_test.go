@@ -43,6 +43,7 @@ func runCodeWithContext(code string, contextK int) (*earpointer.Partitions, erro
 	}
 	ssainput := buildssa.SSA{Pkg: pkg, SrcFuncs: srcFuncs}
 	pass := analysis.Pass{ResultOf: map[*analysis.Analyzer]interface{}{buildssa.Analyzer: &ssainput}}
+	earpointer.Analyzer.Flags.Set("useEAR", "true")
 	earpointer.Analyzer.Flags.Set("contextK", strconv.Itoa(contextK))
 	// Run the analysis.
 	partitions, err := earpointer.Analyzer.Run(&pass)

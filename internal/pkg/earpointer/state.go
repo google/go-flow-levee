@@ -270,7 +270,7 @@ func (state *state) valueReferenceOrNil(addr Reference) Reference {
 	return nil
 }
 
-// Partitions represents the state with the partitions fully constructed, after which
+// Partitions represents the partitions with the partitions fully constructed, after which
 // no more mutation operations will be performed. Its internal data structures are
 // optimized for lookups only.
 type Partitions struct {

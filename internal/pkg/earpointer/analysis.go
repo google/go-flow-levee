@@ -63,6 +63,10 @@ type visitor struct {
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
+	active := config.FlagSet.Lookup("useEAR")
+	if active != nil && active.Value.String() != "true" {
+		return &Partitions{}, nil
+	}
 	ssainput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	p := analyze(ssainput)
 	return p, nil
@@ -77,7 +81,7 @@ func analyze(ssainput *buildssa.SSA) *Partitions {
 	vis := visitor{state: NewState(), callees: mapCallees(cg)}
 	vis.initContexts(cg)
 	vis.initGlobalReferences(ssainput.Pkg)
-	// analyze all the functions and methods in the package,
+	// Analyze all the functions and methods in the package,
 	// not just those in ssainput.SrcFuncs.
 	fns := ssautil.AllFunctions(prog)
 	for _, fn := range ssainput.SrcFuncs {
