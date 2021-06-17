@@ -64,12 +64,12 @@ type visitor struct {
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	ssainput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
-	p := Analyze(ssainput)
+	p := analyze(ssainput)
 	return p, nil
 }
 
 // Analyzes an SSA program and build the partition information.
-func Analyze(ssainput *buildssa.SSA) *Partitions {
+func analyze(ssainput *buildssa.SSA) *Partitions {
 	prog := ssainput.Pkg.Prog
 	// Use the call graph to initialize the contexts.
 	// TODO: the call graph can be CHA, RTA, VTA, etc.
@@ -77,7 +77,7 @@ func Analyze(ssainput *buildssa.SSA) *Partitions {
 	vis := visitor{state: NewState(), callees: mapCallees(cg)}
 	vis.initContexts(cg)
 	vis.initGlobalReferences(ssainput.Pkg)
-	// Analyze all the functions and methods in the package,
+	// analyze all the functions and methods in the package,
 	// not just those in ssainput.SrcFuncs.
 	fns := ssautil.AllFunctions(prog)
 	for _, fn := range ssainput.SrcFuncs {

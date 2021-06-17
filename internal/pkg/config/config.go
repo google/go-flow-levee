@@ -38,10 +38,21 @@ var (
 	configBytesOnce    sync.Once
 	configFromBytes    *Config
 	configFromBytesErr error
+
+	// Whether to use EAR pointer analysis as the taint propagation engine.
+	useEAR bool
+	// Control the depth of the call chain when analyzing EAR references
+	// so as to reduce false positives.
+	earCallDepth uint
 )
 
 func init() {
 	FlagSet.StringVar(&configFile, "config", "config.yaml", "path to analysis configuration file")
+	FlagSet.BoolVar(&useEAR, "useEAR", false,
+		"use EAR pointer analysis as the taint propagation engine (default=false)")
+	// Call chain depth 8 is considered enough since the analysis is not inter-package (packages are not linked).
+	FlagSet.UintVar(&earCallDepth, "earCallDepth", 8,
+		"the depth of the call chain when analyzing EAR references (default=8)")
 }
 
 // SetBytes allows the contents of a configuration file
@@ -401,4 +412,12 @@ func validateFieldNames(bytes *[]byte, matcherType string, validFields []string)
 		}
 	}
 	return nil
+}
+
+func (c Config) UseEAR() bool {
+	return useEAR
+}
+
+func (c Config) EARCallDepth() uint {
+	return earCallDepth
 }

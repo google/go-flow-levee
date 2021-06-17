@@ -21,8 +21,6 @@ import (
 	"go/types"
 	"strings"
 
-	"golang.org/x/tools/go/analysis/passes/buildssa"
-
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/earpointer"
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
@@ -35,13 +33,6 @@ import (
 	"golang.org/x/tools/go/ssa"
 )
 
-// Whether to use EAR pointer analysis as the taint propagation engine.
-var useEAR bool
-
-func init() {
-	config.FlagSet.BoolVar(&useEAR, "useEAR", false, "Use EAR pointer analysis as the taint propagation engine (default=false)")
-}
-
 var Analyzer = &analysis.Analyzer{
 	Name:  "levee",
 	Run:   run,
@@ -51,29 +42,24 @@ var Analyzer = &analysis.Analyzer{
 		fieldtags.Analyzer,
 		source.Analyzer,
 		suppression.Analyzer,
-		buildssa.Analyzer,
+		earpointer.Analyzer,
 	},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	if useEAR {
-		ssainput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
-		// Note: some ssainput.SrcFuncs are not within ssautil.AllFunctions(ssa.prog)
-		p := earpointer.Analyze(ssainput)
-		if p == nil {
-			return nil, fmt.Errorf("no valid EAR partitions")
-		}
-		return runEAR(pass, p) // Use the EAR-pointer based taint analysis
+	conf, err := config.ReadConfig()
+	if err != nil {
+		return nil, err
+	}
+	if conf.UseEAR() {
+		return runEAR(pass) // Use the EAR-pointer based taint analysis
 	} else {
 		return runPropagation(pass) // Use the propagation based taint analysis
 	}
 }
 
 func runPropagation(pass *analysis.Pass) (interface{}, error) {
-	conf, err := config.ReadConfig()
-	if err != nil {
-		return nil, err
-	}
+	conf, _ := config.ReadConfig()
 	funcSources := pass.ResultOf[source.Analyzer].(source.ResultType)
 	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 	suppressedNodes := pass.ResultOf[suppression.Analyzer].(suppression.ResultType)
@@ -105,10 +91,11 @@ func runPropagation(pass *analysis.Pass) (interface{}, error) {
 }
 
 // Use the EAR pointer analysis as the propagation engine
-func runEAR(pass *analysis.Pass, state *earpointer.Partitions) (interface{}, error) {
-	conf, err := config.ReadConfig()
-	if err != nil {
-		return nil, err
+func runEAR(pass *analysis.Pass) (interface{}, error) {
+	conf, _ := config.ReadConfig()
+	state := pass.ResultOf[earpointer.Analyzer].(*earpointer.Partitions)
+	if state == nil {
+		return nil, fmt.Errorf("no valid EAR partitions")
 	}
 	funcSources := pass.ResultOf[source.Analyzer].(source.ResultType)
 	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
@@ -127,15 +114,10 @@ func runEAR(pass *analysis.Pass, state *earpointer.Partitions) (interface{}, err
 		// This set is used to narrow down the set of references needed to be
 		// considered during EAR heap traversal. It can also help reducing the
 		// false positives.
-		callees := make(map[*ssa.Function]bool)
-		callees[fn] = true
-		earpointer.GetCalleeFunctions(fn, callees, 7)
-
-		var fnSrcs []*source.Source
+		callees := earpointer.GetCalleeFunctions(fn, conf.EARCallDepth())
 		srcRefs := make(map[*source.Source]earpointer.ReferenceSet)
 		for _, s := range sources {
-			fnSrcs = append(fnSrcs, s)
-			srcRefs[s] = earpointer.GetSrcRefs(s, state, isTaintField, callees)
+			srcRefs[s] = earpointer.GetSrcRefs(s, isTaintField, state, callees)
 		}
 		// Traverse all the callee functions (not just the ones with sink sources)
 		for member := range callees {
@@ -146,7 +128,7 @@ func runEAR(pass *analysis.Pass, state *earpointer.Partitions) (interface{}, err
 						if callee := v.Call.StaticCallee(); callee != nil &&
 							conf.IsSink(utils.DecomposeFunction(callee)) {
 							sink := instr
-							for _, src := range fnSrcs {
+							for _, src := range sources {
 								if earpointer.IsEARTainted(sink, srcRefs[src], state, callees) &&
 									!isSuppressed(sink.Pos(), suppressedNodes, pass) {
 									report(conf, pass, src, sink.(ssa.Node))
@@ -159,7 +141,7 @@ func runEAR(pass *analysis.Pass, state *earpointer.Partitions) (interface{}, err
 							continue
 						}
 						sink := instr
-						for _, src := range fnSrcs {
+						for _, src := range sources {
 							if earpointer.IsEARTainted(sink, srcRefs[src], state, callees) &&
 								!isSuppressed(sink.Pos(), suppressedNodes, pass) {
 								report(conf, pass, src, sink.(ssa.Node))
