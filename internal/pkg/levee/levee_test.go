@@ -29,6 +29,9 @@ func TestLevee(t *testing.T) {
 	if err := Analyzer.Flags.Set("config", dataDir+"/test-config.yaml"); err != nil {
 		t.Error(err)
 	}
+	if err := Analyzer.Flags.Set("useEAR", "false"); err != nil {
+		t.Error(err)
+	}
 	if *debugging {
 		Analyzer.Requires = append(Analyzer.Requires, debug.Analyzer)
 	}
@@ -38,6 +41,9 @@ func TestLevee(t *testing.T) {
 func TestLeveeDoesNotCreateReportsForPanicIfPanicingOnTaintedValuesIsAllowed(t *testing.T) {
 	dataDir := analysistest.TestData()
 	if err := Analyzer.Flags.Set("config", dataDir+"/allowpanicontaintedvalues-config.yaml"); err != nil {
+		t.Error(err)
+	}
+	if err := Analyzer.Flags.Set("useEAR", "false"); err != nil {
 		t.Error(err)
 	}
 	if *debugging {
@@ -51,12 +57,18 @@ func TestFormattingWithCustomReportMessage(t *testing.T) {
 	if err := Analyzer.Flags.Set("config", dataDir+"/with-custom-message.yaml"); err != nil {
 		t.Error(err)
 	}
+	if err := Analyzer.Flags.Set("useEAR", "false"); err != nil {
+		t.Error(err)
+	}
 	analysistest.Run(t, dataDir, Analyzer, "./src/levee_analysistest/custom.message.com/withcustom")
 }
 
 func TestFormattingWithoutCustomReportMessage(t *testing.T) {
 	dataDir := analysistest.TestData()
 	if err := Analyzer.Flags.Set("config", dataDir+"/no-custom-message.yaml"); err != nil {
+		t.Error(err)
+	}
+	if err := Analyzer.Flags.Set("useEAR", "false"); err != nil {
 		t.Error(err)
 	}
 	analysistest.Run(t, dataDir, Analyzer, "./src/levee_analysistest/custom.message.com/nocustom")
