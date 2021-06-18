@@ -41,18 +41,18 @@ var (
 
 	// Whether to use EAR pointer analysis as the taint propagation engine.
 	useEAR bool
-	// Control the depth of the call chain when analyzing EAR references
-	// so as to reduce false positives.
-	earCallDepth uint
+	// Control the span of the call chain from a source to a sink when analyzing EAR references.
+	// This can reduce false positives and enhance the performance.
+	earTaintCallSpan uint
 )
 
 func init() {
 	FlagSet.StringVar(&configFile, "config", "config.yaml", "path to analysis configuration file")
 	FlagSet.BoolVar(&useEAR, "useEAR", false,
-		"use EAR pointer analysis as the taint propagation engine (default=false)")
+		"use EAR pointer analysis as the taint propagation engine")
 	// Call chain depth 8 is considered enough since the analysis is not inter-package (packages are not linked).
-	FlagSet.UintVar(&earCallDepth, "earCallDepth", 8,
-		"the depth of the call chain when analyzing EAR references (default=8)")
+	FlagSet.UintVar(&earTaintCallSpan, "earCallSpan", 8,
+		"the span of the call chain from a source to a sink when using the EAR-based taint analysis")
 }
 
 // SetBytes allows the contents of a configuration file
@@ -419,5 +419,5 @@ func (c Config) UseEAR() bool {
 }
 
 func (c Config) EARCallDepth() uint {
-	return earCallDepth
+	return earTaintCallSpan
 }

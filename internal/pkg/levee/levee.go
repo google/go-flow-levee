@@ -52,14 +52,13 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		return nil, err
 	}
 	if conf.UseEAR() {
-		return runEAR(pass) // Use the EAR-pointer based taint analysis
+		return runEAR(pass, conf) // Use the EAR-pointer based taint analysis
 	} else {
-		return runPropagation(pass) // Use the propagation based taint analysis
+		return runPropagation(pass, conf) // Use the propagation based taint analysis
 	}
 }
 
-func runPropagation(pass *analysis.Pass) (interface{}, error) {
-	conf, _ := config.ReadConfig()
+func runPropagation(pass *analysis.Pass, conf *config.Config) (interface{}, error) {
 	funcSources := pass.ResultOf[source.Analyzer].(source.ResultType)
 	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 	suppressedNodes := pass.ResultOf[suppression.Analyzer].(suppression.ResultType)
@@ -74,6 +73,7 @@ func runPropagation(pass *analysis.Pass) (interface{}, error) {
 			for _, instr := range b.Instrs {
 				switch v := instr.(type) {
 				case *ssa.Call:
+					// TODO(#317): use more advanced call graph.
 					if callee := v.Call.StaticCallee(); callee != nil && conf.IsSink(utils.DecomposeFunction(callee)) {
 						reportSourcesReachingSink(conf, pass, suppressedNodes, propagations, instr)
 					}
@@ -91,8 +91,7 @@ func runPropagation(pass *analysis.Pass) (interface{}, error) {
 }
 
 // Use the EAR pointer analysis as the propagation engine
-func runEAR(pass *analysis.Pass) (interface{}, error) {
-	conf, _ := config.ReadConfig()
+func runEAR(pass *analysis.Pass, conf *config.Config) (interface{}, error) {
 	state := pass.ResultOf[earpointer.Analyzer].(*earpointer.Partitions)
 	if state == nil {
 		return nil, fmt.Errorf("no valid EAR partitions")
@@ -103,21 +102,31 @@ func runEAR(pass *analysis.Pass) (interface{}, error) {
 	// Return whether a field is tainted.
 	isTaintField := func(named *types.Named, index int) bool {
 		if tt, ok := named.Underlying().(*types.Struct); ok {
-			return conf.IsSourceField(utils.DecomposeField(named, index)) ||
-				taggedFields.IsSourceField(tt, index)
+			return conf.IsSourceField(utils.DecomposeField(named, index)) || taggedFields.IsSourceField(tt, index)
 		}
 		return false
 	}
-	// Collect all the taint sources
+	// Look for sources reaching sinks.
 	for fn, sources := range funcSources {
 		// Transitively get the set of functions called within "fn".
 		// This set is used to narrow down the set of references needed to be
 		// considered during EAR heap traversal. It can also help reducing the
 		// false positives.
-		callees := earpointer.GetCalleeFunctions(fn, conf.EARCallDepth())
+		callees := earpointer.BoundedDepthCallees(fn, conf.EARCallDepth())
 		srcRefs := make(map[*source.Source]earpointer.ReferenceSet)
 		for _, s := range sources {
-			srcRefs[s] = earpointer.GetSrcRefs(s, isTaintField, state, callees)
+			srcRefs[s] = earpointer.SrcRefs(s, isTaintField, state, callees)
+		}
+		// Return a source if it can reach the given sink.
+		reachAnySource := func(sink ssa.Instruction) *source.Source {
+			for _, src := range sources {
+				if earpointer.IsEARTainted(sink, srcRefs[src], state, callees) {
+					if !isSuppressed(sink.Pos(), suppressedNodes, pass) {
+						return src
+					}
+				}
+			}
+			return nil
 		}
 		// Traverse all the callee functions (not just the ones with sink sources)
 		for member := range callees {
@@ -125,15 +134,13 @@ func runEAR(pass *analysis.Pass) (interface{}, error) {
 				for _, instr := range b.Instrs {
 					switch v := instr.(type) {
 					case *ssa.Call:
-						if callee := v.Call.StaticCallee(); callee != nil &&
-							conf.IsSink(utils.DecomposeFunction(callee)) {
-							sink := instr
-							for _, src := range sources {
-								if earpointer.IsEARTainted(sink, srcRefs[src], state, callees) &&
-									!isSuppressed(sink.Pos(), suppressedNodes, pass) {
-									report(conf, pass, src, sink.(ssa.Node))
-									break
-								}
+						sink := instr
+						// TODO(#317): use more advanced call graph.
+						callee := v.Call.StaticCallee()
+						if callee != nil && conf.IsSink(utils.DecomposeFunction(callee)) {
+							if src := reachAnySource(instr); src != nil {
+								report(conf, pass, src, sink.(ssa.Node))
+								break
 							}
 						}
 					case *ssa.Panic:
@@ -141,13 +148,11 @@ func runEAR(pass *analysis.Pass) (interface{}, error) {
 							continue
 						}
 						sink := instr
-						for _, src := range sources {
-							if earpointer.IsEARTainted(sink, srcRefs[src], state, callees) &&
-								!isSuppressed(sink.Pos(), suppressedNodes, pass) {
-								report(conf, pass, src, sink.(ssa.Node))
-								break
-							}
+						if src := reachAnySource(sink); src != nil {
+							report(conf, pass, src, sink.(ssa.Node))
+							break
 						}
+
 					}
 				}
 			}

@@ -63,8 +63,7 @@ type visitor struct {
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	active := config.FlagSet.Lookup("useEAR")
-	if active != nil && active.Value.String() != "true" {
+	if config.FlagSet.Lookup("useEAR").Value.String() != "true" {
 		return &Partitions{}, nil
 	}
 	ssainput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
@@ -596,7 +595,7 @@ func (vis *visitor) unifyCallWithContexts(arg ssa.Value, param ssa.Value, callsi
 
 // Handle calls to builtin functions: https://golang.org/pkg/builtin/.
 func (vis *visitor) visitBuiltin(builtin *ssa.Builtin, instr ssa.Instruction) {
-	// TODO: support more library functions (https://github.com/google/go-flow-levee/issues/312)
+	// TODO(#312): support more library functions
 	switch builtin.Name() {
 	case "append": // func append(slice []Type, elems ...Type) []Type
 		// Propagage the arguments to the return value.
