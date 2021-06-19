@@ -111,7 +111,7 @@ func runEAR(pass *analysis.Pass, conf *config.Config) (interface{}, error) {
 		// Transitively get the set of functions called within "fn".
 		// This set is used to narrow down the set of references needed to be
 		// considered during EAR heap traversal. It can also help reducing the
-		// false positives.
+		// false positives and boosting the performance.
 		callees := earpointer.BoundedDepthCallees(fn, conf.EARCallDepth())
 		srcRefs := make(map[*source.Source]earpointer.ReferenceSet)
 		for _, s := range sources {

@@ -23,7 +23,7 @@ import (
 
 // Bounded traversal of an EAR heap.
 type heapTraversal struct {
-	partitions   *Partitions
+	heap         *Partitions
 	callees      map[*ssa.Function]bool // the functions containing the references of interest
 	visited      ReferenceSet           // the visited references during the traversal
 	isTaintField func(named *types.Named, index int) bool
@@ -46,7 +46,7 @@ func (ht *heapTraversal) isWithinCallees(ref Reference) bool {
 // 	  and all their subfields are included in taint sources, and the struct object
 //    itself is a taint source. Other fields will not be tainted.
 func (ht *heapTraversal) srcRefs(rep Reference, tp types.Type, result ReferenceSet) {
-	state := ht.partitions
+	heap := ht.heap
 	switch tp := tp.(type) {
 	case *types.Named:
 		// Consider object of type "struct {x: *T, y *T}" where x is a
@@ -58,7 +58,7 @@ func (ht *heapTraversal) srcRefs(rep Reference, tp types.Type, result ReferenceS
 			for i := 0; i < tt.NumFields(); i++ {
 				f := tt.Field(i)
 				if ht.isTaintField(tp, i) {
-					for fd, fref := range state.PartitionFieldMap(rep) {
+					for fd, fref := range heap.PartitionFieldMap(rep) {
 						if fd.Name == f.Name() {
 							result[fref] = true
 							// Mark all the subfields to be tainted.
@@ -72,29 +72,29 @@ func (ht *heapTraversal) srcRefs(rep Reference, tp types.Type, result ReferenceS
 			ht.srcRefs(rep, tp.Underlying(), result)
 		}
 	case *types.Pointer:
-		if r := state.PartitionFieldMap(rep)[directPointToField]; r != nil {
+		if r := heap.PartitionFieldMap(rep)[directPointToField]; r != nil {
 			ht.srcRefs(r, tp.Elem(), result)
 		} else {
 			ht.srcRefs(rep, tp.Elem(), result)
 		}
 	case *types.Array:
 		result[rep] = true
-		for _, r := range state.PartitionFieldMap(rep) {
+		for _, r := range heap.PartitionFieldMap(rep) {
 			ht.srcRefs(r, tp.Elem(), result)
 		}
 	case *types.Slice:
 		result[rep] = true
-		for _, r := range state.PartitionFieldMap(rep) {
+		for _, r := range heap.PartitionFieldMap(rep) {
 			ht.srcRefs(r, tp.Elem(), result)
 		}
 	case *types.Chan:
 		result[rep] = true
-		for _, r := range state.PartitionFieldMap(rep) {
+		for _, r := range heap.PartitionFieldMap(rep) {
 			ht.srcRefs(r, tp.Elem(), result)
 		}
 	case *types.Map:
 		result[rep] = true
-		for _, r := range state.PartitionFieldMap(rep) {
+		for _, r := range heap.PartitionFieldMap(rep) {
 			ht.srcRefs(r, tp.Elem(), result)
 		}
 	case *types.Basic, *types.Tuple, *types.Interface, *types.Signature:
@@ -106,14 +106,14 @@ func (ht *heapTraversal) srcRefs(rep Reference, tp types.Type, result ReferenceS
 // For example, return {t0,t5,t1,t3,t4} for "{t0,t5}: [0->t1, 1->t3], {t3} --> t4".
 func (ht *heapTraversal) fieldRefs(ref Reference, result ReferenceSet) {
 	ht.visited[ref] = true
-	p := ht.partitions
-	for _, m := range p.PartitionMembers(ref) {
+	h := ht.heap
+	for _, m := range h.PartitionMembers(ref) {
 		if ht.isWithinCallees(m) {
 			result[m] = true
 		}
 	}
-	rep := p.Representative(ref)
-	for _, r := range p.PartitionFieldMap(rep) {
+	rep := h.Representative(ref)
+	for _, r := range h.PartitionFieldMap(rep) {
 		if _, ok := ht.visited[r]; !ok {
 			ht.fieldRefs(r, result)
 		}
@@ -152,25 +152,28 @@ func BoundedDepthCallees(fn *ssa.Function, depth uint) map[*ssa.Function]bool {
 }
 
 // Obtain the references associated with a taint source, with field sensitivity.
-// Consider only the references located with the "callees".
+// Argument "heap" is an immutable EAR heap containing alias information;
+// "callees" is used to bound the searching of source references in the heap.
 func SrcRefs(src *source.Source, isTaintField func(named *types.Named, index int) bool,
-	state *Partitions, callees map[*ssa.Function]bool) ReferenceSet {
+	heap *Partitions, callees map[*ssa.Function]bool) ReferenceSet {
 
 	val, ok := src.Node.(ssa.Value)
 	if !ok {
 		return nil
 	}
-	rep := state.Representative(MakeLocalWithEmptyContext(val))
+	rep := heap.Representative(MakeLocalWithEmptyContext(val))
 	refs := make(ReferenceSet)
-	ht := &heapTraversal{partitions: state, callees: callees, visited: make(ReferenceSet), isTaintField: isTaintField}
+	ht := &heapTraversal{heap: heap, callees: callees, visited: make(ReferenceSet), isTaintField: isTaintField}
 	ht.srcRefs(rep, val.Type(), refs)
 	return refs
 }
 
 // Checks whether a taint sink can be reached by a taint source by
-// examining the heap alias information. "callees" are used to bound the heap traversal.
-func IsEARTainted(sink ssa.Instruction, srcRefs ReferenceSet, state *Partitions, callees map[*ssa.Function]bool) bool {
-	ht := &heapTraversal{partitions: state, callees: callees, visited: make(ReferenceSet)}
+// examining the heap alias information.
+// Argument "heap" is an immutable EAR state same as the one in "SrcRefs()";
+// "callees" is used to bound the searching of sink references in the heap.
+func IsEARTainted(sink ssa.Instruction, srcRefs ReferenceSet, heap *Partitions, callees map[*ssa.Function]bool) bool {
+	ht := &heapTraversal{heap: heap, callees: callees, visited: make(ReferenceSet)}
 	sinkedRefs := make(map[Reference]bool)
 	// All sub-fields of a sink object are considered.
 	// For example, for heap "{t0}: [0->t1(taint), 1->t2]", return true for
@@ -184,7 +187,7 @@ func IsEARTainted(sink ssa.Instruction, srcRefs ReferenceSet, state *Partitions,
 	}
 	// Match each sink with any possible source.
 	for sink := range sinkedRefs {
-		members := state.PartitionMembers(sink)
+		members := heap.PartitionMembers(sink)
 		for _, m := range members {
 			if _, ok := srcRefs[m]; ok {
 				return true
