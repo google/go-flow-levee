@@ -38,21 +38,10 @@ var (
 	configBytesOnce    sync.Once
 	configFromBytes    *Config
 	configFromBytesErr error
-
-	// Whether to use EAR pointer analysis as the taint propagation engine.
-	useEAR bool
-	// Control the span of the call chain from a source to a sink when analyzing EAR references.
-	// This can reduce false positives and enhance the performance.
-	earTaintCallSpan uint
 )
 
 func init() {
 	FlagSet.StringVar(&configFile, "config", "config.yaml", "path to analysis configuration file")
-	FlagSet.BoolVar(&useEAR, "useEAR", false,
-		"use EAR pointer analysis as the taint propagation engine")
-	// Call chain depth 8 is considered enough since the analysis is not inter-package (packages are not linked).
-	FlagSet.UintVar(&earTaintCallSpan, "earCallSpan", 8,
-		"the span of the call chain from a source to a sink when using the EAR-based taint analysis")
 }
 
 // SetBytes allows the contents of a configuration file
@@ -71,6 +60,11 @@ type Config struct {
 	FieldTags                 []fieldTagMatcher
 	Exclude                   []funcMatcher
 	AllowPanicOnTaintedValues bool
+	// Whether to use EAR pointer analysis as the taint propagation engine.
+	UseEAR bool
+	// Control the span of the call chain from a source to a sink when analyzing EAR references.
+	// This can reduce false positives and enhance the performance.
+	EARTaintCallSpan uint
 }
 
 // IsSourceFieldTag determines whether a field tag made up of a key and value
@@ -412,12 +406,4 @@ func validateFieldNames(bytes *[]byte, matcherType string, validFields []string)
 		}
 	}
 	return nil
-}
-
-func (c Config) UseEAR() bool {
-	return useEAR
-}
-
-func (c Config) EARCallDepth() uint {
-	return earTaintCallSpan
 }

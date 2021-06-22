@@ -63,7 +63,11 @@ type visitor struct {
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	if config.FlagSet.Lookup("useEAR").Value.String() != "true" {
+	conf, err := config.ReadConfig()
+	if err != nil {
+		return nil, err
+	}
+	if !conf.UseEAR {
 		return &Partitions{}, nil
 	}
 	ssainput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)

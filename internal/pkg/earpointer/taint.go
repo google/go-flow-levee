@@ -17,6 +17,9 @@ package earpointer
 import (
 	"go/types"
 
+	"github.com/google/go-flow-levee/internal/pkg/config"
+	"github.com/google/go-flow-levee/internal/pkg/utils"
+
 	"github.com/google/go-flow-levee/internal/pkg/source"
 	"golang.org/x/tools/go/ssa"
 )
@@ -31,8 +34,7 @@ type heapTraversal struct {
 
 func (ht *heapTraversal) isWithinCallees(ref Reference) bool {
 	if fn := ref.Value().Parent(); fn != nil {
-		_, ok := ht.callees[fn]
-		return ok
+		return ht.callees[fn]
 	}
 	// Globals and Builtins have no parents.
 	return true
@@ -52,24 +54,25 @@ func (ht *heapTraversal) srcRefs(rep Reference, tp types.Type, result ReferenceS
 		// Consider object of type "struct {x: *T, y *T}" where x is a
 		// taint field, and this object's heap is "{t0,t1}: [x->t2, y->t3],
 		// {t2,t4} --> t5, {t3} --> t6", then {t0,t1,t2,t4,t5} are taint sources.
-		if tt, ok := tp.Underlying().(*types.Struct); ok {
-			result[rep] = true // the current struct object is tainted
-			// Look for the taint fields.
-			for i := 0; i < tt.NumFields(); i++ {
-				f := tt.Field(i)
-				if ht.isTaintField(tp, i) {
-					for fd, fref := range heap.PartitionFieldMap(rep) {
-						if fd.Name == f.Name() {
-							result[fref] = true
-							// Mark all the subfields to be tainted.
-							ht.fieldRefs(fref, result)
-						}
+		tt, ok := tp.Underlying().(*types.Struct)
+		if !ok {
+			ht.srcRefs(rep, tp.Underlying(), result)
+			return
+		}
+		result[rep] = true // the current struct object is tainted
+		// Look for the taint fields.
+		for i := 0; i < tt.NumFields(); i++ {
+			f := tt.Field(i)
+			if ht.isTaintField(tp, i) {
+				for fd, fref := range heap.PartitionFieldMap(rep) {
+					if fd.Name == f.Name() {
+						result[fref] = true
+						// Mark all the subfields to be tainted.
+						ht.fieldRefs(fref, result)
 					}
 				}
-				// Skip the non-taint fields.
 			}
-		} else {
-			ht.srcRefs(rep, tp.Underlying(), result)
+			// Skip the non-taint fields.
 		}
 	case *types.Pointer:
 		if r := heap.PartitionFieldMap(rep)[directPointToField]; r != nil {
@@ -131,30 +134,27 @@ func calleeFunctions(fn *ssa.Function, result map[*ssa.Function]bool, depth uint
 		for _, instr := range b.Instrs {
 			if call, ok := instr.(*ssa.Call); ok {
 				// TODO(#317): use more advanced call graph.
-				if callee := call.Call.StaticCallee(); callee != nil {
-					if len(callee.Blocks) > 0 { // skip empty or unlinked functions
-						if _, ok := result[callee]; !ok {
-							result[callee] = true
-							calleeFunctions(callee, result, depth-1)
-						}
-					}
+				// skip empty, unlinked, or visited functions
+				if callee := call.Call.StaticCallee(); callee != nil && len(callee.Blocks) > 0 && !result[callee] {
+					result[callee] = true
+					calleeFunctions(callee, result, depth-1)
 				}
 			}
 		}
 	}
 }
 
-func BoundedDepthCallees(fn *ssa.Function, depth uint) map[*ssa.Function]bool {
+func boundedDepthCallees(fn *ssa.Function, depth uint) map[*ssa.Function]bool {
 	result := make(map[*ssa.Function]bool)
 	result[fn] = true
 	calleeFunctions(fn, result, depth)
 	return result
 }
 
-// Obtain the references associated with a taint source, with field sensitivity.
+// Obtain the references which are aliases of a taint source, with field sensitivity.
 // Argument "heap" is an immutable EAR heap containing alias information;
 // "callees" is used to bound the searching of source references in the heap.
-func SrcRefs(src *source.Source, isTaintField func(named *types.Named, index int) bool,
+func srcAliasRefs(src *source.Source, isTaintField func(named *types.Named, index int) bool,
 	heap *Partitions, callees map[*ssa.Function]bool) ReferenceSet {
 
 	val, ok := src.Node.(ssa.Value)
@@ -168,11 +168,11 @@ func SrcRefs(src *source.Source, isTaintField func(named *types.Named, index int
 	return refs
 }
 
-// Checks whether a taint sink can be reached by a taint source by
+// Check whether a taint sink can be reached by a taint source reference by
 // examining the heap alias information.
-// Argument "heap" is an immutable EAR state same as the one in "SrcRefs()";
+// Argument "heap" is an immutable EAR state same as the one in "srcAliasRefs()";
 // "callees" is used to bound the searching of sink references in the heap.
-func IsEARTainted(sink ssa.Instruction, srcRefs ReferenceSet, heap *Partitions, callees map[*ssa.Function]bool) bool {
+func canReach(sink ssa.Instruction, srcRefs ReferenceSet, heap *Partitions, callees map[*ssa.Function]bool) bool {
 	ht := &heapTraversal{heap: heap, callees: callees, visited: make(ReferenceSet)}
 	sinkedRefs := make(map[Reference]bool)
 	// All sub-fields of a sink object are considered.
@@ -189,10 +189,73 @@ func IsEARTainted(sink ssa.Instruction, srcRefs ReferenceSet, heap *Partitions, 
 	for sink := range sinkedRefs {
 		members := heap.PartitionMembers(sink)
 		for _, m := range members {
-			if _, ok := srcRefs[m]; ok {
+			if srcRefs[m] {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+type SourceSinkTrace struct {
+	Src       *source.Source
+	Sink      ssa.Instruction
+	Callstack []ssa.Call
+}
+
+// Look for the pairs of <source, sink> examining the heap alias information.
+func SourcesToSinks(funcSources source.ResultType, isTaintField func(named *types.Named, index int) bool,
+	heap *Partitions, conf *config.Config) []*SourceSinkTrace {
+
+	var traces []*SourceSinkTrace
+	for fn, sources := range funcSources {
+		// Transitively get the set of functions called within "fn".
+		// This set is used to narrow down the set of references needed to be
+		// considered during EAR heap traversal. It can also help reducing the
+		// false positives and boosting the performance.
+		callees := boundedDepthCallees(fn, conf.EARTaintCallSpan)
+		srcRefs := make(map[*source.Source]ReferenceSet)
+		for _, s := range sources {
+			srcRefs[s] = srcAliasRefs(s, isTaintField, heap, callees)
+		}
+		// Return a source if it can reach the given sink.
+		reachAnySource := func(sink ssa.Instruction) *source.Source {
+			for _, src := range sources {
+				if canReach(sink, srcRefs[src], heap, callees) {
+					return src
+				}
+			}
+			return nil
+		}
+		// Traverse all the callee functions (not just the ones with sink sources)
+		for member := range callees {
+			for _, b := range member.Blocks {
+				for _, instr := range b.Instrs {
+					switch v := instr.(type) {
+					case *ssa.Call:
+						sink := instr
+						// TODO(#317): use more advanced call graph.
+						callee := v.Call.StaticCallee()
+						if callee != nil && conf.IsSink(utils.DecomposeFunction(callee)) {
+							if src := reachAnySource(instr); src != nil {
+								traces = append(traces, &SourceSinkTrace{Src: src, Sink: sink})
+								break
+							}
+						}
+					case *ssa.Panic:
+						if conf.AllowPanicOnTaintedValues {
+							continue
+						}
+						sink := instr
+						if src := reachAnySource(sink); src != nil {
+							traces = append(traces, &SourceSinkTrace{Src: src, Sink: sink})
+							break
+						}
+
+					}
+				}
+			}
+		}
+	}
+	return traces
 }
