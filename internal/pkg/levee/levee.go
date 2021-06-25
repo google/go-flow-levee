@@ -18,9 +18,11 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"go/types"
 	"strings"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
+	"github.com/google/go-flow-levee/internal/pkg/earpointer"
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"github.com/google/go-flow-levee/internal/pkg/propagation"
 	"github.com/google/go-flow-levee/internal/pkg/source"
@@ -40,6 +42,7 @@ var Analyzer = &analysis.Analyzer{
 		fieldtags.Analyzer,
 		source.Analyzer,
 		suppression.Analyzer,
+		earpointer.Analyzer,
 	},
 }
 
@@ -48,6 +51,13 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+	if conf.UseEAR {
+		return runEAR(pass, conf) // Use the EAR-pointer based taint analysis
+	}
+	return runPropagation(pass, conf) // Use the propagation based taint analysis
+}
+
+func runPropagation(pass *analysis.Pass, conf *config.Config) (interface{}, error) {
 	funcSources := pass.ResultOf[source.Analyzer].(source.ResultType)
 	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 	suppressedNodes := pass.ResultOf[suppression.Analyzer].(suppression.ResultType)
@@ -62,6 +72,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			for _, instr := range b.Instrs {
 				switch v := instr.(type) {
 				case *ssa.Call:
+					// TODO(#317): use more advanced call graph.
 					if callee := v.Call.StaticCallee(); callee != nil && conf.IsSink(utils.DecomposeFunction(callee)) {
 						reportSourcesReachingSink(conf, pass, suppressedNodes, propagations, instr)
 					}
@@ -75,6 +86,31 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 
+	return nil, nil
+}
+
+// Use the EAR pointer analysis as the propagation engine
+func runEAR(pass *analysis.Pass, conf *config.Config) (interface{}, error) {
+	heap := pass.ResultOf[earpointer.Analyzer].(*earpointer.Partitions)
+	if heap == nil {
+		return nil, fmt.Errorf("no valid EAR partitions")
+	}
+	funcSources := pass.ResultOf[source.Analyzer].(source.ResultType)
+	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
+	suppressedNodes := pass.ResultOf[suppression.Analyzer].(suppression.ResultType)
+	// Return whether a field is tainted.
+	isTaintField := func(named *types.Named, index int) bool {
+		if tt, ok := named.Underlying().(*types.Struct); ok {
+			return conf.IsSourceField(utils.DecomposeField(named, index)) || taggedFields.IsSourceField(tt, index)
+		}
+		return false
+	}
+	for _, trace := range earpointer.SourcesToSinks(funcSources, isTaintField, heap, conf) {
+		sink := trace.Sink
+		if !isSuppressed(sink.Pos(), suppressedNodes, pass) {
+			report(conf, pass, trace.Src, sink.(ssa.Node))
+		}
+	}
 	return nil, nil
 }
 

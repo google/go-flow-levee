@@ -63,13 +63,20 @@ type visitor struct {
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
+	conf, err := config.ReadConfig()
+	if err != nil {
+		return nil, err
+	}
+	if !conf.UseEAR {
+		return &Partitions{}, nil
+	}
 	ssainput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
-	p := Analyze(ssainput)
+	p := analyze(ssainput)
 	return p, nil
 }
 
 // Analyzes an SSA program and build the partition information.
-func Analyze(ssainput *buildssa.SSA) *Partitions {
+func analyze(ssainput *buildssa.SSA) *Partitions {
 	prog := ssainput.Pkg.Prog
 	// Use the call graph to initialize the contexts.
 	// TODO: the call graph can be CHA, RTA, VTA, etc.
@@ -592,6 +599,7 @@ func (vis *visitor) unifyCallWithContexts(arg ssa.Value, param ssa.Value, callsi
 
 // Handle calls to builtin functions: https://golang.org/pkg/builtin/.
 func (vis *visitor) visitBuiltin(builtin *ssa.Builtin, instr ssa.Instruction) {
+	// TODO(#312): support more library functions
 	switch builtin.Name() {
 	case "append": // func append(slice []Type, elems ...Type) []Type
 		// Propagage the arguments to the return value.

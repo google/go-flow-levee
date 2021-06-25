@@ -60,6 +60,11 @@ type Config struct {
 	FieldTags                 []fieldTagMatcher
 	Exclude                   []funcMatcher
 	AllowPanicOnTaintedValues bool
+	// Whether to use EAR pointer analysis as the taint propagation engine.
+	UseEAR bool
+	// Control the span of the call chain from a source to a sink when analyzing EAR references.
+	// This can reduce false positives and enhance the performance.
+	EARTaintCallSpan uint
 }
 
 // IsSourceFieldTag determines whether a field tag made up of a key and value
