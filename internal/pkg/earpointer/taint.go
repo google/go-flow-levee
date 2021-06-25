@@ -72,7 +72,6 @@ func (ht *heapTraversal) srcRefs(rep Reference, tp types.Type, result ReferenceS
 					}
 				}
 			}
-			// Skip the non-taint fields.
 		}
 	case *types.Pointer:
 		if r := heap.PartitionFieldMap(rep)[directPointToField]; r != nil {
@@ -123,6 +122,37 @@ func (ht *heapTraversal) fieldRefs(ref Reference, result ReferenceSet) {
 	}
 }
 
+// Return any of the sources if it can reach the taint; otherwise return nil.
+// Argument "srcRefs" maps a source to its alias references.
+func (ht *heapTraversal) canReach(sink ssa.Instruction, sources []*source.Source, srcRefs map[*source.Source]ReferenceSet) *source.Source {
+	// Obtain the alias references of a sink.
+	// All sub-fields of a sink object are considered.
+	// For example, for heap "{t0}: [0->t1(taint), 1->t2]", return true for
+	// sink call "sinkf(t0)" since t0 contains a taint field t1.
+	sinkedRefs := make(map[Reference]bool)
+	for _, op := range sink.Operands(nil) {
+		// Use a separate heapTraversal to search for the sink references.
+		sinkHT := &heapTraversal{heap: ht.heap, callees: ht.callees, visited: make(ReferenceSet)}
+		v := *op
+		if isLocal(v) || isGlobal(v) {
+			ref := MakeLocalWithEmptyContext(v)
+			sinkHT.fieldRefs(ref, sinkedRefs)
+		}
+	}
+	// Match each sink with any possible source.
+	for sink := range sinkedRefs {
+		members := ht.heap.PartitionMembers(sink)
+		for _, m := range members {
+			for _, src := range sources {
+				if srcRefs[src][m] {
+					return src
+				}
+			}
+		}
+	}
+	return nil
+}
+
 // For a function, transitively get the functions called within this function.
 // Argument "depth" controls the depth of the call chain.
 // For example, return {g1,g2,g3} for "func f(){ g1(); g2() }, func g1(){ g3() }".
@@ -168,42 +198,13 @@ func srcAliasRefs(src *source.Source, isTaintField func(named *types.Named, inde
 	return refs
 }
 
-// Check whether a taint sink can be reached by a taint source reference by
-// examining the heap alias information.
-// Argument "heap" is an immutable EAR state same as the one in "srcAliasRefs()";
-// "callees" is used to bound the searching of sink references in the heap.
-func canReach(sink ssa.Instruction, srcRefs ReferenceSet, heap *Partitions, callees map[*ssa.Function]bool) bool {
-	ht := &heapTraversal{heap: heap, callees: callees, visited: make(ReferenceSet)}
-	sinkedRefs := make(map[Reference]bool)
-	// All sub-fields of a sink object are considered.
-	// For example, for heap "{t0}: [0->t1(taint), 1->t2]", return true for
-	// sink call "sinkf(t0)" since t0 contains a taint field t1.
-	for _, op := range sink.Operands(nil) {
-		v := *op
-		if isLocal(v) || isGlobal(v) {
-			ref := MakeLocalWithEmptyContext(v)
-			ht.fieldRefs(ref, sinkedRefs)
-		}
-	}
-	// Match each sink with any possible source.
-	for sink := range sinkedRefs {
-		members := heap.PartitionMembers(sink)
-		for _, m := range members {
-			if srcRefs[m] {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 type SourceSinkTrace struct {
 	Src       *source.Source
 	Sink      ssa.Instruction
 	Callstack []ssa.Call
 }
 
-// Look for the pairs of <source, sink> examining the heap alias information.
+// Look for <source, sink> pairs by examining the heap alias information.
 func SourcesToSinks(funcSources source.ResultType, isTaintField func(named *types.Named, index int) bool,
 	heap *Partitions, conf *config.Config) []*SourceSinkTrace {
 
@@ -218,16 +219,8 @@ func SourcesToSinks(funcSources source.ResultType, isTaintField func(named *type
 		for _, s := range sources {
 			srcRefs[s] = srcAliasRefs(s, isTaintField, heap, callees)
 		}
-		// Return a source if it can reach the given sink.
-		reachAnySource := func(sink ssa.Instruction) *source.Source {
-			for _, src := range sources {
-				if canReach(sink, srcRefs[src], heap, callees) {
-					return src
-				}
-			}
-			return nil
-		}
 		// Traverse all the callee functions (not just the ones with sink sources)
+		ht := &heapTraversal{heap: heap, callees: callees, visited: make(ReferenceSet)}
 		for member := range callees {
 			for _, b := range member.Blocks {
 				for _, instr := range b.Instrs {
@@ -237,7 +230,7 @@ func SourcesToSinks(funcSources source.ResultType, isTaintField func(named *type
 						// TODO(#317): use more advanced call graph.
 						callee := v.Call.StaticCallee()
 						if callee != nil && conf.IsSink(utils.DecomposeFunction(callee)) {
-							if src := reachAnySource(instr); src != nil {
+							if src := ht.canReach(sink, sources, srcRefs); src != nil {
 								traces = append(traces, &SourceSinkTrace{Src: src, Sink: sink})
 								break
 							}
@@ -247,7 +240,7 @@ func SourcesToSinks(funcSources source.ResultType, isTaintField func(named *type
 							continue
 						}
 						sink := instr
-						if src := reachAnySource(sink); src != nil {
+						if src := ht.canReach(sink, sources, srcRefs); src != nil {
 							traces = append(traces, &SourceSinkTrace{Src: src, Sink: sink})
 							break
 						}
