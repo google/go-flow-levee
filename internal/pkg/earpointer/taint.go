@@ -16,6 +16,7 @@ package earpointer
 
 import (
 	"go/types"
+	"golang.org/x/tools/go/callgraph"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
@@ -153,31 +154,34 @@ func (ht *heapTraversal) canReach(sink ssa.Instruction, sources []*source.Source
 	return nil
 }
 
-// For a function, transitively get the functions called within this function.
-// Argument "depth" controls the depth of the call chain.
-// For example, return {g1,g2,g3} for "func f(){ g1(); g2() }, func g1(){ g3() }".
-func calleeFunctions(fn *ssa.Function, result map[*ssa.Function]bool, depth uint) {
-	if depth <= 0 {
+// For a function, transitively get the functions reachable from this function
+// according to the call graph. Both callers and callees are considered.
+// Argument "depth" controls the depth of the call chain. For example,
+//   func f(){ g1(); g2() }
+//   func g1(){ g3() }
+// for input "g1", return {f,g1,g2,g3} if depth>1, and return {f, g1} if depth=1.
+func reachableFunctions(fn *ssa.Function, result map[*ssa.Function]bool, cg *callgraph.Graph, depth uint) {
+	if depth <= 0 || result[fn] {
 		return
 	}
-	for _, b := range fn.Blocks {
-		for _, instr := range b.Instrs {
-			if call, ok := instr.(*ssa.Call); ok {
-				// TODO(#317): use more advanced call graph.
-				// skip empty, unlinked, or visited functions
-				if callee := call.Call.StaticCallee(); callee != nil && len(callee.Blocks) > 0 && !result[callee] {
-					result[callee] = true
-					calleeFunctions(callee, result, depth-1)
-				}
-			}
-		}
+	result[fn] = true
+	node := cg.Nodes[fn]
+	if node == nil {
+		return
+	}
+	// Visit the callees within "fn".
+	for _, out := range node.Out {
+		reachableFunctions(out.Callee.Func, result, cg, depth-1)
+	}
+	// Visit the callers of "fn".
+	for _, in := range node.In {
+		reachableFunctions(in.Caller.Func, result, cg, depth-1)
 	}
 }
 
-func boundedDepthCallees(fn *ssa.Function, depth uint) map[*ssa.Function]bool {
+func boundedReachableFunctions(fn *ssa.Function, cg *callgraph.Graph, depth uint) map[*ssa.Function]bool {
 	result := make(map[*ssa.Function]bool)
-	result[fn] = true
-	calleeFunctions(fn, result, depth)
+	reachableFunctions(fn, result, cg, depth)
 	return result
 }
 
@@ -206,33 +210,52 @@ type SourceSinkTrace struct {
 
 // Look for <source, sink> pairs by examining the heap alias information.
 func SourcesToSinks(funcSources source.ResultType, isTaintField func(named *types.Named, index int) bool,
-	heap *Partitions, conf *config.Config) []*SourceSinkTrace {
+	heap *Partitions, conf *config.Config) map[ssa.Instruction]*SourceSinkTrace {
 
-	var traces []*SourceSinkTrace
+	calleeMap := mapCallees(heap.cg) // map a callsite to the possible callees
+	traces := make(map[ssa.Instruction]*SourceSinkTrace)
 	for fn, sources := range funcSources {
-		// Transitively get the set of functions called within "fn".
+		// Transitively get the set of functions reachable from "fn".
 		// This set is used to narrow down the set of references needed to be
 		// considered during EAR heap traversal. It can also help reducing the
 		// false positives and boosting the performance.
-		callees := boundedDepthCallees(fn, conf.EARTaintCallSpan)
+		// For example,
+		//   func f1(){ f2(); g4() }
+		//   func f2(){ g1(); g2() }
+		//   func g1(){ g3() }
+		// g1 can reach f2 through the caller, and then f1 similarly,
+		// and then g4 through the callee.
+		// g1's full reachable set is {f1,f2,g1,g2,g3,g4}.
+		reachable := boundedReachableFunctions(fn, heap.cg, conf.EARTaintCallSpan)
+		// Start from the set of taint sources.
 		srcRefs := make(map[*source.Source]ReferenceSet)
 		for _, s := range sources {
-			srcRefs[s] = srcAliasRefs(s, isTaintField, heap, callees)
+			srcRefs[s] = srcAliasRefs(s, isTaintField, heap, reachable)
 		}
-		// Traverse all the callee functions (not just the ones with sink sources)
-		ht := &heapTraversal{heap: heap, callees: callees, visited: make(ReferenceSet)}
-		for member := range callees {
+		// Traverse all the reachable functions (not just the ones with sink sources)
+		// in search for connected sinks.
+		ht := &heapTraversal{heap: heap, callees: reachable, visited: make(ReferenceSet)}
+		for member := range reachable {
 			for _, b := range member.Blocks {
 				for _, instr := range b.Instrs {
 					switch v := instr.(type) {
 					case *ssa.Call:
+						if _, ok := traces[instr]; ok {
+							continue
+						}
+						callees := calleeMap[&v.Call]
+						if callees == nil { // the static call graph may ignore some cases
+							if sc := v.Call.StaticCallee(); sc != nil {
+								callees = append(callees, sc)
+							}
+						}
 						sink := instr
-						// TODO(#317): use more advanced call graph.
-						callee := v.Call.StaticCallee()
-						if callee != nil && conf.IsSink(utils.DecomposeFunction(callee)) {
-							if src := ht.canReach(sink, sources, srcRefs); src != nil {
-								traces = append(traces, &SourceSinkTrace{Src: src, Sink: sink})
-								break
+						for _, callee := range callees {
+							if conf.IsSink(utils.DecomposeFunction(callee)) {
+								if src := ht.canReach(sink, sources, srcRefs); src != nil {
+									traces[sink] = &SourceSinkTrace{Src: src, Sink: sink}
+									break
+								}
 							}
 						}
 					case *ssa.Panic:
@@ -241,8 +264,7 @@ func SourcesToSinks(funcSources source.ResultType, isTaintField func(named *type
 						}
 						sink := instr
 						if src := ht.canReach(sink, sources, srcRefs); src != nil {
-							traces = append(traces, &SourceSinkTrace{Src: src, Sink: sink})
-							break
+							traces[sink] = &SourceSinkTrace{Src: src, Sink: sink}
 						}
 
 					}

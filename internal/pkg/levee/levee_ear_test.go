@@ -65,3 +65,12 @@ func TestLeveeEAR(t *testing.T) {
 	// analysistest.Run(t, dataDir, Analyzer, "./src/levee_analysistest/example/tests/structlit")  // TODO: NP have been fixed?
 	analysistest.Run(t, dataDir, Analyzer, "./src/levee_analysistest/example/tests/typealias")
 }
+
+func TestLeveeEARInter(t *testing.T) {
+	dataDir := analysistest.TestData()
+	if err := Analyzer.Flags.Set("config", dataDir+"/test-ear-config.yaml"); err != nil {
+		t.Error(err)
+	}
+
+	analysistest.Run(t, dataDir, Analyzer, "./src/levee_analysistest/ear/tests/...")
+}

@@ -100,7 +100,9 @@ func analyze(ssainput *buildssa.SSA) *Partitions {
 			}
 		}
 	}
-	return vis.state.ToPartitions()
+	p := vis.state.ToPartitions()
+	p.cg = cg
+	return p
 }
 
 // Builds the calling context set for each function.
