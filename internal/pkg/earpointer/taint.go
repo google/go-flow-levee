@@ -241,9 +241,6 @@ func SourcesToSinks(funcSources source.ResultType, isTaintField func(named *type
 				for _, instr := range b.Instrs {
 					switch v := instr.(type) {
 					case *ssa.Call:
-						if _, ok := traces[instr]; ok {
-							continue
-						}
 						callees := calleeMap[&v.Call]
 						if callees == nil { // the static call graph may ignore some cases
 							if sc := v.Call.StaticCallee(); sc != nil {
@@ -254,8 +251,11 @@ func SourcesToSinks(funcSources source.ResultType, isTaintField func(named *type
 						for _, callee := range callees {
 							if conf.IsSink(utils.DecomposeFunction(callee)) {
 								if src := ht.canReach(sink, sources, srcRefs); src != nil {
-									traces[sink] = &SourceSinkTrace{Src: src, Sink: sink}
-									break
+									// If a previous source has been found, be in favor of the source within the same
+									// function. This can be extended to be in favor of the source closest to the sink.
+									if _, ok := traces[instr]; !ok || src.Node.Parent() == sink.Parent() {
+										traces[sink] = &SourceSinkTrace{Src: src, Sink: sink}
+									}
 								}
 							}
 						}

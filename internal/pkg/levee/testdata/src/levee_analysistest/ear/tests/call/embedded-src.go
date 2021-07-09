@@ -18,17 +18,17 @@ import (
 	"levee_analysistest/example/core"
 )
 
-func createData() string {
-	src := &core.Source{}
-	return src.Data
-}
-
 func sinkf1(i interface{}) {
 	core.Sink(i) // want "a source has reached a sink"
 }
 
 func f1(s string) {
 	sinkf1(s)
+}
+
+func createData() string {
+	src := &core.Source{}
+	return src.Data
 }
 
 // Test the case where the source is introduced in an embedded function.
