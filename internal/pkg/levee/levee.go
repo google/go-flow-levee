@@ -21,8 +21,6 @@ import (
 	"go/types"
 	"strings"
 
-	"golang.org/x/tools/go/analysis/passes/buildssa"
-
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/earpointer"
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
@@ -44,7 +42,6 @@ var Analyzer = &analysis.Analyzer{
 		fieldtags.Analyzer,
 		source.Analyzer,
 		suppression.Analyzer,
-		buildssa.Analyzer,
 		earpointer.Analyzer,
 	},
 }

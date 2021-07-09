@@ -16,6 +16,7 @@ package earpointer
 
 import (
 	"go/types"
+
 	"golang.org/x/tools/go/callgraph"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
