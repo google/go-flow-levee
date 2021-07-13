@@ -31,8 +31,8 @@ func createData() string {
 	return src.Data
 }
 
-// Test the case where the source is introduced in an embedded function.
-func TestEmbeddedSrc() {
+// Test the case where the source is introduced in callees.
+func TestSrcInCallees() {
 	s := createData()
 	core.Sink(s) // want "a source has reached a sink"
 	f1(s)

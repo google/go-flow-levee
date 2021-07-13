@@ -33,10 +33,10 @@ func identity(arg interface{}) interface{} {
 // Test the case where:
 // (1) the sink function doesn't embed the source function; and
 // (2) the source function doesn't embed the sink function.
-func TestUnembeddedSrcSink() {
+func TestSrcSinkInDifferentCallees() {
 	// The source is created in a callee.
 	s := createSource2()
 	i := identity(s)
-	// The sink is within a callee.
+	// The sink is within another callee.
 	sinkf2(i)
 }

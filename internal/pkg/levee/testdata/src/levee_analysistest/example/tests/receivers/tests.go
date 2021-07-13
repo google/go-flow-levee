@@ -19,17 +19,17 @@ import (
 	"levee_analysistest/example/core"
 )
 
-type sourceBuilder struct {
+type SourceBuilder struct {
 	sourcePtr *core.Source
 	sourceVal core.Source
 }
 
-func (b *sourceBuilder) buildP() {
+func (b *SourceBuilder) buildP() {
 	core.Sinkf("Building cluster %v", b.sourcePtr) // want "a source has reached a sink"
 	core.Sinkf("Building cluster %v", b.sourceVal) // want "a source has reached a sink"
 }
 
-func (b sourceBuilder) buildV() {
+func (b SourceBuilder) buildV() {
 	core.Sinkf("Building cluster %v", b.sourcePtr) // want "a source has reached a sink"
 	core.Sinkf("Building cluster %v", b.sourceVal) // want "a source has reached a sink"
 }

@@ -28,15 +28,17 @@ import (
 
 // Bounded traversal of an EAR heap.
 type heapTraversal struct {
-	heap         *Partitions
-	callees      map[*ssa.Function]bool // the functions containing the references of interest
-	visited      ReferenceSet           // the visited references during the traversal
+	heap *Partitions
+	// The reachable functions containing the references of interest.
+	reachableFns map[*ssa.Function]bool
+	// The visited references during the traversal.
+	visited      ReferenceSet
 	isTaintField func(named *types.Named, index int) bool
 }
 
 func (ht *heapTraversal) isWithinCallees(ref Reference) bool {
 	if fn := ref.Value().Parent(); fn != nil {
-		return ht.callees[fn]
+		return ht.reachableFns[fn]
 	}
 	// Globals and Builtins have no parents.
 	return true
@@ -61,7 +63,8 @@ func (ht *heapTraversal) srcRefs(rep Reference, tp types.Type, result ReferenceS
 			ht.srcRefs(rep, tp.Underlying(), result)
 			return
 		}
-		result[rep] = true // the current struct object is tainted
+		// Mark the current struct object as tainted.
+		result[rep] = true
 		// Look for the taint fields.
 		for i := 0; i < tt.NumFields(); i++ {
 			f := tt.Field(i)
@@ -134,7 +137,7 @@ func (ht *heapTraversal) canReach(sink ssa.Instruction, sources []*source.Source
 	sinkedRefs := make(map[Reference]bool)
 	for _, op := range sink.Operands(nil) {
 		// Use a separate heapTraversal to search for the sink references.
-		sinkHT := &heapTraversal{heap: ht.heap, callees: ht.callees, visited: make(ReferenceSet)}
+		sinkHT := &heapTraversal{heap: ht.heap, reachableFns: ht.reachableFns, visited: make(ReferenceSet)}
 		v := *op
 		if isLocal(v) || isGlobal(v) {
 			ref := MakeLocalWithEmptyContext(v)
@@ -157,11 +160,12 @@ func (ht *heapTraversal) canReach(sink ssa.Instruction, sources []*source.Source
 
 // For a function, transitively get the functions reachable from this function
 // according to the call graph. Both callers and callees are considered.
-// Argument "depth" controls the depth of the call chain. For example,
+// Argument "depth" controls the depth of the call chain, and  "result" is
+// to store the set of reachable functions. For example,
 //   func f(){ g1(); g2() }
 //   func g1(){ g3() }
-// for input "g1", return {f,g1,g2,g3} if depth>1, and return {f, g1} if depth=1.
-func reachableFunctions(fn *ssa.Function, result map[*ssa.Function]bool, cg *callgraph.Graph, depth uint) {
+// for input "g1", result = {f,g1,g2,g3} if depth>1, and result = {f, g1} if depth=1.
+func boundedReachableFunctions(fn *ssa.Function, cg *callgraph.Graph, depth uint, result map[*ssa.Function]bool) {
 	if depth <= 0 || result[fn] {
 		return
 	}
@@ -172,25 +176,19 @@ func reachableFunctions(fn *ssa.Function, result map[*ssa.Function]bool, cg *cal
 	}
 	// Visit the callees within "fn".
 	for _, out := range node.Out {
-		reachableFunctions(out.Callee.Func, result, cg, depth-1)
+		boundedReachableFunctions(out.Callee.Func, cg, depth-1, result)
 	}
 	// Visit the callers of "fn".
 	for _, in := range node.In {
-		reachableFunctions(in.Caller.Func, result, cg, depth-1)
+		boundedReachableFunctions(in.Caller.Func, cg, depth-1, result)
 	}
-}
-
-func boundedReachableFunctions(fn *ssa.Function, cg *callgraph.Graph, depth uint) map[*ssa.Function]bool {
-	result := make(map[*ssa.Function]bool)
-	reachableFunctions(fn, result, cg, depth)
-	return result
 }
 
 // Obtain the references which are aliases of a taint source, with field sensitivity.
 // Argument "heap" is an immutable EAR heap containing alias information;
-// "callees" is used to bound the searching of source references in the heap.
+// "reachable" is used to bound the searching of source references in the heap.
 func srcAliasRefs(src *source.Source, isTaintField func(named *types.Named, index int) bool,
-	heap *Partitions, callees map[*ssa.Function]bool) ReferenceSet {
+	heap *Partitions, reachable map[*ssa.Function]bool) ReferenceSet {
 
 	val, ok := src.Node.(ssa.Value)
 	if !ok {
@@ -198,7 +196,7 @@ func srcAliasRefs(src *source.Source, isTaintField func(named *types.Named, inde
 	}
 	rep := heap.Representative(MakeLocalWithEmptyContext(val))
 	refs := make(ReferenceSet)
-	ht := &heapTraversal{heap: heap, callees: callees, visited: make(ReferenceSet), isTaintField: isTaintField}
+	ht := &heapTraversal{heap: heap, reachableFns: reachable, visited: make(ReferenceSet), isTaintField: isTaintField}
 	ht.srcRefs(rep, val.Type(), refs)
 	return refs
 }
@@ -213,7 +211,8 @@ type SourceSinkTrace struct {
 func SourcesToSinks(funcSources source.ResultType, isTaintField func(named *types.Named, index int) bool,
 	heap *Partitions, conf *config.Config) map[ssa.Instruction]*SourceSinkTrace {
 
-	calleeMap := mapCallees(heap.cg) // map a callsite to the possible callees
+	// A map from a callsite to its possible callees.
+	calleeMap := mapCallees(heap.cg)
 	traces := make(map[ssa.Instruction]*SourceSinkTrace)
 	for fn, sources := range funcSources {
 		// Transitively get the set of functions reachable from "fn".
@@ -227,7 +226,8 @@ func SourcesToSinks(funcSources source.ResultType, isTaintField func(named *type
 		// g1 can reach f2 through the caller, and then f1 similarly,
 		// and then g4 through the callee.
 		// g1's full reachable set is {f1,f2,g1,g2,g3,g4}.
-		reachable := boundedReachableFunctions(fn, heap.cg, conf.EARTaintCallSpan)
+		reachable := make(map[*ssa.Function]bool)
+		boundedReachableFunctions(fn, heap.cg, conf.EARTaintCallSpan, reachable)
 		// Start from the set of taint sources.
 		srcRefs := make(map[*source.Source]ReferenceSet)
 		for _, s := range sources {
@@ -235,18 +235,13 @@ func SourcesToSinks(funcSources source.ResultType, isTaintField func(named *type
 		}
 		// Traverse all the reachable functions (not just the ones with sink sources)
 		// in search for connected sinks.
-		ht := &heapTraversal{heap: heap, callees: reachable, visited: make(ReferenceSet)}
+		ht := &heapTraversal{heap: heap, reachableFns: reachable, visited: make(ReferenceSet)}
 		for member := range reachable {
 			for _, b := range member.Blocks {
 				for _, instr := range b.Instrs {
 					switch v := instr.(type) {
 					case *ssa.Call:
 						callees := calleeMap[&v.Call]
-						if callees == nil { // the static call graph may ignore some cases
-							if sc := v.Call.StaticCallee(); sc != nil {
-								callees = append(callees, sc)
-							}
-						}
 						sink := instr
 						for _, callee := range callees {
 							if conf.IsSink(utils.DecomposeFunction(callee)) {

@@ -299,7 +299,7 @@ type Partitions struct {
 	// at the final phase.
 	revFields map[Reference][]Reference
 
-	// The call graph used to unify callers and callees
+	// The call graph used to unify callers and callees.
 	cg *callgraph.Graph
 }
 
