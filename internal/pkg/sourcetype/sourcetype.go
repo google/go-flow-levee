@@ -30,27 +30,40 @@ import (
 // - A Struct Type that contains a tagged field
 // - A composite type that contains a Source Type
 func IsSourceType(c *config.Config, tf fieldtags.ResultType, t types.Type) bool {
-	deref := utils.Dereference(t)
-	switch tt := deref.(type) {
+	seen := map[types.Type]bool{}
+	return isSourceType(c, tf, t, seen)
+}
+
+// isSourceType is a helper method for IsSourceType.
+// The set of seen types is kept track of to prevent infinite recursion on
+// types such as `type A map[string]A`, which refer to themselves.
+func isSourceType(c *config.Config, tf fieldtags.ResultType, t types.Type, seen map[types.Type]bool) bool {
+	// If a type has been seen, then its status as a Source has already
+	// been evaluated. Return to avoid infinite recursion.
+	if seen[t] {
+		return false
+	}
+	seen[t] = true
+
+	switch tt := t.(type) {
 	case *types.Named:
-		return c.IsSourceType(utils.DecomposeType(tt)) || IsSourceType(c, tf, tt.Underlying())
+		return c.IsSourceType(utils.DecomposeType(tt)) || isSourceType(c, tf, tt.Underlying(), seen)
 	case *types.Array:
-		return IsSourceType(c, tf, tt.Elem())
+		return isSourceType(c, tf, tt.Elem(), seen)
 	case *types.Slice:
-		return IsSourceType(c, tf, tt.Elem())
+		return isSourceType(c, tf, tt.Elem(), seen)
 	case *types.Chan:
-		return IsSourceType(c, tf, tt.Elem())
+		return isSourceType(c, tf, tt.Elem(), seen)
 	case *types.Map:
-		key := IsSourceType(c, tf, tt.Key())
-		elem := IsSourceType(c, tf, tt.Elem())
+		key := isSourceType(c, tf, tt.Key(), seen)
+		elem := isSourceType(c, tf, tt.Elem(), seen)
 		return key || elem
+	case *types.Pointer:
+		return isSourceType(c, tf, tt.Elem(), seen)
 	case *types.Struct:
 		return hasTaggedField(tf, tt)
 	case *types.Basic, *types.Tuple, *types.Interface, *types.Signature:
 		// These types do not currently represent possible source types
-		return false
-	case *types.Pointer:
-		// This should be unreachable due to the dereference above
 		return false
 	default:
 		// The above should be exhaustive.  Reaching this default case is an error.
