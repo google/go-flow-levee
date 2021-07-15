@@ -22,6 +22,8 @@ import (
 	"log"
 	"sort"
 	"strings"
+
+	"golang.org/x/tools/go/callgraph"
 )
 
 // parentMap maps a reference to its representative (i.e. the parent
@@ -296,6 +298,9 @@ type Partitions struct {
 	// It is constructed separately using the "ConstructFieldParentMap()"
 	// at the final phase.
 	revFields map[Reference][]Reference
+
+	// The call graph used to unify callers and callees.
+	cg *callgraph.Graph
 }
 
 func (state *state) ToPartitions() *Partitions {
