@@ -27,6 +27,7 @@ import (
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
+	"golang.org/x/exp/typeparams"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -163,7 +164,7 @@ func findObjects(t types.Type) map[types.Object]bool {
 			// these do not contain relevant objects
 		case *types.Pointer:
 			// this should be unreachable due to the dereference above
-		case *types.TypeParam, *types.Union:
+		case *typeparams.TypeParam, *typeparams.Union:
 			// generics are not resolved yet
 		default:
 			// The above should be exhaustive.  Reaching this default case is an error.

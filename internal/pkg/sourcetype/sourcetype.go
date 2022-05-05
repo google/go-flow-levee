@@ -18,6 +18,7 @@ package sourcetype
 import (
 	"fmt"
 	"go/types"
+	"golang.org/x/exp/typeparams"
 
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
@@ -66,7 +67,7 @@ func isSourceType(c *config.Config, tf fieldtags.ResultType, t types.Type, seen 
 	case *types.Basic, *types.Tuple, *types.Interface, *types.Signature:
 		// These types do not currently represent possible source types
 		return false
-	case *types.TypeParam, *types.Union:
+	case *typeparams.TypeParam, *typeparams.Union:
 		// Generics are not resolved yet
 		return false
 	default:
