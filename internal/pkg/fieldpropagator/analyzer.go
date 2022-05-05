@@ -26,6 +26,7 @@ import (
 	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
+	"golang.org/x/tools/go/analysis/passes/usesgenerics"
 	"golang.org/x/tools/go/ssa"
 )
 
@@ -53,12 +54,17 @@ var Analyzer = &analysis.Analyzer{
 A field propagator is a function that returns a value that is tainted by a source field.`,
 	Flags:      config.FlagSet,
 	Run:        run,
-	Requires:   []*analysis.Analyzer{buildssa.Analyzer, fieldtags.Analyzer},
+	Requires:   []*analysis.Analyzer{buildssa.Analyzer, fieldtags.Analyzer, usesgenerics.Analyzer},
 	ResultType: reflect.TypeOf(new(ResultType)).Elem(),
 	FactTypes:  []analysis.Fact{new(isFieldPropagator)},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
+	if r := pass.ResultOf[usesgenerics.Analyzer].(*usesgenerics.Result); r.Transitive != 0 {
+		// Generics are not supported yet (https://github.com/google/go-flow-levee/issues/323).
+		// TODO: Remove this check once the analyzers support generics.
+		return ResultType{}, nil
+	}
 	taggedFields := pass.ResultOf[fieldtags.Analyzer].(fieldtags.ResultType)
 	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 

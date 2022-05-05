@@ -26,6 +26,7 @@ import (
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
+	"golang.org/x/tools/go/analysis/passes/usesgenerics"
 	"golang.org/x/tools/go/callgraph"
 	"golang.org/x/tools/go/callgraph/static"
 	"golang.org/x/tools/go/ssa"
@@ -49,7 +50,7 @@ var Analyzer = &analysis.Analyzer{
 	Flags:      config.FlagSet,
 	Run:        run,
 	ResultType: reflect.TypeOf(new(Partitions)),
-	Requires:   []*analysis.Analyzer{buildssa.Analyzer},
+	Requires:   []*analysis.Analyzer{buildssa.Analyzer, usesgenerics.Analyzer},
 }
 
 // visitor traverse the instructions in a function and perform unifications
@@ -63,6 +64,11 @@ type visitor struct {
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
+	if r, ok := pass.ResultOf[usesgenerics.Analyzer].(*usesgenerics.Result); ok && r.Transitive != 0 {
+		// Generics are not supported yet (https://github.com/google/go-flow-levee/issues/323).
+		// TODO: Remove this check once the analyzers support generics.
+		return &Partitions{}, nil
+	}
 	conf, err := config.ReadConfig()
 	if err != nil {
 		return nil, err

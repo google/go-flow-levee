@@ -14,9 +14,9 @@ func TestSingleBlock()
 	11(*ssa.FieldAddr      ): t7 = &t0.Y [#1]
 	12(*ssa.UnOp           ): t8 = *t7
 	13(*ssa.BinOp          ): t9 = t6 + t8
-	14(*ssa.Alloc          ): t10 = new [1]interface{} (varargs)
+	14(*ssa.Alloc          ): t10 = new [1]any (varargs)
 	15(*ssa.IndexAddr      ): t11 = &t10[0:int]
-	16(*ssa.MakeInterface  ): t12 = make interface{} <- int (t9)
+	16(*ssa.MakeInterface  ): t12 = make any <- int (t9)
 	17(*ssa.Store          ): *t11 = t12
 	18(*ssa.Slice          ): t13 = slice t10[:]
 	19(*ssa.Call           ): t14 = fmt.Println(t13...)
