@@ -12,5 +12,5 @@ func TestDisconnected()
 	2(*ssa.Jump           ): jump 3
 3: for.done
 	0(*ssa.BinOp          ): t2 = "error: ":string + "unreachable code":string
-	1(*ssa.Call           ): t3 = fmt.Printf(t2, nil:[]interface{}...)
+	1(*ssa.Call           ): t3 = fmt.Printf(t2, nil:[]any...)
 	2(*ssa.Return         ): return

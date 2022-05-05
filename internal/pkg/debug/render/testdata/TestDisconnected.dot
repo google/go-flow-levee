@@ -15,7 +15,7 @@ digraph {
 		color=black;
 		label="for.done";
 		"t2 = \"error: \":string + \"unreachable code\":string\n(BinOp)" [shape=rectangle];
-		"t3 = fmt.Printf(t2, nil:[]interface{}...)\n(Call)" [shape=rectangle];
+		"t3 = fmt.Printf(t2, nil:[]any...)\n(Call)" [shape=rectangle];
 		"return\n(Return)" [shape=diamond];
 	}
 	subgraph cluster_3 {
@@ -32,9 +32,9 @@ digraph {
 	"1:int\n(Const)" -> "t1 = t0 + 1:int\n(BinOp)" [color=orange];
 	"\"error: \":string\n(Const)" -> "t2 = \"error: \":string + \"unreachable code\":string\n(BinOp)" [color=orange];
 	"\"unreachable code\":string\n(Const)" -> "t2 = \"error: \":string + \"unreachable code\":string\n(BinOp)" [color=orange];
-	"Printf\n(Function)" -> "t3 = fmt.Printf(t2, nil:[]interface{}...)\n(Call)" [color=orange];
-	"t2 = \"error: \":string + \"unreachable code\":string\n(BinOp)" -> "t3 = fmt.Printf(t2, nil:[]interface{}...)\n(Call)" [color=orange];
-	"nil:[]interface{}\n(Const)" -> "t3 = fmt.Printf(t2, nil:[]interface{}...)\n(Call)" [color=orange];
+	"Printf\n(Function)" -> "t3 = fmt.Printf(t2, nil:[]any...)\n(Call)" [color=orange];
+	"t2 = \"error: \":string + \"unreachable code\":string\n(BinOp)" -> "t3 = fmt.Printf(t2, nil:[]any...)\n(Call)" [color=orange];
+	"nil:[]any\n(Const)" -> "t3 = fmt.Printf(t2, nil:[]any...)\n(Call)" [color=orange];
 	"0:int\n(Const)" -> "t4 = phi [0: 0:int, 1: t1] #i\n(Phi)" [color=orange];
 	"t1 = t0 + 1:int\n(BinOp)" -> "t4 = phi [0: 0:int, 1: t1] #i\n(Phi)" [color=orange];
 	"1:int\n(Const)" -> "t5 = 1:int * 2:int\n(BinOp)" [color=orange];

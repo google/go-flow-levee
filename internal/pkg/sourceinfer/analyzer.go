@@ -163,6 +163,8 @@ func findObjects(t types.Type) map[types.Object]bool {
 			// these do not contain relevant objects
 		case *types.Pointer:
 			// this should be unreachable due to the dereference above
+		case *types.TypeParam, *types.Union:
+			// generics are not resolved yet
 		default:
 			// The above should be exhaustive.  Reaching this default case is an error.
 			fmt.Printf("unexpected type received: %T %v; please report this issue\n", tt, tt)

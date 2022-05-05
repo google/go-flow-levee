@@ -47,6 +47,7 @@ func isSourceType(c *config.Config, tf fieldtags.ResultType, t types.Type, seen 
 
 	switch tt := t.(type) {
 	case *types.Named:
+		// generics
 		return c.IsSourceType(utils.DecomposeType(tt)) || isSourceType(c, tf, tt.Underlying(), seen)
 	case *types.Array:
 		return isSourceType(c, tf, tt.Elem(), seen)
@@ -64,6 +65,9 @@ func isSourceType(c *config.Config, tf fieldtags.ResultType, t types.Type, seen 
 		return hasTaggedField(tf, tt)
 	case *types.Basic, *types.Tuple, *types.Interface, *types.Signature:
 		// These types do not currently represent possible source types
+		return false
+	case *types.TypeParam, *types.Union:
+		// Generics are not resolved yet
 		return false
 	default:
 		// The above should be exhaustive.  Reaching this default case is an error.

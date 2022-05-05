@@ -737,7 +737,7 @@ var InterfaceFuncSummaries = map[funcKey]Summary{
 		IfTainted:   first,
 		TaintedRets: []int{0},
 	},
-	{"Value", "(interface{})(interface{})"}: {
+	{"Value", "(any)(any)"}: {
 		IfTainted:   first,
 		TaintedRets: []int{0},
 	},
