@@ -18,7 +18,6 @@ package sourcetype
 import (
 	"fmt"
 	"go/types"
-	"golang.org/x/exp/typeparams"
 
 	"golang.org/x/exp/typeparams"
 
