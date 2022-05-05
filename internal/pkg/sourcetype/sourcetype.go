@@ -20,6 +20,8 @@ import (
 	"go/types"
 	"golang.org/x/exp/typeparams"
 
+	"golang.org/x/exp/typeparams"
+
 	"github.com/google/go-flow-levee/internal/pkg/config"
 	"github.com/google/go-flow-levee/internal/pkg/fieldtags"
 	"github.com/google/go-flow-levee/internal/pkg/utils"
