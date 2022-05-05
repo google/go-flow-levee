@@ -29,7 +29,7 @@ jobs:
       - name: Check goimports
         if: ${{ always() }}
         run: |
-          go install golang.org/x/tools/cmd/goimports@latest
+          go install golang.org/x/tools/cmd/goimports@v0.1.10
           if [[ $(goimports -l cmd internal pkg) ]]; then
             echo 'Please run `goimports -w cmd internal pkg`.'
             false
@@ -47,13 +47,13 @@ jobs:
       - name: Check for license headers
         if: ${{ always() }}
         run: |
-          go install github.com/google/addlicense@latest
+          go install github.com/google/addlicense@v1.0.0
           addlicense -check cmd internal pkg
 
       - name: Run staticcheck
         if: ${{ always() }}
         run: |
-          go install honnef.co/go/tools/cmd/staticcheck@latest
+          go install honnef.co/go/tools/cmd/staticcheck@v0.3.1
           staticcheck ./...
 
       - name: Check YAML

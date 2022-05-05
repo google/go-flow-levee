@@ -49,7 +49,6 @@ func isSourceType(c *config.Config, tf fieldtags.ResultType, t types.Type, seen 
 
 	switch tt := t.(type) {
 	case *types.Named:
-		// generics
 		return c.IsSourceType(utils.DecomposeType(tt)) || isSourceType(c, tf, tt.Underlying(), seen)
 	case *types.Array:
 		return isSourceType(c, tf, tt.Elem(), seen)
