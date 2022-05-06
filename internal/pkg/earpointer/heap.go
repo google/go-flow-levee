@@ -205,6 +205,9 @@ func typeMayShareObject(tp types.Type) bool {
 		}
 	case *types.Named:
 		return typeMayShareObject(tp.Underlying())
+	case *types.TypeParam, *types.Union:
+		// Generics are not resolved yet
+		return true
 	}
 	return false
 }

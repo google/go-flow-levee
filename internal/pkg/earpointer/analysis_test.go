@@ -1201,11 +1201,11 @@ func TestMethodInvoke(t *testing.T) {
 	// Note that in "**T2", the first "*" is the synthesized ValueOf operator,
 	// and "*T2" is the receiver type.
 	want := concat(map[string]string{
-		"{**T2:f.arg0}":              "[T1->*T1:f.arg0]",
+		"{**T2:f.arg0}":              "[T1->g.t0]",
 		"{*T1:f.arg0,*T2:f.t0,g.t0}": "[]",
 		"{*T1:f.x,*T2:f.x,g.x}":      "[]",
 		"{*T2:f.arg0}":               "--> **T2:f.arg0",
-		"{*g.x2}":                    "[T1->*T1:f.arg0]",
+		"{*g.x2}":                    "[T1->g.t0]",
 		"{g.x2}":                     "--> *g.x2",
 	})
 	if got := state.String(); got != want {
@@ -1378,6 +1378,24 @@ func TestCallReturnContextSensitive(t *testing.T) {
 		"{[g(z); h(a)]h.b,[g(z)]g.a,[g(z)]g.t0,f.t2,f.z}": "[]",
 		"{[h(y)]h.b,f.t1,f.y}":                            "[]",
 	})
+	if diff := cmp.Diff(want, state.String()); diff != "" {
+		t.Errorf("diff (-want +got):\n%s", diff)
+	}
+}
+
+func TestGenerics(t *testing.T) {
+	code := `package p
+    type G[T any] struct{ x T }
+	func f[T any](a G[T]) T {
+		return a.x
+	}
+	`
+	state, err := runCodeK0(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Generics are not fully supported yet.
+	want := "{f.a}: []"
 	if diff := cmp.Diff(want, state.String()); diff != "" {
 		t.Errorf("diff (-want +got):\n%s", diff)
 	}

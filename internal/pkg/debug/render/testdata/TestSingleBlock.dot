@@ -16,9 +16,9 @@ digraph {
 		"t7 = &t0.Y [#1]\n(FieldAddr)" [shape=rectangle];
 		"t8 = *t7\n(UnOp)" [shape=rectangle];
 		"t9 = t6 + t8\n(BinOp)" [shape=rectangle];
-		"t10 = new [1]interface{} (varargs)\n(Alloc)" [shape=rectangle];
+		"t10 = new [1]any (varargs)\n(Alloc)" [shape=rectangle];
 		"t11 = &t10[0:int]\n(IndexAddr)" [shape=rectangle];
-		"t12 = make interface{} <- int (t9)\n(MakeInterface)" [shape=rectangle];
+		"t12 = make any <- int (t9)\n(MakeInterface)" [shape=rectangle];
 		"*t11 = t12\n(Store)" [shape=diamond];
 		"t13 = slice t10[:]\n(Slice)" [shape=rectangle];
 		"t14 = fmt.Println(t13...)\n(Call)" [shape=rectangle];
@@ -42,12 +42,12 @@ digraph {
 	"t7 = &t0.Y [#1]\n(FieldAddr)" -> "t8 = *t7\n(UnOp)" [color=orange];
 	"t6 = *t5\n(UnOp)" -> "t9 = t6 + t8\n(BinOp)" [color=orange];
 	"t8 = *t7\n(UnOp)" -> "t9 = t6 + t8\n(BinOp)" [color=orange];
-	"t10 = new [1]interface{} (varargs)\n(Alloc)" -> "t11 = &t10[0:int]\n(IndexAddr)" [color=orange];
+	"t10 = new [1]any (varargs)\n(Alloc)" -> "t11 = &t10[0:int]\n(IndexAddr)" [color=orange];
 	"0:int\n(Const)" -> "t11 = &t10[0:int]\n(IndexAddr)" [color=orange];
-	"t9 = t6 + t8\n(BinOp)" -> "t12 = make interface{} <- int (t9)\n(MakeInterface)" [color=orange];
+	"t9 = t6 + t8\n(BinOp)" -> "t12 = make any <- int (t9)\n(MakeInterface)" [color=orange];
 	"t11 = &t10[0:int]\n(IndexAddr)" -> "*t11 = t12\n(Store)" [color=orange];
-	"t12 = make interface{} <- int (t9)\n(MakeInterface)" -> "*t11 = t12\n(Store)" [color=orange];
-	"t10 = new [1]interface{} (varargs)\n(Alloc)" -> "t13 = slice t10[:]\n(Slice)" [color=orange];
+	"t12 = make any <- int (t9)\n(MakeInterface)" -> "*t11 = t12\n(Store)" [color=orange];
+	"t10 = new [1]any (varargs)\n(Alloc)" -> "t13 = slice t10[:]\n(Slice)" [color=orange];
 	"Println\n(Function)" -> "t14 = fmt.Println(t13...)\n(Call)" [color=orange];
 	"t13 = slice t10[:]\n(Slice)" -> "t14 = fmt.Println(t13...)\n(Call)" [color=orange];
 }

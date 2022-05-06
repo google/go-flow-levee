@@ -104,6 +104,8 @@ func (ht *heapTraversal) srcRefs(rep Reference, tp types.Type, result ReferenceS
 		for _, r := range heap.PartitionFieldMap(rep) {
 			ht.srcRefs(r, tp.Elem(), result)
 		}
+	case *types.TypeParam, *types.Union:
+		// Generics are not resolved yet
 	case *types.Basic, *types.Tuple, *types.Interface, *types.Signature:
 		// These types do not currently represent possible source types
 	}
