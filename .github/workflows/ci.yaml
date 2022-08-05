@@ -53,7 +53,7 @@ jobs:
       - name: Run staticcheck
         if: ${{ always() }}
         run: |
-          go install honnef.co/go/tools/cmd/staticcheck
+          go install honnef.co/go/tools/cmd/staticcheck@v0.3.3
           staticcheck ./...
 
       - name: Check YAML
