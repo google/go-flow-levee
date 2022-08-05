@@ -47,7 +47,7 @@ jobs:
       - name: Check for license headers
         if: ${{ always() }}
         run: |
-          go get -u github.com/google/addlicense
+          go install github.com/google/addlicense@latest
           addlicense -check cmd internal pkg
 
       - name: Run staticcheck
