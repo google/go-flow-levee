@@ -33,13 +33,13 @@ func TestSourcePointerExtract() {
 func TestEmbeddedSourceFieldAddr() {
 	es := EmbedsSource{}
 	d := es.Data
-	core.Sink(d) // want "a source has reached a sink\n source: .*tests.go:34:2"
+	core.Sink(d) // want "a source has reached a sink\n source: .*tests.go:35:7"
 }
 
 // In order for the SSA to contain a Field, the EmbedsSource instance's fields must not be addressable.
 // One way to do this is to create a literal and to access the field directly, as part of the same expression.
 func TestEmbeddedSourceField() {
-	core.Sink(EmbedsSource{}.Data) // want "a source has reached a sink\n source: .*tests.go:42:24"
+	core.Sink(EmbedsSource{}.Data) // want "a source has reached a sink\n source: .*tests.go:42:12"
 }
 
 type EmbedsSource struct {

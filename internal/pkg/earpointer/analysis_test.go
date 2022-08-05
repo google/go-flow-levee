@@ -1201,11 +1201,11 @@ func TestMethodInvoke(t *testing.T) {
 	// Note that in "**T2", the first "*" is the synthesized ValueOf operator,
 	// and "*T2" is the receiver type.
 	want := concat(map[string]string{
-		"{**T2:f.arg0}":              "[T1->*T1:f.arg0]",
+		"{**T2:f.arg0}":              "[T1->g.t0]",
 		"{*T1:f.arg0,*T2:f.t0,g.t0}": "[]",
 		"{*T1:f.x,*T2:f.x,g.x}":      "[]",
 		"{*T2:f.arg0}":               "--> **T2:f.arg0",
-		"{*g.x2}":                    "[T1->*T1:f.arg0]",
+		"{*g.x2}":                    "[T1->g.t0]",
 		"{g.x2}":                     "--> *g.x2",
 	})
 	if got := state.String(); got != want {
