@@ -11,7 +11,7 @@ on:
     branches: [master]
 
 env:
-  GO_VERSION: "1.14" # May need to be updated for staticheck
+  GO_VERSION: "1.18"
 
 jobs:
   lint:
