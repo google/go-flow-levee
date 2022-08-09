@@ -19,6 +19,12 @@
 // arguments/return values should also be tainted".
 package summary
 
+import (
+	"fmt"
+
+	"github.com/google/go-flow-levee/internal/pkg/utils"
+)
+
 const (
 	first = 1 << iota
 	second
@@ -737,7 +743,8 @@ var InterfaceFuncSummaries = map[funcKey]Summary{
 		IfTainted:   first,
 		TaintedRets: []int{0},
 	},
-	{"Value", "(interface{})(interface{})"}: {
+	// Either (any)(any) or (interface{})(interface{})
+	{"Value", fmt.Sprintf("(%s)(%s)", utils.DefaultEmptyInterface, utils.DefaultEmptyInterface)}: {
 		IfTainted:   first,
 		TaintedRets: []int{0},
 	},

@@ -81,3 +81,7 @@ func DecomposeFunction(f *ssa.Function) (path, recv, name string) {
 	}
 	return
 }
+
+// EmptyInterfaceString is the string rendering of an empty interface, interface{}.
+// Changes based on the go version.
+var DefaultEmptyInterface = "interface{}"

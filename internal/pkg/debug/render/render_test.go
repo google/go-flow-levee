@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-flow-levee/internal/pkg/utils"
 	"golang.org/x/tools/go/ssa"
 	"golang.org/x/tools/go/ssa/ssautil"
 )
@@ -53,6 +54,11 @@ func testGoldenFiles(t *testing.T, fn func(f *ssa.Function) string, fnName, ext 
 			t.Fatal(err)
 		}
 		want := string(bytes)
+
+		// Replace interface{} in golden files if necessary.
+		if utils.DefaultEmptyInterface != "interface{}" {
+			want = strings.ReplaceAll(want, "interface{}", utils.DefaultEmptyInterface)
+		}
 
 		got := fn(f)
 

@@ -11,7 +11,7 @@ on:
     branches: [master]
 
 env:
-  GO_VERSION: "1.14"
+  GO_VERSION: "1.18"
 
 jobs:
   lint:
@@ -47,13 +47,13 @@ jobs:
       - name: Check for license headers
         if: ${{ always() }}
         run: |
-          go get -u github.com/google/addlicense
+          go install github.com/google/addlicense@latest
           addlicense -check cmd internal pkg
 
       - name: Run staticcheck
         if: ${{ always() }}
         run: |
-          go install honnef.co/go/tools/cmd/staticcheck
+          go install honnef.co/go/tools/cmd/staticcheck@v0.3.3
           staticcheck ./...
 
       - name: Check YAML
